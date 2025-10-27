@@ -1,5 +1,3 @@
-// backend/src/models/Review.model.js
-
 const mongoose = require('mongoose');
 
 const reviewSchema = new mongoose.Schema(
@@ -8,19 +6,6 @@ const reviewSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Location',
       required: [true, 'Location ID is required'],
-      index: true
-    },
-    userId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: [true, 'User ID is required'],
-      index: true
-    },
-    // Slug for URLs (unique per location)
-    slug: {
-      type: String,
-      lowercase: true,
-      trim: true,
       index: true
     },
     googleReviewId: {
@@ -35,12 +20,6 @@ const reviewSchema = new mongoose.Schema(
         required: true,
         trim: true
       },
-      profilePhotoUrl: String,
-      isLocalGuide: {
-        type: Boolean,
-        default: false
-      },
-      reviewCount: Number
     },
     rating: {
       type: Number,
@@ -67,17 +46,6 @@ const reviewSchema = new mongoose.Schema(
     likes: {
       type: Number,
       default: 0
-    },
-    reviewPhotos: [
-      {
-        url: String,
-        width: Number,
-        height: Number
-      }
-    ],
-    ownerResponse: {
-      text: String,
-      timestamp: Date
     },
     sentiment: {
       type: String,
@@ -114,51 +82,6 @@ const reviewSchema = new mongoose.Schema(
     },
     topics: [String],
     analyzedAt: Date,
-    analysisModel: {
-      type: String,
-      default: 'gemini-pro'
-    },
-    userActions: {
-      hasResponse: {
-        type: Boolean,
-        default: false
-      },
-      isMarkedAsImportant: {
-        type: Boolean,
-        default: false
-      },
-      isArchived: {
-        type: Boolean,
-        default: false
-      },
-      tags: [String],
-      notes: String
-    },
-    generatedReply: {
-      text: String,
-      tone: {
-        type: String,
-        enum: ['professional', 'friendly', 'empathetic', 'apologetic', 'grateful']
-      },
-      style: {
-        type: String,
-        enum: ['formal', 'casual', 'brief', 'detailed']
-      },
-      generatedAt: Date,
-      wasPosted: {
-        type: Boolean,
-        default: false
-      },
-      postedAt: Date
-    },
-    isActive: {
-      type: Boolean,
-      default: true
-    },
-    isNewSinceLastCheck: {
-      type: Boolean,
-      default: true
-    }
   },
   {
     timestamps: true,
@@ -167,7 +90,6 @@ const reviewSchema = new mongoose.Schema(
   }
 );
 
-// Indexes
 reviewSchema.index({ userId: 1, locationId: 1 });
 reviewSchema.index({ userId: 1, sentiment: 1 });
 reviewSchema.index({ locationId: 1, publishedAt: -1 });
@@ -175,7 +97,6 @@ reviewSchema.index({ locationId: 1, slug: 1 }, { unique: true, sparse: true });
 reviewSchema.index({ sentiment: 1, rating: 1 });
 reviewSchema.index({ publishedAt: -1 });
 
-// Virtual: Time since published
 reviewSchema.virtual('timeSincePublished').get(function () {
   const now = new Date();
   const diff = now - this.publishedAt;
@@ -189,13 +110,11 @@ reviewSchema.virtual('timeSincePublished').get(function () {
   return `${Math.floor(days / 365)} years ago`;
 });
 
-// Pre-save: Generate slug
 reviewSchema.pre('save', async function (next) {
   if (!this.slug && this.isNew) {
     this.slug = await this.generateUniqueSlug();
   }
 
-  // Auto-determine sentiment from score if not set
   if (!this.sentiment && this.sentimentScore !== undefined) {
     if (this.sentimentScore > 0.2) {
       this.sentiment = 'positive';
@@ -209,9 +128,7 @@ reviewSchema.pre('save', async function (next) {
   next();
 });
 
-// Method: Generate unique slug (unique per location)
 reviewSchema.methods.generateUniqueSlug = async function () {
-  // Use author name + timestamp
   const authorSlug = this.author.name
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
@@ -224,7 +141,6 @@ reviewSchema.methods.generateUniqueSlug = async function () {
   let slug = baseSlug;
   let counter = 1;
 
-  // Check if slug exists for this location
   while (await mongoose.model('Review').findOne({ 
     locationId: this.locationId, 
     slug,
@@ -237,19 +153,16 @@ reviewSchema.methods.generateUniqueSlug = async function () {
   return slug;
 };
 
-// Method: Mark as seen
 reviewSchema.methods.markAsSeen = async function () {
   this.isNewSinceLastCheck = false;
   await this.save();
 };
 
-// Static: Get reviews by sentiment
 reviewSchema.statics.getBySentiment = async function (locationId, sentiment) {
   return await this.find({ locationId, sentiment, isActive: true })
     .sort({ publishedAt: -1 });
 };
 
-// Static: Get recent reviews
 reviewSchema.statics.getRecent = async function (locationId, days = 30) {
   const dateThreshold = new Date();
   dateThreshold.setDate(dateThreshold.getDate() - days);
@@ -261,7 +174,6 @@ reviewSchema.statics.getRecent = async function (locationId, days = 30) {
   }).sort({ publishedAt: -1 });
 };
 
-// Static: Find by user slug, location slug, and review slug
 reviewSchema.statics.findByFullSlug = async function (userSlug, locationSlug, reviewSlug) {
   const User = mongoose.model('User');
   const Location = mongoose.model('Location');
