@@ -19,6 +19,16 @@ const userSchema = new mongoose.Schema(
       minlength: [2, 'Name must be at least 2 characters'],
       maxlength: [100, 'Name cannot exceed 100 characters']
     },
+    image: {
+        type: String,
+        required: [true, 'Image URL is required'],
+        match: [/^https?:\/\/.+\.(jpg|jpeg|png|gif)$/, 'Please provide a valid image URL']
+    },
+    description: {
+      type: String,
+      trim: true,
+      maxlength: [1000, 'Description cannot exceed 1000 characters']
+    },
     email: {
       type: String,
       required: [true, 'Email is required'],
@@ -48,10 +58,6 @@ const userSchema = new mongoose.Schema(
         type: Boolean,
         default: true
       }
-    },
-    refreshToken: {
-      type: String,
-      select: false
     },
     lastLogin: {
       type: Date
