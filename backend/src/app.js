@@ -21,13 +21,17 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// API routes (will be added later)
+// API routes
+import sentimentRoutes from './routes/sentiment.routes.js';
+import reviewSentimentRoutes from './routes/reviewSentiment.routes.js';
+app.use('/api/sentiment', sentimentRoutes);
+app.use('/api/reviews', reviewSentimentRoutes);
+
+// Other routes (will be added later)
 // import authRoutes from './routes/auth.routes.js';
 // import businessRoutes from './routes/business.routes.js';
-// import aiRoutes from './routes/ai.routes.js';
 // app.use('/api/auth', authRoutes);
 // app.use('/api/businesses', businessRoutes);
-// app.use('/api/ai', aiRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
