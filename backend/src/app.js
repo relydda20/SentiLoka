@@ -2,7 +2,6 @@
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
-import analysisRouter from './analysis/routes.js';
 
 const app = express();
 
@@ -29,7 +28,6 @@ app.get('/health', (req, res) => {
 // app.use('/api/auth', authRoutes);
 // app.use('/api/businesses', businessRoutes);
 // app.use('/api/ai', aiRoutes);
-
 
 // Error handling middleware
 app.use((err, req, res, next) => {
