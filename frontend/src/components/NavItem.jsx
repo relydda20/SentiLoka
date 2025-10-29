@@ -3,7 +3,7 @@ import {
   hoverLift,
   fadeInScale,
   springTransition,
-} from "../../utils/motionConfig";
+} from "../utils/motionConfig";
 
 const NavItem = ({ children, active }) => (
   <motion.div className="relative px-9 py-5" {...hoverLift}>
