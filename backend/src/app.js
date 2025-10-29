@@ -24,8 +24,10 @@ app.get('/health', (req, res) => {
 // API routes
 import sentimentRoutes from './routes/sentiment.routes.js';
 import reviewSentimentRoutes from './routes/reviewSentiment.routes.js';
+import chatbotRoutes from './routes/chatbot.routes.js';
 app.use('/api/sentiment', sentimentRoutes);
 app.use('/api/reviews', reviewSentimentRoutes);
+app.use('/api/chatbot', chatbotRoutes);
 
 // Other routes (will be added later)
 // import authRoutes from './routes/auth.routes.js';

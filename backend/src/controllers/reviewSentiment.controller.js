@@ -3,6 +3,7 @@ import {
   processReviewsParallel,
 } from "../utils/reviewSentimentAnalyzer.js";
 import { CONFIG } from "../config/sentiment-analysis-config.js";
+import ReviewSummary from "../models/ReviewSummary.model.js";
 
 /**
  * Analyze sentiment of a single review
@@ -35,6 +36,43 @@ export const analyzeSingleReview = async (req, res) => {
     }
 
     const result = await analyzeReviewSentiment(review);
+
+    // Save summary to database (update if exists, insert if new)
+    try {
+      const summaryData = {
+        reviewId: review.review_id || null,
+        author: result.author,
+        rating: result.rating,
+        text: result.text,
+        sentiment: result.sentiment,
+        sentimentScore: result.sentiment_score,
+        confidence: result.confidence,
+        sentimentKeywords: result.sentiment_keywords || [],
+        contextualTopics: result.contextual_topics || [],
+        summary: result.summary,
+        company: review.company || "Unknown",
+        source: review.source || "Google Maps",
+        processedAt: new Date(result.processed_at),
+      };
+
+      if (review.review_id) {
+        // If reviewId exists, update or insert (upsert)
+        await ReviewSummary.findOneAndUpdate(
+          { reviewId: review.review_id },
+          summaryData,
+          { upsert: true, new: true }
+        );
+        console.log(`✓ Saved/Updated summary for review by ${result.author}`);
+      } else {
+        // If no reviewId, just insert
+        const reviewSummary = new ReviewSummary(summaryData);
+        await reviewSummary.save();
+        console.log(`✓ Saved summary to database for review by ${result.author}`);
+      }
+    } catch (dbError) {
+      // Log error but don't fail the request
+      console.error("Error saving summary to database:", dbError.message);
+    }
 
     return res.status(200).json({
       success: true,
@@ -98,6 +136,63 @@ export const analyzeBatchReviews = async (req, res) => {
       finalBatchSize,
       finalConcurrentBatches
     );
+
+    // Save all successful summaries to database (update if exists)
+    try {
+      const successfulResults = result.results.filter(
+        (r) => r.sentiment !== "error"
+      );
+
+      if (successfulResults.length > 0) {
+        // Use bulk operations for better performance
+        const bulkOps = successfulResults.map((r, index) => {
+          const summaryData = {
+            reviewId: reviews[index]?.review_id || null,
+            author: r.author,
+            rating: r.rating,
+            text: r.text,
+            sentiment: r.sentiment,
+            sentimentScore: r.sentiment_score,
+            confidence: r.confidence,
+            sentimentKeywords: r.sentiment_keywords || [],
+            contextualTopics: r.contextual_topics || [],
+            summary: r.summary,
+            company: reviews[index]?.company || "Unknown",
+            source: reviews[index]?.source || "Google Maps",
+            processedAt: new Date(r.processed_at),
+          };
+
+          if (reviews[index]?.review_id) {
+            // Update if exists, insert if not (upsert)
+            return {
+              updateOne: {
+                filter: { reviewId: reviews[index].review_id },
+                update: { $set: summaryData },
+                upsert: true,
+              },
+            };
+          } else {
+            // Insert new document
+            return {
+              insertOne: {
+                document: summaryData,
+              },
+            };
+          }
+        });
+
+        const bulkResult = await ReviewSummary.bulkWrite(bulkOps, { ordered: false });
+        console.log(
+          `✓ Saved ${bulkResult.upsertedCount + bulkResult.insertedCount} new summaries, updated ${bulkResult.modifiedCount} existing summaries`
+        );
+      }
+    } catch (dbError) {
+      // Log error but don't fail the request
+      console.error("Error saving summaries to database:", dbError.message);
+      if (dbError.writeErrors) {
+        console.error(`${dbError.writeErrors.length} documents failed to save`);
+      }
+    }
 
     return res.status(200).json({
       success: true,
