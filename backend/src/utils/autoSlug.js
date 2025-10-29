@@ -1,4 +1,4 @@
-const crypto = require('crypto');
+import crypto from 'crypto';
 
 /**
  * Generate a unique slug for a Mongoose document
@@ -58,7 +58,7 @@ async function autoSlug({
   // Check uniqueness and generate variations if needed
   while (attempts < maxAttempts) {
     const exists = await model.findOne(buildQuery(slug));
-    
+
     if (!exists) {
       return slug;
     }
@@ -169,7 +169,7 @@ function autoSlugPlugin(schema, options = {}) {
   schema.pre('save', async function (next) {
     try {
       // Generate slug if it doesn't exist or if regenerateOnUpdate is true and source changed
-      const shouldGenerate = !this[field] || 
+      const shouldGenerate = !this[field] ||
         (regenerateOnUpdate && sources.some(src => this.isModified(src)));
 
       if (shouldGenerate) {
@@ -202,7 +202,7 @@ function autoSlugPlugin(schema, options = {}) {
   };
 }
 
-module.exports = {
+export {
   autoSlug,
   autoSlugFromFields,
   autoSlugPlugin

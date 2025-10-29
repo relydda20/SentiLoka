@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 
 const locationSchema = new mongoose.Schema(
   {
@@ -256,4 +256,4 @@ locationSchema.statics.findByUserAndSlug = async function (userSlug, locationSlu
 
 const Location = mongoose.model('Location', locationSchema);
 
-module.exports = Location;
+export default Location;

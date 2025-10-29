@@ -1,7 +1,7 @@
 // src/server.js
-require('dotenv').config();
-const app = require('./app');
-const mongoose = require('mongoose');
+import 'dotenv/config';
+import app from './app.js';
+import mongoose from 'mongoose';
 
 const PORT = process.env.PORT || 8080;
 const MONGODB_URI = process.env.MONGODB_URI;
@@ -25,7 +25,7 @@ mongoose.connect(MONGODB_URI, mongooseOptions)
   .then(() => {
     console.log('✅ Connected to MongoDB Atlas');
     console.log(`📊 Database: ${mongoose.connection.name}`);
-    
+
     // Start server
     app.listen(PORT, () => {
       console.log(`🚀 Server running on http://localhost:${PORT}`);

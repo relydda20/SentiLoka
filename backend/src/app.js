@@ -1,7 +1,9 @@
 // src/app.js
-const express = require('express');
-const cors = require('cors');
-const cookieParser = require('cookie-parser');
+import express from 'express';
+import cors from 'cors';
+import cookieParser from 'cookie-parser';
+import analysisRouter from './analysis/routes.js';
+
 const app = express();
 
 // Middleware
@@ -21,9 +23,13 @@ app.get('/health', (req, res) => {
 });
 
 // API routes (will be added later)
-// app.use('/api/auth', require('./routes/auth.routes'));
-// app.use('/api/businesses', require('./routes/business.routes'));
-// app.use('/api/ai', require('./routes/ai.routes'));
+// import authRoutes from './routes/auth.routes.js';
+// import businessRoutes from './routes/business.routes.js';
+// import aiRoutes from './routes/ai.routes.js';
+// app.use('/api/auth', authRoutes);
+// app.use('/api/businesses', businessRoutes);
+// app.use('/api/ai', aiRoutes);
+
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -33,4 +39,4 @@ app.use((err, req, res, next) => {
   });
 });
 
-module.exports = app;
+export default app;

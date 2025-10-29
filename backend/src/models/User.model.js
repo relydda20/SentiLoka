@@ -1,6 +1,6 @@
-const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');
-const { autoSlugFromFields } = require('../utils/autoSlug');
+import mongoose from 'mongoose';
+import bcrypt from 'bcryptjs';
+import { autoSlugFromFields } from '../utils/autoSlug.js';
 
 const userSchema = new mongoose.Schema(
   {
@@ -145,4 +145,4 @@ userSchema.statics.findBySlug = async function (slug) {
 
 const User = mongoose.model('User', userSchema);
 
-module.exports = User;
+export default User;
