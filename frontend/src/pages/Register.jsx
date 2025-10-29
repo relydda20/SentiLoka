@@ -5,7 +5,6 @@ import sentilokaLogo from "../assets/sentiloka_logo.png";
 
 const Register = () => {
   const [formData, setFormData] = useState({
-    name: "",
     email: "",
     password: "",
     confirmPassword: "",
@@ -37,12 +36,12 @@ const Register = () => {
   return (
     <div className="flex md:flex-row flex-col justify-center items-center bg-linear-to-br from-[#FAFAFA] to-[#FAF6E9] p-4 min-h-screen">
       {/* Left side - Logo */}
-      <div className="flex flex-col items-center md:mr-30 mb-8 md:mb-0">
+      <div className="hidden md:flex flex-col items-center md:mr-30 mb-8 md:mb-0">
         <img src={sentilokaLogo} alt="SentiLoka Logo" className="mb-4 w-100 h-100" />
-        <h1 className="font-serif font-semibold text-[#2f4c4a] text-6xl">
+        <h1 className="font-mate font-semibold text-[#2f4c4a] text-7xl">
           Senti<span className="text-[#416c68]">Loka</span>
         </h1>
-        <p className="mt-2 text-gray-600 text-sm">Every Reviews Matter!</p>
+        <p className="mt-2 text-gray-600 text-sm">Every Review Matters!</p>
       </div>
 
       {/* Right side - Register card */}
@@ -67,7 +66,7 @@ const Register = () => {
               name="name"
               value={formData.name}
               onChange={handleChange}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-[#b6d1ce] focus:ring-2 w-full text-white-800"
+              className="bg-white px-4 py-2 border border-gray-300 rounded-4xl focus:ring-[#b6d1ce] focus:ring-2 w-full text-gray-800"
               required
             />
           </div>
@@ -79,7 +78,7 @@ const Register = () => {
               name="email"
               value={formData.email}
               onChange={handleChange}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-[#b6d1ce] focus:ring-2 w-full text-white-800"
+              className="bg-white px-4 py-2 border border-gray-300 rounded-4xl focus:ring-[#b6d1ce] focus:ring-2 w-full text-gray-800"
               required = {true}
               pattern = {"[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$"}
               title="Masukkan alamat email yang valid (contoh: user@domain.com)"
@@ -93,7 +92,7 @@ const Register = () => {
               name="password"
               value={formData.password}
               onChange={handleChange}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-[#b6d1ce] focus:ring-2 w-full text-white-800"
+              className="bg-white px-4 py-2 border border-gray-300 rounded-4xl focus:ring-[#b6d1ce] focus:ring-2 w-full text-gray-800"
               required
             />
           </div>
@@ -107,22 +106,27 @@ const Register = () => {
               name="confirmPassword"
               value={formData.confirmPassword}
               onChange={handleChange}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-[#b6d1ce] focus:ring-2 w-full text-white-800"
+              className="bg-white px-4 py-2 border border-gray-300 rounded-4xl focus:ring-[#b6d1ce] focus:ring-2 w-full text-gray-800"
               required
             />
           </div>
 
+          <div className="mt-10 border-[#E1E6C3] border-b w-full">
+          </div>
+
+          <div className="flex justify-center">
           <button
             type="submit"
-            className="bg-[#ECE8D9] hover:bg-[#c9c1b3] py-2 rounded-lg w-full font-semibold text-[#2f4c4a] transition"
+            className="bg-[#ECE8D9] hover:bg-[#c9c1b3] mt-4 py-2 rounded-4xl w-[80%] font-semibold text-[#2f4c4a] transition"
           >
             Sign Up
           </button>
+          </div>         
         </form>
 
-        <p className="mt-6 text-gray-300 text-sm text-center">
+        <p className="mt-6 text-[#FAF6E9] text-sm text-center">
           Already have an account?{" "}
-          <Link to="/login" className="text-[#b6d1ce] hover:underline">
+          <Link to="/login" className="text-[#FAF6E9] hover:underline">
             Login
           </Link>
         </p>
