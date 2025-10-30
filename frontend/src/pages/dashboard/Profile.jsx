@@ -4,10 +4,22 @@ import maxwellAvatar from "../../assets/maxwell.png";
 import fullStar from "../../assets/full-star.png";
 import emptyStar from "../../assets/not-full-star.png";
 import { motion, AnimatePresence } from "framer-motion";
-import { dropdownMotion, hoverScaleTap, hoverScaleTapShadow } from "../../utils/motionConfig";
+import { dropdownMotion, hoverScaleTap, hoverScaleTapShadow, hoverShadow } from "../../utils/motionConfig";
 
 const Profile = () => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [bio, setBio] = useState(
+    "Hey, I'm Maxwell! I run a cozy pet store where every furry, feathery, and scaly friend is welcome. I started the shop out of my love for animals and a passion for helping people care for their pets. When I'm not at the store, you'll probably find me playing fetch with my dog, Luna, or trying to stop my cat from knocking things off the counter (again)."
+  );
+
+  const [tempBio, setTempBio] = useState(bio);
+
+  const handleSaveBio = () => {
+    setBio(tempBio);
+    setIsEditing(false);
+    alert("Bio updated successfully!");
+  };
 
   const [stores] = useState([
     {
@@ -51,14 +63,43 @@ const Profile = () => {
 
               <div>
                 <h2 className="font-bold text-3xl">Maxwell</h2>
-                <p className="mt-2 max-w-3xl text-gray-200 text-sm leading-relaxed">
-                  Hey, I'm Maxwell! I run a cozy pet store where every furry,
-                  feathery, and scaly friend is welcome. I started the shop out
-                  of my love for animals and a passion for helping people care
-                  for their pets. When I'm not at the store, you'll probably
-                  find me playing fetch with my dog, Luna, or trying to stop my
-                  cat from knocking things off the counter (again).
-                </p>
+                {isEditing ? (
+                  <motion.div
+                    className="mt-2 w-full"
+                    
+                  >
+                    <textarea
+                      value={tempBio}
+                      onChange={(e) => setTempBio(e.target.value)}
+                      rows={6}
+                      className="bg-[#2F4B4E]/40 p-3 border border-[#ECE8D9]/30 rounded-lg focus:outline-none focus:ring-[#ECE8D9] focus:ring-2 w-full md:w-3/4 lg:w-2/3 xl:w-2xl text-white text-sm resize-none"
+                      placeholder="Write something about yourself..."
+                    />
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      <motion.button
+                        onClick={handleSaveBio}
+                        className="bg-[#ECE8D9] hover:bg-[#c9c1b3] px-4 py-1.5 rounded-lg font-semibold text-[#2F4B4E]"
+                        {...hoverScaleTap}
+                      >
+                        Save
+                      </motion.button>
+                      <motion.button
+                        onClick={() => {
+                          setIsEditing(false);
+                          setTempBio(bio);
+                        }}
+                        className="px-4 py-1.5 border border-[#ECE8D9] rounded-lg text-[#ECE8D9]"
+                        {...hoverScaleTap}
+                      >
+                        Cancel
+                      </motion.button>
+                    </div>
+                  </motion.div>
+                ) : (
+                  <p className="mt-2 max-w-2xl text-gray-200 text-sm wrap-break-words leading-relaxed">
+                    {bio}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -74,11 +115,12 @@ const Profile = () => {
 
               <AnimatePresence>
                 {dropdownOpen && (
-                  <motion.div className="right-0 z-10 absolute bg-white shadow-lg mt-2 rounded-lg w-48 overflow-hidden text-[#2F4B4E]"
+                  <motion.div
+                    className="right-0 z-10 absolute bg-white shadow-lg mt-2 rounded-lg w-48 overflow-hidden text-[#2F4B4E]"
                     {...dropdownMotion}
                   >
                     <motion.button
-                      onClick={() => alert("Update Bio clicked")}
+                      onClick={() => setIsEditing(true)}
                       className="block hover:bg-[#ECE8D9] px-4 py-2 w-full text-left"
                       {...hoverScaleTap}
                     >
@@ -114,9 +156,7 @@ const Profile = () => {
                   </div>
                   <div>
                     <h4 className="font-semibold text-xl">{store.name}</h4>
-                    <p className="mb-2 text-gray-300 text-sm">
-                      {store.address}
-                    </p>
+                    <p className="mb-2 text-gray-300 text-sm">{store.address}</p>
                     <p className="text-sm">
                       Sentiment: {store.sentimentIcon}{" "}
                       <span className="ml-1">{store.sentiment}</span>
