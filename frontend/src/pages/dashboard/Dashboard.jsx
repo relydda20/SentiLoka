@@ -16,7 +16,7 @@ import {
   columnChartConfig,
   lineChartConfig,
 } from "../../config/chartConfig";
-import { hoverScaleTapShadow, hoverScale } from "../../utils/motionConfig";
+import { hoverScaleTapShadow } from "../../utils/motionConfig";
 import { motion } from "framer-motion";
 
 import DashboardSectionCard from "../../components/cards/DashboardSectionCard";
