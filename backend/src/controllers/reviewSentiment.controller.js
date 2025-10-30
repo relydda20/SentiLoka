@@ -50,7 +50,6 @@ export const analyzeSingleReview = async (req, res) => {
         sentimentKeywords: result.sentiment_keywords || [],
         contextualTopics: result.contextual_topics || [],
         summary: result.summary,
-        company: review.company || "Unknown",
         source: review.source || "Google Maps",
         processedAt: new Date(result.processed_at),
       };
@@ -157,7 +156,6 @@ export const analyzeBatchReviews = async (req, res) => {
             sentimentKeywords: r.sentiment_keywords || [],
             contextualTopics: r.contextual_topics || [],
             summary: r.summary,
-            company: reviews[index]?.company || "Unknown",
             source: reviews[index]?.source || "Google Maps",
             processedAt: new Date(r.processed_at),
           };

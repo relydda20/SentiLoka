@@ -55,10 +55,6 @@ const reviewSummarySchema = new mongoose.Schema(
     },
 
     // Metadata
-    company: {
-      type: String,
-      index: true, // Index to query by company
-    },
     source: {
       type: String,
       default: "Google Maps",
@@ -86,7 +82,6 @@ const reviewSummarySchema = new mongoose.Schema(
 );
 
 // Indexes for efficient querying
-reviewSummarySchema.index({ company: 1, sentiment: 1 });
 reviewSummarySchema.index({ processedAt: -1 });
 reviewSummarySchema.index({ createdAt: -1 });
 

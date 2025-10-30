@@ -1,11 +1,6 @@
 import { OpenAI } from "openai";
 import { CONFIG } from "../config/sentiment-analysis-config.js";
 import ReviewSummary from "../models/ReviewSummary.model.js";
-import {
-  getAggregatedSummaryForCompany,
-  getAggregatedSummaryBySentiment,
-  getRecentAggregatedSummary,
-} from "../utils/summaryAggregator.js";
 
 const openaiClient = new OpenAI({
   baseURL: CONFIG.GPT4O_MINI_BASE_URL,
@@ -13,15 +8,13 @@ const openaiClient = new OpenAI({
 });
 
 /**
- * Chat with bot using review summaries as context
+ * Chat with bot - Analyzes ALL summaries, ratings, and sentiments from database
  * @route POST /api/chatbot/chat
  */
 export const chatWithBot = async (req, res) => {
   try {
     const {
       message,
-      company = null,
-      sentiment = null,
       conversationHistory = [],
     } = req.body;
 
@@ -32,68 +25,164 @@ export const chatWithBot = async (req, res) => {
       });
     }
 
-    // Determine which summaries to retrieve based on query
-    let context = "";
-    let summaries = [];
+    console.log(`\n🤖 Chatbot Request: "${message}"`);
 
-    // Check if user is asking about a specific company
-    if (company) {
-      // Get aggregated summary for specific company
-      const aggregated = await getAggregatedSummaryForCompany(company, {
-        sentiment,
-        limit: 50,
+    // STEP 1: Retrieve ALL summaries from database
+    const query = { sentiment: { $ne: "error" } };
+
+    const allReviews = await ReviewSummary.find(query)
+      .sort({ processedAt: -1 })
+      .limit(100)
+      .select("summary sentiment rating author processedAt sentimentKeywords contextualTopics");
+
+    console.log(`📊 Retrieved ${allReviews.length} reviews from database`);
+
+    if (allReviews.length === 0) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          response: "I don't have any review data to analyze yet. Please analyze some reviews first.",
+          metadata: {
+            totalReviews: 0,
+          },
+        },
       });
-
-      context = `Review Summary for ${company}:\n${aggregated.aggregatedSummary}\n\nStatistics:\n- Total Reviews: ${aggregated.statistics.totalReviews}\n- Sentiment Distribution: Positive ${aggregated.statistics.sentimentDistribution.positive}, Negative ${aggregated.statistics.sentimentDistribution.negative}, Neutral ${aggregated.statistics.sentimentDistribution.neutral}\n- Average Rating: ${aggregated.statistics.averageRating}/5\n- Average Sentiment Score: ${aggregated.statistics.averageSentimentScore}`;
-
-      summaries = [aggregated.aggregatedSummary];
-    } else {
-      // Get recent reviews across all companies
-      const query = { sentiment: { $ne: "error" } };
-      if (sentiment) {
-        query.sentiment = sentiment;
-      }
-
-      const recentReviews = await ReviewSummary.find(query)
-        .sort({ processedAt: -1 })
-        .limit(20)
-        .select("summary company sentiment rating author");
-
-      if (recentReviews.length > 0) {
-        summaries = recentReviews.map((r) => r.summary);
-        context = `Recent Review Summaries (${recentReviews.length} reviews):\n\n${recentReviews
-          .map(
-            (r, i) =>
-              `${i + 1}. [${r.company}] ${r.author} (${r.rating}★, ${r.sentiment}): ${r.summary}`
-          )
-          .join("\n\n")}`;
-      } else {
-        context = "No reviews available in the database yet.";
-      }
     }
 
-    // Build conversation messages
+    // STEP 2: Process ALL summaries into ONE big summary
+    console.log("📝 Combining all summaries...");
+    const allSummaries = allReviews.map((r) => r.summary);
+
+    // Combine summaries using AI
+    const combinedSummaryResponse = await openaiClient.chat.completions.create({
+      model: "openai/gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: `You are an expert at synthesizing multiple review summaries. Combine these summaries into ONE comprehensive overview that captures:
+- Overall sentiment and tone
+- Key positive points mentioned
+- Main complaints or concerns
+- Common themes and patterns
+- Specific details that stand out
+
+Keep it concise (3-4 paragraphs max).`,
+        },
+        {
+          role: "user",
+          content: `Combine these ${allSummaries.length} review summaries into one comprehensive summary:\n\n${allSummaries.join("\n\n")}`,
+        },
+      ],
+      temperature: 0.4,
+      max_tokens: 600,
+    });
+
+    const combinedSummary = combinedSummaryResponse.choices[0].message.content;
+    console.log("✅ Combined summary created");
+
+    // STEP 3: Analyze ALL ratings and sentiments
+    const sentimentCounts = { positive: 0, negative: 0, neutral: 0 };
+    const ratingCounts = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    let totalRating = 0;
+    const allKeywords = {};
+    const allTopics = {};
+
+    allReviews.forEach((review) => {
+      // Count sentiments
+      sentimentCounts[review.sentiment] = (sentimentCounts[review.sentiment] || 0) + 1;
+
+      // Count ratings
+      const ratingFloor = Math.floor(review.rating);
+      ratingCounts[ratingFloor] = (ratingCounts[ratingFloor] || 0) + 1;
+      totalRating += review.rating;
+
+      // Collect keywords
+      review.sentimentKeywords?.forEach((keyword) => {
+        allKeywords[keyword] = (allKeywords[keyword] || 0) + 1;
+      });
+
+      // Collect topics
+      review.contextualTopics?.forEach((topic) => {
+        allTopics[topic] = (allTopics[topic] || 0) + 1;
+      });
+    });
+
+    const averageRating = (totalRating / allReviews.length).toFixed(2);
+
+    // Get top keywords and topics
+    const topKeywords = Object.entries(allKeywords)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 15)
+      .map(([keyword, count]) => `${keyword} (${count})`);
+
+    const topTopics = Object.entries(allTopics)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([topic, count]) => `${topic} (${count})`);
+
+    console.log("📊 Analysis complete:");
+    console.log(`   - Average Rating: ${averageRating}/5`);
+    console.log(`   - Sentiment: ${sentimentCounts.positive}+ ${sentimentCounts.negative}- ${sentimentCounts.neutral}=`);
+
+    // STEP 4: Build comprehensive context for AI
+    const comprehensiveContext = `
+=== COMPREHENSIVE REVIEW ANALYSIS ===
+
+📊 OVERALL STATISTICS:
+- Total Reviews Analyzed: ${allReviews.length}
+- Average Rating: ${averageRating}/5 stars
+- Sentiment Distribution:
+  * Positive: ${sentimentCounts.positive} reviews (${((sentimentCounts.positive / allReviews.length) * 100).toFixed(1)}%)
+  * Negative: ${sentimentCounts.negative} reviews (${((sentimentCounts.negative / allReviews.length) * 100).toFixed(1)}%)
+  * Neutral: ${sentimentCounts.neutral} reviews (${((sentimentCounts.neutral / allReviews.length) * 100).toFixed(1)}%)
+
+⭐ RATING BREAKDOWN:
+- 5 stars: ${ratingCounts[5] || 0} reviews
+- 4 stars: ${ratingCounts[4] || 0} reviews
+- 3 stars: ${ratingCounts[3] || 0} reviews
+- 2 stars: ${ratingCounts[2] || 0} reviews
+- 1 star: ${ratingCounts[1] || 0} reviews
+
+📝 COMBINED SUMMARY OF ALL REVIEWS:
+${combinedSummary}
+
+🔑 TOP KEYWORDS MENTIONED:
+${topKeywords.join(", ")}
+
+📌 MAIN TOPICS DISCUSSED:
+${topTopics.join(", ")}
+`;
+
+    // STEP 5: Create AI messages with full context
     const messages = [
       {
         role: "system",
-        content: `You are a helpful customer service chatbot that provides insights about customer reviews.
+        content: `You are an intelligent customer insights chatbot with deep knowledge of customer reviews.
 
-You have access to review summaries from various customers. Use this context to answer user questions:
+You have analyzed ${allReviews.length} customer reviews and have access to:
+- Combined summary of all reviews
+- Sentiment analysis (positive/negative/neutral breakdown)
+- Rating statistics (1-5 stars)
+- Most frequently mentioned keywords
+- Common topics and themes
 
-${context}
+YOUR KNOWLEDGE BASE:
+${comprehensiveContext}
 
-Guidelines:
-- Provide helpful, accurate information based on the review summaries
-- If asked about specific aspects (pricing, service, quality, etc.), reference relevant parts of the summaries
-- Be conversational and friendly
-- If you don't have enough information to answer, say so honestly
-- Suggest what other information might be helpful
-- Focus on actionable insights and patterns from the reviews
-- When discussing sentiment, be balanced and nuanced`,
+GUIDELINES FOR RESPONSES:
+- Answer questions based on the review data provided
+- Use specific statistics and numbers when relevant
+- Be conversational, helpful, and insightful
+- If asked about trends, identify patterns from the data
+- If asked for recommendations, base them on the review insights
+- If you don't have enough information, say so honestly
+- Always ground your responses in the actual review data
+
+TONE: Professional yet friendly, data-driven but conversational`,
       },
     ];
 
-    // Add conversation history if provided
+    // Add conversation history
     if (conversationHistory && conversationHistory.length > 0) {
       conversationHistory.forEach((msg) => {
         messages.push({
@@ -109,30 +198,35 @@ Guidelines:
       content: message,
     });
 
-    // Get response from AI
-    const response = await openaiClient.chat.completions.create({
+    // STEP 6: Get AI response with full context
+    console.log("🤖 Generating AI response...");
+    const aiResponse = await openaiClient.chat.completions.create({
       model: "openai/gpt-4o-mini",
       messages,
       temperature: 0.7,
-      max_tokens: 500,
+      max_tokens: 800,
     });
 
-    const botReply = response.choices[0].message.content;
+    const botReply = aiResponse.choices[0].message.content;
+    console.log("✅ Response generated\n");
 
+    // STEP 7: Return comprehensive response
     return res.status(200).json({
       success: true,
-      message: "Chat response generated successfully",
       data: {
-        botReply,
-        context: {
-          company: company || "all",
-          sentiment: sentiment || "all",
-          reviewsUsed: summaries.length,
+        response: botReply,
+        metadata: {
+          totalReviews: allReviews.length,
+          averageRating: parseFloat(averageRating),
+          sentimentDistribution: sentimentCounts,
+          ratingDistribution: ratingCounts,
+          topKeywords: topKeywords.slice(0, 10),
+          topTopics: topTopics.slice(0, 5),
         },
       },
     });
   } catch (error) {
-    console.error("Error in chatWithBot:", error);
+    console.error("❌ Error in chat:", error);
 
     return res.status(500).json({
       success: false,
@@ -143,121 +237,12 @@ Guidelines:
 };
 
 /**
- * Get aggregated summary for a company
- * @route GET /api/chatbot/summary/:company
- */
-export const getCompanySummary = async (req, res) => {
-  try {
-    const { company } = req.params;
-    const { sentiment, limit } = req.query;
-
-    if (!company) {
-      return res.status(400).json({
-        success: false,
-        error: "Company name is required",
-      });
-    }
-
-    const options = {
-      sentiment: sentiment || null,
-      limit: limit ? parseInt(limit) : 100,
-      focus: sentiment || "overall",
-    };
-
-    const aggregated = await getAggregatedSummaryForCompany(company, options);
-
-    return res.status(200).json({
-      success: true,
-      message: "Aggregated summary retrieved successfully",
-      data: aggregated,
-    });
-  } catch (error) {
-    console.error("Error in getCompanySummary:", error);
-
-    return res.status(500).json({
-      success: false,
-      error: "Failed to get company summary",
-      details: error.message,
-    });
-  }
-};
-
-/**
- * Get aggregated summary by sentiment
- * @route GET /api/chatbot/summary/:company/sentiment/:sentiment
- */
-export const getCompanySummaryBySentiment = async (req, res) => {
-  try {
-    const { company, sentiment } = req.params;
-
-    if (!company || !sentiment) {
-      return res.status(400).json({
-        success: false,
-        error: "Company name and sentiment are required",
-      });
-    }
-
-    if (!["positive", "negative", "neutral"].includes(sentiment)) {
-      return res.status(400).json({
-        success: false,
-        error: "Sentiment must be 'positive', 'negative', or 'neutral'",
-      });
-    }
-
-    const aggregated = await getAggregatedSummaryBySentiment(company, sentiment);
-
-    return res.status(200).json({
-      success: true,
-      message: `${sentiment} review summary retrieved successfully`,
-      data: aggregated,
-    });
-  } catch (error) {
-    console.error("Error in getCompanySummaryBySentiment:", error);
-
-    return res.status(500).json({
-      success: false,
-      error: "Failed to get sentiment-specific summary",
-      details: error.message,
-    });
-  }
-};
-
-/**
- * Get recent aggregated summary
- * @route GET /api/chatbot/summary/recent
- */
-export const getRecentSummary = async (req, res) => {
-  try {
-    const { limit } = req.query;
-
-    const aggregated = await getRecentAggregatedSummary(
-      limit ? parseInt(limit) : 50
-    );
-
-    return res.status(200).json({
-      success: true,
-      message: "Recent aggregated summary retrieved successfully",
-      data: aggregated,
-    });
-  } catch (error) {
-    console.error("Error in getRecentSummary:", error);
-
-    return res.status(500).json({
-      success: false,
-      error: "Failed to get recent summary",
-      details: error.message,
-    });
-  }
-};
-
-/**
- * Get all summaries from database
+ * Get all summaries from database with filtering and pagination
  * @route GET /api/chatbot/summaries
  */
 export const getAllSummaries = async (req, res) => {
   try {
     const {
-      company,
       sentiment,
       limit = 50,
       skip = 0,
@@ -267,9 +252,6 @@ export const getAllSummaries = async (req, res) => {
 
     // Build query
     const query = { sentiment: { $ne: "error" } };
-    if (company) {
-      query.company = company;
-    }
     if (sentiment) {
       query.sentiment = sentiment;
     }
@@ -282,13 +264,12 @@ export const getAllSummaries = async (req, res) => {
       .sort(sort)
       .limit(parseInt(limit))
       .skip(parseInt(skip))
-      .select("author rating sentiment sentimentScore summary company processedAt sentimentKeywords contextualTopics");
+      .select("author rating sentiment sentimentScore summary processedAt sentimentKeywords contextualTopics");
 
     const total = await ReviewSummary.countDocuments(query);
 
     return res.status(200).json({
       success: true,
-      message: "Summaries retrieved successfully",
       data: summaries,
       metadata: {
         total,
@@ -314,7 +295,7 @@ export const getAllSummaries = async (req, res) => {
  */
 export const searchSummaries = async (req, res) => {
   try {
-    const { keyword, company, sentiment, limit = 50 } = req.query;
+    const { keyword, sentiment, limit = 50 } = req.query;
 
     if (!keyword) {
       return res.status(400).json({
@@ -333,9 +314,6 @@ export const searchSummaries = async (req, res) => {
       ],
     };
 
-    if (company) {
-      query.company = company;
-    }
     if (sentiment) {
       query.sentiment = sentiment;
     }
@@ -343,11 +321,10 @@ export const searchSummaries = async (req, res) => {
     const summaries = await ReviewSummary.find(query)
       .sort({ processedAt: -1 })
       .limit(parseInt(limit))
-      .select("author rating sentiment summary company processedAt sentimentKeywords contextualTopics");
+      .select("author rating sentiment summary processedAt sentimentKeywords contextualTopics");
 
     return res.status(200).json({
       success: true,
-      message: "Search completed successfully",
       data: summaries,
       metadata: {
         keyword,
@@ -369,7 +346,7 @@ export const searchSummaries = async (req, res) => {
  * Get chatbot statistics
  * @route GET /api/chatbot/stats
  */
-export const getChatbotStats = async (req, res) => {
+export const getStats = async (req, res) => {
   try {
     const totalReviews = await ReviewSummary.countDocuments({
       sentiment: { $ne: "error" },
@@ -378,13 +355,6 @@ export const getChatbotStats = async (req, res) => {
     const sentimentCounts = await ReviewSummary.aggregate([
       { $match: { sentiment: { $ne: "error" } } },
       { $group: { _id: "$sentiment", count: { $sum: 1 } } },
-    ]);
-
-    const companyCounts = await ReviewSummary.aggregate([
-      { $match: { sentiment: { $ne: "error" } } },
-      { $group: { _id: "$company", count: { $sum: 1 } } },
-      { $sort: { count: -1 } },
-      { $limit: 10 },
     ]);
 
     const averages = await ReviewSummary.aggregate([
@@ -417,16 +387,11 @@ export const getChatbotStats = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: "Statistics retrieved successfully",
       data: {
         totalReviews,
         sentimentDistribution,
         averageRating: averages[0]?.avgRating?.toFixed(2) || 0,
         averageSentimentScore: averages[0]?.avgSentimentScore?.toFixed(3) || 0,
-        topCompanies: companyCounts.map((c) => ({
-          company: c._id,
-          reviewCount: c.count,
-        })),
         dateRange: {
           oldest: oldestReview?.processedAt || null,
           newest: recentReview?.processedAt || null,
@@ -434,7 +399,7 @@ export const getChatbotStats = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Error in getChatbotStats:", error);
+    console.error("Error in getStats:", error);
 
     return res.status(500).json({
       success: false,

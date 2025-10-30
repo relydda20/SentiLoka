@@ -1,9 +1,6 @@
 import express from "express";
 import {
   chatWithBot,
-  getCompanySummary,
-  getCompanySummaryBySentiment,
-  getRecentSummary,
   getAllSummaries,
   searchSummaries,
   getStats,
@@ -18,47 +15,15 @@ const router = express.Router();
  * @access Public
  * @body {
  *   message: string,
- *   company?: string,
  *   conversationHistory?: Array<{role: string, content: string}>
  * }
  */
 router.post("/chat", asyncHandler(chatWithBot));
 
 /**
- * @route GET /api/chatbot/summary/:company
- * @desc Get aggregated summary for a specific company
- * @access Public
- * @params company - Company name
- * @query sentiment? - Filter by sentiment
- * @query limit? - Number of reviews to aggregate (default: 100)
- */
-router.get("/summary/:company", asyncHandler(getCompanySummary));
-
-/**
- * @route GET /api/chatbot/summary/:company/sentiment/:sentiment
- * @desc Get aggregated summary for a company filtered by sentiment
- * @access Public
- * @params company - Company name
- * @params sentiment - 'positive', 'negative', or 'neutral'
- */
-router.get(
-  "/summary/:company/sentiment/:sentiment",
-  asyncHandler(getCompanySummaryBySentiment)
-);
-
-/**
- * @route GET /api/chatbot/summary/recent
- * @desc Get aggregated summary of recent reviews
- * @access Public
- * @query limit? - Number of recent reviews (default: 50)
- */
-router.get("/summary/recent", asyncHandler(getRecentSummary));
-
-/**
  * @route GET /api/chatbot/summaries
  * @desc Get all summaries with filtering and pagination
  * @access Public
- * @query company? - Filter by company
  * @query sentiment? - Filter by sentiment
  * @query limit? - Results per page (default: 50)
  * @query skip? - Results to skip (default: 0)
@@ -72,7 +37,6 @@ router.get("/summaries", asyncHandler(getAllSummaries));
  * @desc Search summaries by keyword
  * @access Public
  * @query keyword - Search keyword (required)
- * @query company? - Filter by company
  * @query sentiment? - Filter by sentiment
  * @query limit? - Max results (default: 50)
  */
