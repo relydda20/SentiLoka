@@ -1,3 +1,6 @@
+import { motion } from "framer-motion";
+import { hoverShadow } from "../../utils/motionConfig";
+
 const StatCard = ({
   title,
   value,
@@ -7,10 +10,11 @@ const StatCard = ({
   footnoteClassName = "text-gray-600",
 }) => {
   return (
-    <section
+    <motion.section
       className={`flex justify-between items-center bg-white 
         px-3 py-3 sm:px-4 sm:py-4 
-        border border-gray-300 rounded-2xl ${className}`}
+        border border-gray-200 rounded-2xl ${className}`}
+      {...hoverShadow}
     >
       <div className="flex flex-col flex-1 justify-center gap-1.5 sm:gap-2 min-w-0">
         {/* Title */}
@@ -41,7 +45,7 @@ const StatCard = ({
           />
         </div>
       )}
-    </section>
+    </motion.section>
   );
 };
 
