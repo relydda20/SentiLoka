@@ -1,6 +1,8 @@
 import { OpenAI } from "openai";
 import { CONFIG } from "../config/sentiment-analysis-config.js";
 import ReviewSummary from "../models/ReviewSummary.model.js";
+import Conversation from "../models/Conversation.model.js";
+import { v4 as uuidv4 } from "uuid";
 
 const openaiClient = new OpenAI({
   baseURL: CONFIG.GPT4O_MINI_BASE_URL,
@@ -16,6 +18,7 @@ export const chatWithBot = async (req, res) => {
     const {
       message,
       conversationHistory = [],
+      sessionId, // Optional: for persistent conversation tracking
     } = req.body;
 
     if (!message || message.trim().length === 0) {
@@ -55,7 +58,7 @@ export const chatWithBot = async (req, res) => {
 
     // Combine summaries using AI
     const combinedSummaryResponse = await openaiClient.chat.completions.create({
-      model: "openai/gpt-40-mini",
+      model: "openai/gpt-4o-mini",
       messages: [
         {
           role: "system",
@@ -210,11 +213,53 @@ TONE: Professional yet friendly, data-driven but conversational`,
     const botReply = aiResponse.choices[0].message.content;
     console.log("✅ Response generated\n");
 
-    // STEP 7: Return comprehensive response
+    // STEP 7: Build updated conversation history
+    const updatedHistory = [
+      ...(conversationHistory || []),
+      { role: "user", content: message },
+      { role: "assistant", content: botReply },
+    ];
+
+    // STEP 8: Save conversation to database if sessionId provided
+    let savedSessionId = sessionId;
+    if (sessionId) {
+      try {
+        await Conversation.findOneAndUpdate(
+          { sessionId },
+          {
+            $push: {
+              messages: {
+                $each: [
+                  { role: "user", content: message },
+                  { role: "assistant", content: botReply },
+                ],
+              },
+            },
+            $set: {
+              lastActivity: new Date(),
+              "metadata.totalMessages": updatedHistory.length,
+              "metadata.reviewSnapshot": {
+                totalReviews: allReviews.length,
+                averageRating: parseFloat(averageRating),
+              },
+            },
+          },
+          { upsert: true, new: true }
+        );
+        console.log(`💾 Conversation saved for session: ${sessionId}`);
+      } catch (dbError) {
+        console.error("⚠️ Failed to save conversation:", dbError.message);
+        // Don't fail the request if DB save fails
+      }
+    }
+
+    // STEP 9: Return comprehensive response with conversation history
     return res.status(200).json({
       success: true,
       data: {
         response: botReply,
+        conversationHistory: updatedHistory, // Return updated history for client to store
+        sessionId: savedSessionId, // Return sessionId for future requests
         metadata: {
           totalReviews: allReviews.length,
           averageRating: parseFloat(averageRating),
@@ -404,6 +449,146 @@ export const getStats = async (req, res) => {
     return res.status(500).json({
       success: false,
       error: "Failed to retrieve statistics",
+      details: error.message,
+    });
+  }
+};
+
+/**
+ * Create a new conversation session
+ * @route POST /api/chatbot/conversation/new
+ */
+export const createConversation = async (req, res) => {
+  try {
+    const newSessionId = uuidv4();
+
+    const conversation = await Conversation.create({
+      sessionId: newSessionId,
+      messages: [],
+      metadata: {
+        totalMessages: 0,
+      },
+    });
+
+    return res.status(201).json({
+      success: true,
+      data: {
+        sessionId: conversation.sessionId,
+        createdAt: conversation.createdAt,
+      },
+    });
+  } catch (error) {
+    console.error("Error creating conversation:", error);
+
+    return res.status(500).json({
+      success: false,
+      error: "Failed to create conversation",
+      details: error.message,
+    });
+  }
+};
+
+/**
+ * Get conversation history by sessionId
+ * @route GET /api/chatbot/conversation/:sessionId
+ */
+export const getConversation = async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+
+    const conversation = await Conversation.findOne({ sessionId });
+
+    if (!conversation) {
+      return res.status(404).json({
+        success: false,
+        error: "Conversation not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        sessionId: conversation.sessionId,
+        messages: conversation.messages,
+        lastActivity: conversation.lastActivity,
+        metadata: conversation.metadata,
+      },
+    });
+  } catch (error) {
+    console.error("Error retrieving conversation:", error);
+
+    return res.status(500).json({
+      success: false,
+      error: "Failed to retrieve conversation",
+      details: error.message,
+    });
+  }
+};
+
+/**
+ * Delete a conversation by sessionId
+ * @route DELETE /api/chatbot/conversation/:sessionId
+ */
+export const deleteConversation = async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+
+    const result = await Conversation.findOneAndDelete({ sessionId });
+
+    if (!result) {
+      return res.status(404).json({
+        success: false,
+        error: "Conversation not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Conversation deleted successfully",
+    });
+  } catch (error) {
+    console.error("Error deleting conversation:", error);
+
+    return res.status(500).json({
+      success: false,
+      error: "Failed to delete conversation",
+      details: error.message,
+    });
+  }
+};
+
+/**
+ * Get all conversation sessions (for listing)
+ * @route GET /api/chatbot/conversations
+ */
+export const getAllConversations = async (req, res) => {
+  try {
+    const { limit = 20, skip = 0 } = req.query;
+
+    const conversations = await Conversation.find()
+      .sort({ lastActivity: -1 })
+      .limit(parseInt(limit))
+      .skip(parseInt(skip))
+      .select("sessionId lastActivity metadata createdAt");
+
+    const total = await Conversation.countDocuments();
+
+    return res.status(200).json({
+      success: true,
+      data: conversations,
+      metadata: {
+        total,
+        limit: parseInt(limit),
+        skip: parseInt(skip),
+        returned: conversations.length,
+      },
+    });
+  } catch (error) {
+    console.error("Error retrieving conversations:", error);
+
+    return res.status(500).json({
+      success: false,
+      error: "Failed to retrieve conversations",
       details: error.message,
     });
   }
