@@ -16,6 +16,10 @@ import {
   columnChartConfig,
   lineChartConfig,
 } from "../../config/chartConfig";
+import { hoverScaleTapShadow, hoverScale } from "../../utils/motionConfig";
+import { motion } from "framer-motion";
+
+import DashboardSectionCard from "../../components/cards/DashboardSectionCard";
 
 const Dashboard = () => {
   const queryClient = useQueryClient();
@@ -195,7 +199,7 @@ const Dashboard = () => {
   // --- Main Dashboard Render ---
   return (
     <div className="mx-auto mt-28 w-full max-w-[1440px]">
-      <div className="flex flex-col gap-6 mx-auto px-4 w-full">
+      <div className="flex flex-col gap-2 mx-auto px-4 md:px-8 pb-8 w-full">
         {/* Header with Refresh Button */}
         <div className="flex items-center gap-2 my-4 ml-2">
           <h1 className="font-bold text-2xl">Dashboard</h1>
@@ -254,10 +258,7 @@ const Dashboard = () => {
         {/* Middle Section */}
         <div className="gap-4 grid grid-cols-1 lg:grid-cols-2 w-full">
           {/* Pie Chart - Sentiment Distribution */}
-          <div className="bg-white p-4 border border-gray-200 rounded-xl">
-            <h2 className="mb-4 font-semibold text-lg">
-              Sentiment Distribution
-            </h2>
+          <DashboardSectionCard title="Sentiment Distribution">
             {loadingSentiment ? (
               <LoadingSkeleton height="300px" />
             ) : sentimentError ? (
@@ -273,11 +274,10 @@ const Dashboard = () => {
                 height={300}
               />
             )}
-          </div>
+          </DashboardSectionCard>
 
           {/* Column Chart - Rating Distribution */}
-          <div className="bg-white p-4 border border-gray-200 rounded-xl">
-            <h2 className="mb-4 font-semibold text-lg">Rating Distribution</h2>
+          <DashboardSectionCard title="Rating Distribution">
             {loadingRating ? (
               <LoadingSkeleton height="300px" />
             ) : ratingError ? (
@@ -293,30 +293,45 @@ const Dashboard = () => {
                 height={300}
               />
             )}
-          </div>
+          </DashboardSectionCard>
         </div>
 
-        {/* Line Chart - Sentiment Trends */}
-        <div className="bg-white p-4 border border-gray-200 rounded-xl">
-          <h2 className="mb-4 font-semibold text-lg">
-            Sentiment Review Trends
-          </h2>
-          {loadingTrends ? (
-            <LoadingSkeleton height="350px" />
-          ) : trendsError ? (
-            <ErrorDisplay
-              message={trendsError.message}
-              onRetry={() => retrySection("sentimentTrends")}
-            />
-          ) : (
-            <ReactApexChart
-              options={lineChartConfig}
-              series={lineChartSeries}
-              type="line"
-              height={350}
-              width="100%"
-            />
-          )}
+        {/* Lower Section */}
+        <div className="gap-4 grid grid-cols-1 lg:grid-cols-2 w-full">
+          {/* Line Chart - Sentiment Trends */}
+          <DashboardSectionCard title="Sentiment Trends">
+            {loadingTrends ? (
+              <LoadingSkeleton height="350px" />
+            ) : trendsError ? (
+              <ErrorDisplay
+                message={trendsError.message}
+                onRetry={() => retrySection("sentimentTrends")}
+              />
+            ) : (
+              <ReactApexChart
+                options={lineChartConfig}
+                series={lineChartSeries}
+                type="line"
+                height={350}
+                width="100%"
+              />
+            )}
+          </DashboardSectionCard>
+
+          {/* Word Cloud - Frequent Words */}
+          <DashboardSectionCard title="Word Cloud">
+            <div className="flex justify-center items-center content-center rounded-lg grow">
+              <motion.button
+                title="Load Cloud Words"
+                className="bg-[#ECE8D9] hover:bg-[#FAF6E9] px-16 py-2.5 rounded-4xl text-[#2F4B4E]"
+                {...hoverScaleTapShadow}
+              >
+                <span className="font-medium text-base tracking-wide">
+                  Load Cloud Words
+                </span>
+              </motion.button>
+            </div>
+          </DashboardSectionCard>
         </div>
       </div>
     </div>
