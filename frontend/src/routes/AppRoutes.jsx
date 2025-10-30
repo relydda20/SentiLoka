@@ -8,6 +8,7 @@ import ProtectedRoute from "./ProtectedRoute";
 import GuestRoute from "./GuestRoute";
 import DashboardLayout from "../pages/dashboard/DashboardLayout";
 import Dashboard from "../pages/dashboard/Dashboard";
+import Profile from "../pages/dashboard/Profile";
 
 const AppRoutes = () => {
   return (
@@ -45,7 +46,9 @@ const AppRoutes = () => {
         <Route index element={<Dashboard />} />
         <Route path="sentiment-map" element={<SentimentMap />} />
         <Route path="ai-reply" element={<AIReplyGenerator />} />
+        <Route path="profile" element={<Profile />} />
       </Route>
+
 
       {/* Catch all - redirect to landing */}
       <Route path="*" element={<Navigate to="/" replace />} />
