@@ -21,11 +21,12 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// API routes (will be added later)
-// import authRoutes from './routes/auth.routes.js';
+// API routes
+import authRoutes from './routes/auth.routes.js';
 // import businessRoutes from './routes/business.routes.js';
 // import aiRoutes from './routes/ai.routes.js';
-// app.use('/api/auth', authRoutes);
+
+app.use('/api/auth', authRoutes);
 // app.use('/api/businesses', businessRoutes);
 // app.use('/api/ai', aiRoutes);
 

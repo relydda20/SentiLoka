@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { ArrowLeft } from "lucide-react"; 
+import sentilokaLogo from "../assets/sentiloka_logo.png"; 
 
 const Register = () => {
   const [formData, setFormData] = useState({
@@ -25,7 +27,6 @@ const Register = () => {
       return;
     }
 
-    // Replace with your actual registration logic
     console.log("Registration attempt:", formData);
 
     // Simulate successful registration
@@ -34,55 +35,71 @@ const Register = () => {
   };
 
   return (
-    <div className="flex justify-center items-center bg-gray-50 p-4 min-h-screen">
-      <div className="bg-white shadow-md p-8 rounded-lg w-full max-w-md">
-        <h2 className="mb-6 font-bold text-3xl text-center">Register</h2>
+    <div className="flex md:flex-row flex-col justify-center items-center bg-linear-to-br from-[#FAFAFA] to-[#FAF6E9] p-4 min-h-screen">
+      {/* Left side - Logo */}
+      <div className="flex flex-col items-center md:mr-30 mb-8 md:mb-0">
+        <img src={sentilokaLogo} alt="SentiLoka Logo" className="mb-4 w-100 h-100" />
+        <h1 className="font-serif font-semibold text-[#2f4c4a] text-6xl">
+          Senti<span className="text-[#416c68]">Loka</span>
+        </h1>
+        <p className="mt-2 text-gray-600 text-sm">Every Reviews Matter!</p>
+      </div>
+
+      {/* Right side - Register card */}
+      <div className="relative bg-[#2f4c4a] shadow-lg p-10 rounded-2xl w-full max-w-sm text-white">
+        {/* Back button */}
+        <button
+          onClick={() => navigate("/login")}
+          className="top-4 left-4 absolute text-gray-300 hover:text-white transition"
+        >
+          <ArrowLeft size={22} />
+        </button>
+
+        <h2 className="mb-6 font-semibold text-3xl text-center">
+          Senti<span className="text-[#FAF6E9]">Loka</span>
+        </h2>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block mb-1 font-medium text-gray-700 text-sm">
-              Name
-            </label>
+            <label className="block mb-1 font-medium text-sm">Name</label>
             <input
               type="text"
               name="name"
               value={formData.name}
               onChange={handleChange}
-              className="px-4 py-2 border border-gray-300 focus:border-transparent rounded-lg focus:ring-2 focus:ring-indigo-500 w-full"
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-[#b6d1ce] focus:ring-2 w-full text-white-800"
               required
             />
           </div>
 
           <div>
-            <label className="block mb-1 font-medium text-gray-700 text-sm">
-              Email
-            </label>
+            <label className="block mb-1 font-medium text-sm">Email</label>
             <input
               type="email"
               name="email"
               value={formData.email}
               onChange={handleChange}
-              className="px-4 py-2 border border-gray-300 focus:border-transparent rounded-lg focus:ring-2 focus:ring-indigo-500 w-full"
-              required
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-[#b6d1ce] focus:ring-2 w-full text-white-800"
+              required = {true}
+              pattern = {"[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$"}
+              title="Masukkan alamat email yang valid (contoh: user@domain.com)"
             />
           </div>
 
           <div>
-            <label className="block mb-1 font-medium text-gray-700 text-sm">
-              Password
-            </label>
+            <label className="block mb-1 font-medium text-sm">Password</label>
             <input
               type="password"
               name="password"
               value={formData.password}
               onChange={handleChange}
-              className="px-4 py-2 border border-gray-300 focus:border-transparent rounded-lg focus:ring-2 focus:ring-indigo-500 w-full"
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-[#b6d1ce] focus:ring-2 w-full text-white-800"
               required
             />
           </div>
 
           <div>
-            <label className="block mb-1 font-medium text-gray-700 text-sm">
+            <label className="block mb-1 font-medium text-sm">
               Confirm Password
             </label>
             <input
@@ -90,32 +107,25 @@ const Register = () => {
               name="confirmPassword"
               value={formData.confirmPassword}
               onChange={handleChange}
-              className="px-4 py-2 border border-gray-300 focus:border-transparent rounded-lg focus:ring-2 focus:ring-indigo-500 w-full"
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-[#b6d1ce] focus:ring-2 w-full text-white-800"
               required
             />
           </div>
 
           <button
             type="submit"
-            className="bg-indigo-600 hover:bg-indigo-700 py-2 rounded-lg w-full text-white transition"
+            className="bg-[#ECE8D9] hover:bg-[#c9c1b3] py-2 rounded-lg w-full font-semibold text-[#2f4c4a] transition"
           >
-            Register
+            Sign Up
           </button>
         </form>
 
-        <p className="mt-4 text-gray-600 text-sm text-center">
+        <p className="mt-6 text-gray-300 text-sm text-center">
           Already have an account?{" "}
-          <Link to="/login" className="text-indigo-600 hover:underline">
+          <Link to="/login" className="text-[#b6d1ce] hover:underline">
             Login
           </Link>
         </p>
-
-        <Link
-          to="/"
-          className="block mt-4 text-gray-600 text-sm text-center hover:underline"
-        >
-          Back to Home
-        </Link>
       </div>
     </div>
   );

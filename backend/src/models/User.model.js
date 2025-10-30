@@ -21,8 +21,8 @@ const userSchema = new mongoose.Schema(
     },
     image: {
         type: String,
-        required: [true, 'Image URL is required'],
-        match: [/^https?:\/\/.+\.(jpg|jpeg|png|gif)$/, 'Please provide a valid image URL']
+        default: 'https://via.placeholder.com/150.jpg',
+        match: [/^https?:\/\/.+/, 'Please provide a valid image URL']
     },
     description: {
       type: String,
@@ -38,7 +38,8 @@ const userSchema = new mongoose.Schema(
       match: [
         /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/,
         'Please provide a valid email'
-      ]
+      ],
+      index: true
     },
     password: {
       type: String,
@@ -79,8 +80,7 @@ userSchema.virtual('totalLocations', {
 });
 
 
-userSchema.index({ email: 1 });
-userSchema.index({ slug: 1 });
+// Indexes are defined in the schema fields above for email and slug
 userSchema.index({ createdAt: -1 });
 
 
