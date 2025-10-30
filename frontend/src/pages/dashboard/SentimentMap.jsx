@@ -78,6 +78,38 @@ const SentimentMapViewDemo = () => {
     }
   }, [locations, markerRefs]);
 
+  // Set up OMS event listeners when locations are available
+  useEffect(() => {
+    if (omsRef.current && locations.length > 0) {
+      // Remove old listeners (if any)
+      omsRef.current.listeners = {
+        click: [],
+        spiderfy: [],
+        unspiderfy: [],
+      };
+
+      // Listen for click events on spiderfied markers or non-overlapping markers
+      omsRef.current.addListener("click", (marker) => {
+        const locationId = marker._locationId;
+        const location = locations.find((loc) => loc.id === locationId);
+        if (location) {
+          handleSpiderfiedMarkerClick(location);
+        }
+      });
+
+      // Listen for spiderfy event - close sidebar when spreading markers
+      omsRef.current.addListener("spiderfy", (markers) => {
+        console.log("Spiderfied", markers.length, "markers");
+        setSidebarOpen(false);
+      });
+
+      // Listen for unspiderfy event
+      omsRef.current.addListener("unspiderfy", () => {
+        console.log("Unspiderfied");
+      });
+    }
+  }, [locations]);
+
   const fetchBusinessLocations = async () => {
     setLoading(true);
     setError(null);
@@ -102,27 +134,13 @@ const SentimentMapViewDemo = () => {
       markersWontMove: true,
       markersWontHide: true,
       keepSpiderfied: false,
-      nearbyDistance: 40, // Increased for better detection
-      circleFootSeparation: 35, // Spacing between spiderfied markers
+      nearbyDistance: 40,
+      circleFootSeparation: 35,
     });
 
-    // Listen for click events on spiderfied markers
-    oms.addListener("click", (marker) => {
-      const locationId = marker._locationId;
-      const location = locations.find((loc) => loc.id === locationId);
-      if (location) {
-        handleMarkerClick(location);
-      }
-    });
-
-    // Listen for spiderfy event
-    oms.addListener("spiderfy", (markers) => {
-      console.log("Spiderfied", markers.length, "markers");
-    });
-
-    // Listen for unspiderfy event
-    oms.addListener("unspiderfy", () => {
-      console.log("Unspiderfied");
+    // Add map click listener to unspiderfy when clicking on empty map area
+    map.addListener("click", () => {
+      oms.unspiderfy();
     });
 
     omsRef.current = oms;
@@ -169,6 +187,26 @@ const SentimentMapViewDemo = () => {
 
     if (location.cacheStatus?.needsRefresh) {
       await refreshLocationReviews(location.id);
+    }
+  };
+
+  const handleSpiderfiedMarkerClick = async (location) => {
+    // When clicking a spiderfied marker, open sidebar
+    setSelectedLocation(location);
+    setSidebarOpen(true);
+    setReviewsPage(1);
+
+    if (location.cacheStatus?.needsRefresh) {
+      await refreshLocationReviews(location.id);
+    }
+  };
+
+  // Separate function for OMS click handler
+  const handleOmsMarkerClick = (marker) => {
+    const locationId = marker._locationId;
+    const location = locations.find((loc) => loc.id === locationId);
+    if (location) {
+      handleMarkerClick(location);
     }
   };
 
@@ -653,11 +691,16 @@ const SentimentMapViewDemo = () => {
         )}
       </div>
 
-      {/* Overlay */}
+      {/* Overlay when sidebar is open */}
       {sidebarOpen && (
         <div
-          className="sm:hidden z-10 fixed inset-0 bg-black bg-opacity-25"
-          onClick={() => setSidebarOpen(false)}
+          className="z-10 fixed inset-0 bg-black bg-opacity-25"
+          onClick={() => {
+            setSidebarOpen(false);
+            if (omsRef.current) {
+              omsRef.current.unspiderfy();
+            }
+          }}
         />
       )}
 

@@ -76,7 +76,7 @@ class OverlappingMarkerSpiderfier {
       // There are overlapping markers, spiderfy them
       this.spiderfy(nearbyMarkers, marker);
     } else {
-      // No overlap, trigger normal click
+      // No overlap, trigger normal click for sidebar
       this.unspiderfy();
       this.trigger("click", marker, event);
     }
