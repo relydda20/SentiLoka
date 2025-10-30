@@ -37,6 +37,8 @@
     "backend"
   ],
   "dependencies": {
-    "lucide-react": "^0.548.0"
+    "apexcharts": "^5.3.5",
+    "lucide-react": "^0.548.0",
+    "react-apexcharts": "^1.8.0"
   }
 }
