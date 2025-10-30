@@ -5,7 +5,16 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SentiLoka</title>
+    <!-- Dialogflow Default Styles -->
+    <link
+      rel="stylesheet"
+      href="https://www.gstatic.com/dialogflow-console/fast/df-messenger/prod/v1/themes/df-messenger-default.css"
+    />
+    <!-- Dialogflow Custom Styles -->
+    <link rel="stylesheet" href="/src/styles/dialogflow.css" />
+    <!-- App Styles -->
     <link href="/src/styles/index.css" rel="stylesheet" />
+    <!-- Fonts -->
     <link
       href="https://fonts.googleapis.com/css2?family=Mate+SC&display=swap"
       rel="stylesheet"
@@ -14,5 +23,163 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
+
+    <!-- Dialogflow Script -->
+    <script src="https://www.gstatic.com/dialogflow-console/fast/df-messenger/prod/v1/df-messenger.js"></script>
+
+    <!-- Dialogflow Widget (hidden by default) -->
+    <df-messenger
+      id="df-messenger-widget"
+      project-id="loka-ai"
+      agent-id="c1b7a670-f33f-45a2-ac62-41a57e64c9e2"
+      language-code="en"
+      max-query-length="-1"
+    >
+      <df-messenger-chat-bubble chat-title="LokaAI"></df-messenger-chat-bubble>
+    </df-messenger>
+
+    <!-- Route Detection & Scroll Button Fix Script -->
+    <script>
+      (function () {
+        const messenger = document.getElementById("df-messenger-widget");
+
+        // Route visibility management
+        function updateMessengerVisibility() {
+          const path = window.location.pathname;
+
+          // Show only on landing page (root path)
+          if (path === "/" || path === "") {
+            messenger.classList.add("show-on-landing");
+          } else {
+            messenger.classList.remove("show-on-landing");
+          }
+        }
+
+        // Initial check
+        updateMessengerVisibility();
+
+        // Listen for route changes (React Router)
+        let lastPath = window.location.pathname;
+        const observer = new MutationObserver(() => {
+          if (lastPath !== window.location.pathname) {
+            lastPath = window.location.pathname;
+            updateMessengerVisibility();
+          }
+        });
+
+        // Observe body for changes (React Router updates)
+        observer.observe(document.body, {
+          childList: true,
+          subtree: true,
+        });
+
+        // Also listen to popstate for back/forward navigation
+        window.addEventListener("popstate", updateMessengerVisibility);
+
+        // Fix scroll button color in Shadow DOM
+        function fixScrollButtonColor() {
+          if (!messenger.shadowRoot) {
+            // Wait for shadow root to be available
+            setTimeout(fixScrollButtonColor, 100);
+            return;
+          }
+
+          const shadowRoot = messenger.shadowRoot;
+          const scrollButton = shadowRoot.querySelector(
+            '[part="scroll-button"]',
+          );
+
+          if (scrollButton) {
+            // Apply SentiLoka brand color
+            scrollButton.style.setProperty(
+              "background-color",
+              "#2f4b4e",
+              "important",
+            );
+            scrollButton.style.setProperty("color", "#faf6e9", "important");
+            scrollButton.style.setProperty(
+              "border",
+              "2px solid rgba(204, 213, 174, 0.3)",
+              "important",
+            );
+            scrollButton.style.setProperty(
+              "box-shadow",
+              "0 4px 12px rgba(47, 75, 78, 0.3)",
+              "important",
+            );
+
+            // Add hover effect
+            scrollButton.addEventListener("mouseenter", function () {
+              this.style.setProperty(
+                "background-color",
+                "#3a5c5f",
+                "important",
+              );
+              this.style.setProperty(
+                "box-shadow",
+                "0 6px 16px rgba(47, 75, 78, 0.4)",
+                "important",
+              );
+              this.style.setProperty(
+                "border-color",
+                "rgba(204, 213, 174, 0.5)",
+                "important",
+              );
+            });
+
+            scrollButton.addEventListener("mouseleave", function () {
+              this.style.setProperty(
+                "background-color",
+                "#2f4b4e",
+                "important",
+              );
+              this.style.setProperty(
+                "box-shadow",
+                "0 4px 12px rgba(47, 75, 78, 0.3)",
+                "important",
+              );
+              this.style.setProperty(
+                "border-color",
+                "rgba(204, 213, 174, 0.3)",
+                "important",
+              );
+            });
+
+            // Add active/click effect
+            scrollButton.addEventListener("mousedown", function () {
+              this.style.setProperty(
+                "background-color",
+                "#1a2d2f",
+                "important",
+              );
+            });
+
+            scrollButton.addEventListener("mouseup", function () {
+              this.style.setProperty(
+                "background-color",
+                "#3a5c5f",
+                "important",
+              );
+            });
+          }
+        }
+
+        // Apply fix when messenger loads
+        if (document.readyState === "loading") {
+          document.addEventListener("DOMContentLoaded", () => {
+            setTimeout(fixScrollButtonColor, 500);
+          });
+        } else {
+          setTimeout(fixScrollButtonColor, 500);
+        }
+
+        // Re-apply fix when chat opens (for scroll button to appear)
+        messenger.addEventListener("df-chat-open-changed", function (event) {
+          if (event.detail.isOpen) {
+            setTimeout(fixScrollButtonColor, 300);
+          }
+        });
+      })();
+    </script>
   </body>
 </html>
