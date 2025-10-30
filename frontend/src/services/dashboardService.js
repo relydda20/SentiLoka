@@ -2,13 +2,11 @@ import apiClient from "../utils/apiClient";
 
 /**
  * Simulate network delay
- * @param {number} ms - Milliseconds to delay
  */
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
  * Fetch all dashboard analytics data
- * @returns {Promise} Dashboard data including stats, sentiment distribution, rating distribution, and trends
  */
 export const fetchDashboardAnalytics = async () => {
   try {
@@ -89,7 +87,6 @@ export const fetchDashboardAnalytics = async () => {
 
 /**
  * Fetch only stats data
- * @returns {Promise} Stats object
  */
 export const fetchDashboardStats = async () => {
   try {
@@ -118,7 +115,6 @@ export const fetchDashboardStats = async () => {
 
 /**
  * Fetch sentiment distribution data
- * @returns {Promise} Sentiment distribution object
  */
 export const fetchSentimentDistribution = async () => {
   try {
@@ -144,7 +140,6 @@ export const fetchSentimentDistribution = async () => {
 
 /**
  * Fetch rating distribution data
- * @returns {Promise} Array of rating distribution
  */
 export const fetchRatingDistribution = async () => {
   try {
@@ -172,9 +167,6 @@ export const fetchRatingDistribution = async () => {
 
 /**
  * Fetch sentiment trends data
- * @param {string} startDate - Start date in YYYY-MM-DD format
- * @param {string} endDate - End date in YYYY-MM-DD format
- * @returns {Promise} Sentiment trends object
  */
 export const fetchSentimentTrends = async (startDate, endDate) => {
   try {
@@ -229,6 +221,56 @@ export const fetchSentimentTrends = async (startDate, endDate) => {
     };
   } catch (error) {
     console.error("❌ Error fetching sentiment trends:", error);
+    throw error;
+  }
+};
+
+/**
+ * Fetch word cloud data
+ */
+export const fetchWordCloudData = async () => {
+  try {
+    console.log("🔄 Loading word cloud data...");
+    await delay(1800);
+
+    // const response = await apiClient.get("/api/dashboard/word-cloud");
+    // return response.data.data;
+
+    console.log("✅ Word cloud data loaded!");
+    return [
+      { text: "delicious", value: 145 },
+      { text: "amazing", value: 132 },
+      { text: "friendly", value: 128 },
+      { text: "service", value: 120 },
+      { text: "great", value: 115 },
+      { text: "excellent", value: 110 },
+      { text: "food", value: 105 },
+      { text: "tasty", value: 98 },
+      { text: "wonderful", value: 95 },
+      { text: "love", value: 92 },
+      { text: "best", value: 88 },
+      { text: "perfect", value: 85 },
+      { text: "awesome", value: 82 },
+      { text: "quality", value: 78 },
+      { text: "fresh", value: 75 },
+      { text: "recommend", value: 72 },
+      { text: "staff", value: 70 },
+      { text: "clean", value: 68 },
+      { text: "atmosphere", value: 65 },
+      { text: "cozy", value: 62 },
+      { text: "nice", value: 60 },
+      { text: "beautiful", value: 58 },
+      { text: "comfortable", value: 55 },
+      { text: "pleasant", value: 52 },
+      { text: "happy", value: 50 },
+      { text: "satisfied", value: 48 },
+      { text: "enjoy", value: 45 },
+      { text: "fast", value: 42 },
+      { text: "quick", value: 40 },
+      { text: "polite", value: 38 },
+    ];
+  } catch (error) {
+    console.error("❌ Error fetching word cloud data:", error);
     throw error;
   }
 };

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import StatCard from "../../components/cards/StatCard";
 import ReactApexChart from "react-apexcharts";
@@ -10,6 +11,7 @@ import {
   fetchSentimentDistribution,
   fetchRatingDistribution,
   fetchSentimentTrends,
+  fetchWordCloudData,
 } from "../../services/dashboardService";
 import {
   pieChartConfig,
@@ -18,14 +20,13 @@ import {
 } from "../../config/chartConfig";
 import { hoverScaleTapShadow } from "../../utils/motionConfig";
 import { motion } from "framer-motion";
-
 import DashboardSectionCard from "../../components/cards/DashboardSectionCard";
+import WordCloudComponent from "../../components/charts/WordCloudComponent";
 
 const Dashboard = () => {
   const queryClient = useQueryClient();
 
   // --- Fetch Dashboard Data with React Query ---
-  // Data is automatically cached and refetched based on staleTime
   const {
     data: stats,
     isLoading: loadingStats,
@@ -33,8 +34,8 @@ const Dashboard = () => {
   } = useQuery({
     queryKey: ["dashboardStats"],
     queryFn: fetchDashboardStats,
-    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
-    cacheTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
+    staleTime: 5 * 60 * 1000,
+    cacheTime: 10 * 60 * 1000,
   });
 
   const {
@@ -70,6 +71,20 @@ const Dashboard = () => {
     cacheTime: 10 * 60 * 1000,
   });
 
+  // Word Cloud Query
+  const {
+    data: wordCloudData,
+    isLoading: loadingWordCloud,
+    error: wordCloudError,
+    refetch: refetchWordCloud,
+  } = useQuery({
+    queryKey: ["wordCloudData"],
+    queryFn: fetchWordCloudData,
+    enabled: false, // Don't fetch automatically
+    staleTime: 10 * 60 * 1000, // Cache for 10 minutes
+    cacheTime: 15 * 60 * 1000, // Keep in cache for 15 minutes
+  });
+
   // Manual refresh function
   const refreshAllData = () => {
     queryClient.invalidateQueries(["dashboardStats"]);
@@ -81,6 +96,13 @@ const Dashboard = () => {
   // Retry individual sections
   const retrySection = (queryKey) => {
     queryClient.invalidateQueries([queryKey]);
+  };
+
+  // Handle word cloud loading
+  const handleLoadWordCloud = () => {
+    if (!wordCloudData) {
+      refetchWordCloud();
+    }
   };
 
   // --- Stat Cards Config ---
@@ -320,17 +342,30 @@ const Dashboard = () => {
 
           {/* Word Cloud - Frequent Words */}
           <DashboardSectionCard title="Word Cloud">
-            <div className="flex justify-center items-center content-center rounded-lg grow">
-              <motion.button
-                title="Load Cloud Words"
-                className="bg-[#ECE8D9] hover:bg-[#FAF6E9] px-16 py-2.5 rounded-4xl text-[#2F4B4E]"
-                {...hoverScaleTapShadow}
-              >
-                <span className="font-medium text-base tracking-wide">
-                  Load Cloud Words
-                </span>
-              </motion.button>
-            </div>
+            {!wordCloudData ? (
+              <div className="flex justify-center items-center content-center rounded-lg min-h-[350px] grow">
+                <motion.button
+                  title="Load Cloud Words"
+                  className="bg-[#ECE8D9] hover:bg-[#FAF6E9] px-16 py-2.5 rounded-4xl text-[#2F4B4E]"
+                  onClick={handleLoadWordCloud}
+                  disabled={loadingWordCloud}
+                  {...hoverScaleTapShadow}
+                >
+                  <span className="font-medium text-base tracking-wide">
+                    {loadingWordCloud ? "Loading..." : "Load Cloud Words"}
+                  </span>
+                </motion.button>
+              </div>
+            ) : loadingWordCloud ? (
+              <LoadingSkeleton height="350px" />
+            ) : wordCloudError ? (
+              <ErrorDisplay
+                message={wordCloudError.message}
+                onRetry={() => retrySection("wordCloudData")}
+              />
+            ) : (
+              <WordCloudComponent words={wordCloudData} />
+            )}
           </DashboardSectionCard>
         </div>
       </div>
