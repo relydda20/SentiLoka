@@ -55,7 +55,7 @@ export const chatWithBot = async (req, res) => {
 
     // Combine summaries using AI
     const combinedSummaryResponse = await openaiClient.chat.completions.create({
-      model: "openai/gpt-4o-mini",
+      model: "openai/gpt-40-mini",
       messages: [
         {
           role: "system",
