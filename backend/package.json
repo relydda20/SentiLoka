@@ -10,7 +10,10 @@
     "test:ci": "jest --ci --coverage",
     "test:coverage": "jest --coverage",
     "lint": "eslint src/**/*.js",
-    "lint:fix": "eslint src/**/*.js --fix"
+    "lint:fix": "eslint src/**/*.js --fix",
+    "seed": "node src/seeders/databaseSeeder.js seed",
+    "seed:clear": "node src/seeders/databaseSeeder.js clear",
+    "seed:fresh": "node src/seeders/databaseSeeder.js fresh"
   },
   "keywords": [],
   "author": "",
@@ -32,6 +35,8 @@
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
-    "mongoose": "^8.19.2"
+    "mongoose": "^8.19.2",
+    "react-wordcloud": "^1.2.7",
+    "tippy.js": "^6.3.7"
   }
 }

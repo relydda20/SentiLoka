@@ -1,11 +1,28 @@
 import axios from "axios";
 
-const apiUrl = import.meta.env.BACKEND_BASE_URL || "http://localhost:5000";
+const apiUrl = import.meta.env.BACKEND_BASE_URL || "http://localhost:8080";
 
 const apiClient = axios.create({
   baseURL: apiUrl, // adjust to your backend
-  withCredentials: true, // send HttpOnly cookies
+  headers: {
+    "Content-Type": "application/json",
+  },
+  withCredentials: true, // Enable sending cookies
 });
+
+// Request interceptor to add auth token
+apiClient.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem("authToken");
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
 
 // --- Refresh logic ---
 let isRefreshing = false;
@@ -59,7 +76,7 @@ apiClient.interceptors.response.use(
     }
 
     return Promise.reject(error);
-  },
+  }
 );
 
 export default apiClient;

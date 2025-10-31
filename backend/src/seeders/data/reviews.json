@@ -1,0 +1,252 @@
+[
+  {
+    "googleReviewId": "review_001",
+    "author": {
+      "name": "Michael Chen"
+    },
+    "rating": 5,
+    "text": "Amazing coffee and great atmosphere! The staff is very friendly and the interior design is beautiful. I love coming here to work on my laptop. Highly recommended!",
+    "publishedAt": "2024-10-15T08:30:00.000Z",
+    "scrapedAt": "2024-10-20T10:00:00.000Z",
+    "sourceUrl": "https://www.google.com/maps/reviews/001",
+    "likes": 12,
+    "sentiment": "positive",
+    "sentimentScore": 0.92,
+    "sentimentBreakdown": {
+      "positive": 0.92,
+      "neutral": 0.05,
+      "negative": 0.03
+    },
+    "keywords": {
+      "positive": ["amazing", "great", "friendly", "beautiful", "recommended"],
+      "negative": []
+    },
+    "topics": ["atmosphere", "staff", "interior", "coffee"],
+    "analyzedAt": "2024-10-20T10:05:00.000Z"
+  },
+  {
+    "googleReviewId": "review_002",
+    "author": {
+      "name": "Sarah Williams"
+    },
+    "rating": 4,
+    "text": "Good coffee but a bit pricey. The service is excellent and the place is always clean. Sometimes it gets too crowded during weekends.",
+    "publishedAt": "2024-10-18T14:20:00.000Z",
+    "scrapedAt": "2024-10-20T10:00:00.000Z",
+    "sourceUrl": "https://www.google.com/maps/reviews/002",
+    "likes": 8,
+    "sentiment": "positive",
+    "sentimentScore": 0.65,
+    "sentimentBreakdown": {
+      "positive": 0.65,
+      "neutral": 0.25,
+      "negative": 0.10
+    },
+    "keywords": {
+      "positive": ["good", "excellent", "clean"],
+      "negative": ["pricey", "crowded"]
+    },
+    "topics": ["price", "service", "cleanliness", "coffee"],
+    "analyzedAt": "2024-10-20T10:05:00.000Z"
+  },
+  {
+    "googleReviewId": "review_003",
+    "author": {
+      "name": "David Kumar"
+    },
+    "rating": 2,
+    "text": "Disappointing experience. The coffee was cold when served and the staff seemed disinterested. Won't be returning anytime soon.",
+    "publishedAt": "2024-10-12T11:45:00.000Z",
+    "scrapedAt": "2024-10-20T10:00:00.000Z",
+    "sourceUrl": "https://www.google.com/maps/reviews/003",
+    "likes": 3,
+    "sentiment": "negative",
+    "sentimentScore": -0.75,
+    "sentimentBreakdown": {
+      "positive": 0.05,
+      "neutral": 0.20,
+      "negative": 0.75
+    },
+    "keywords": {
+      "positive": [],
+      "negative": ["disappointing", "cold", "disinterested"]
+    },
+    "topics": ["service", "coffee", "temperature"],
+    "analyzedAt": "2024-10-20T10:05:00.000Z"
+  },
+  {
+    "googleReviewId": "review_004",
+    "author": {
+      "name": "Emily Rodriguez"
+    },
+    "rating": 5,
+    "text": "Best pastries in town! Everything is fresh and delicious. The chocolate croissant is to die for. Great place for breakfast or afternoon tea.",
+    "publishedAt": "2024-10-19T09:15:00.000Z",
+    "scrapedAt": "2024-10-20T10:00:00.000Z",
+    "sourceUrl": "https://www.google.com/maps/reviews/004",
+    "likes": 15,
+    "sentiment": "positive",
+    "sentimentScore": 0.95,
+    "sentimentBreakdown": {
+      "positive": 0.95,
+      "neutral": 0.03,
+      "negative": 0.02
+    },
+    "keywords": {
+      "positive": ["best", "fresh", "delicious", "great"],
+      "negative": []
+    },
+    "topics": ["pastries", "food quality", "breakfast"],
+    "analyzedAt": "2024-10-20T10:05:00.000Z"
+  },
+  {
+    "googleReviewId": "review_005",
+    "author": {
+      "name": "James Anderson"
+    },
+    "rating": 3,
+    "text": "Average hotel. Rooms are clean but nothing special. Location is convenient. Staff could be more helpful.",
+    "publishedAt": "2024-10-14T16:30:00.000Z",
+    "scrapedAt": "2024-10-20T10:00:00.000Z",
+    "sourceUrl": "https://www.google.com/maps/reviews/005",
+    "likes": 5,
+    "sentiment": "neutral",
+    "sentimentScore": 0.05,
+    "sentimentBreakdown": {
+      "positive": 0.30,
+      "neutral": 0.50,
+      "negative": 0.20
+    },
+    "keywords": {
+      "positive": ["clean", "convenient"],
+      "negative": ["average", "nothing special"]
+    },
+    "topics": ["rooms", "location", "staff", "cleanliness"],
+    "analyzedAt": "2024-10-20T10:05:00.000Z"
+  },
+  {
+    "googleReviewId": "review_006",
+    "author": {
+      "name": "Lisa Thompson"
+    },
+    "rating": 5,
+    "text": "Wonderful dining experience! The food was exceptional and beautifully presented. Service was impeccable. Will definitely come back!",
+    "publishedAt": "2024-10-17T19:00:00.000Z",
+    "scrapedAt": "2024-10-20T10:00:00.000Z",
+    "sourceUrl": "https://www.google.com/maps/reviews/006",
+    "likes": 20,
+    "sentiment": "positive",
+    "sentimentScore": 0.88,
+    "sentimentBreakdown": {
+      "positive": 0.88,
+      "neutral": 0.10,
+      "negative": 0.02
+    },
+    "keywords": {
+      "positive": ["wonderful", "exceptional", "beautiful", "impeccable"],
+      "negative": []
+    },
+    "topics": ["food", "presentation", "service", "dining"],
+    "analyzedAt": "2024-10-20T10:05:00.000Z"
+  },
+  {
+    "googleReviewId": "review_007",
+    "author": {
+      "name": "Robert Lee"
+    },
+    "rating": 1,
+    "text": "Terrible service and overpriced food. Waited over an hour for our order. Manager was rude when we complained. Never again!",
+    "publishedAt": "2024-10-10T20:30:00.000Z",
+    "scrapedAt": "2024-10-20T10:00:00.000Z",
+    "sourceUrl": "https://www.google.com/maps/reviews/007",
+    "likes": 7,
+    "sentiment": "negative",
+    "sentimentScore": -0.90,
+    "sentimentBreakdown": {
+      "positive": 0.02,
+      "neutral": 0.08,
+      "negative": 0.90
+    },
+    "keywords": {
+      "positive": [],
+      "negative": ["terrible", "overpriced", "rude", "waited"]
+    },
+    "topics": ["service", "price", "wait time", "management"],
+    "analyzedAt": "2024-10-20T10:05:00.000Z"
+  },
+  {
+    "googleReviewId": "review_008",
+    "author": {
+      "name": "Maria Garcia"
+    },
+    "rating": 4,
+    "text": "Nice cozy cafe with good wifi. Perfect for remote work. Coffee is decent and they have plenty of power outlets. Could use more food options.",
+    "publishedAt": "2024-10-16T13:45:00.000Z",
+    "scrapedAt": "2024-10-20T10:00:00.000Z",
+    "sourceUrl": "https://www.google.com/maps/reviews/008",
+    "likes": 10,
+    "sentiment": "positive",
+    "sentimentScore": 0.70,
+    "sentimentBreakdown": {
+      "positive": 0.70,
+      "neutral": 0.20,
+      "negative": 0.10
+    },
+    "keywords": {
+      "positive": ["nice", "cozy", "good", "perfect"],
+      "negative": ["could use more"]
+    },
+    "topics": ["atmosphere", "wifi", "coffee", "workspace"],
+    "analyzedAt": "2024-10-20T10:05:00.000Z"
+  },
+  {
+    "googleReviewId": "review_009",
+    "author": {
+      "name": "Thomas Brown"
+    },
+    "rating": 3,
+    "text": "It's okay. Nothing extraordinary but gets the job done. Prices are reasonable. Location is good but parking can be difficult.",
+    "publishedAt": "2024-10-13T12:00:00.000Z",
+    "scrapedAt": "2024-10-20T10:00:00.000Z",
+    "sourceUrl": "https://www.google.com/maps/reviews/009",
+    "likes": 4,
+    "sentiment": "neutral",
+    "sentimentScore": 0.10,
+    "sentimentBreakdown": {
+      "positive": 0.35,
+      "neutral": 0.50,
+      "negative": 0.15
+    },
+    "keywords": {
+      "positive": ["reasonable", "good"],
+      "negative": ["nothing extraordinary", "difficult"]
+    },
+    "topics": ["price", "location", "parking"],
+    "analyzedAt": "2024-10-20T10:05:00.000Z"
+  },
+  {
+    "googleReviewId": "review_010",
+    "author": {
+      "name": "Jennifer White"
+    },
+    "rating": 5,
+    "text": "Outstanding experience from start to finish! The ambiance is perfect, staff is attentive, and every dish we ordered was delicious. A must-visit!",
+    "publishedAt": "2024-10-11T18:20:00.000Z",
+    "scrapedAt": "2024-10-20T10:00:00.000Z",
+    "sourceUrl": "https://www.google.com/maps/reviews/010",
+    "likes": 18,
+    "sentiment": "positive",
+    "sentimentScore": 0.93,
+    "sentimentBreakdown": {
+      "positive": 0.93,
+      "neutral": 0.05,
+      "negative": 0.02
+    },
+    "keywords": {
+      "positive": ["outstanding", "perfect", "attentive", "delicious", "must-visit"],
+      "negative": []
+    },
+    "topics": ["ambiance", "staff", "food", "overall experience"],
+    "analyzedAt": "2024-10-20T10:05:00.000Z"
+  }
+]

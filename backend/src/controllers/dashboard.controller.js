@@ -3,7 +3,7 @@ import Review from '../models/Review.model.js';
 import User from '../models/User.model.js';
 
 const dashboardController = {
-  // Get all dashboard analytics data (combined)
+  // Get all analytics data in one call
   getDashboardAnalytics: async (req, res) => {
     try {
       const { userId } = req.params;
@@ -11,146 +11,60 @@ const dashboardController = {
       // Verify user exists
       const user = await User.findById(userId);
       if (!user) {
-        return res.status(404).json({
-          success: false,
-          message: 'User not found'
-        });
+        return res.status(404).json({ message: 'User not found' });
       }
 
       // Get user's locations
-      const locations = await Location.find({ userId, status: 'active' });
-      const locationIds = locations.map(loc => loc._id);
+      const userLocations = await Location.find({ 
+        userId, 
+        status: { $ne: 'deleted' } 
+      });
+      const locationIds = userLocations.map(loc => loc._id);
 
-      // Get all reviews for user's locations
-      const reviews = await Review.find({ locationId: { $in: locationIds } });
-
-      // Calculate stats
-      const totalReviews = reviews.length;
-      const averageRating = reviews.length > 0 
-        ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length 
-        : 0;
-
-      // Sentiment distribution
-      const sentimentDistribution = {
-        positive: reviews.filter(r => r.sentiment === 'positive').length,
-        neutral: reviews.filter(r => r.sentiment === 'neutral').length,
-        negative: reviews.filter(r => r.sentiment === 'negative').length
-      };
-
-      const positivePercentage = totalReviews > 0 
-        ? (sentimentDistribution.positive / totalReviews * 100).toFixed(2) 
-        : 0;
-
-      // Rating distribution
-      const ratingDistribution = [1, 2, 3, 4, 5].map(stars => ({
-        stars,
-        count: reviews.filter(r => r.rating === stars).length
-      }));
-
-      // Sentiment trends (last 10 months)
-      const now = new Date();
-      const monthsAgo = new Date(now.getFullYear(), now.getMonth() - 9, 1);
-      
-      const sentimentTrends = {
-        positive: [],
-        neutral: [],
-        negative: []
-      };
-
-      for (let i = 0; i < 10; i++) {
-        const monthStart = new Date(now.getFullYear(), now.getMonth() - (9 - i), 1);
-        const monthEnd = new Date(now.getFullYear(), now.getMonth() - (9 - i) + 1, 0);
-        
-        const monthReviews = reviews.filter(r => {
-          const publishDate = new Date(r.publishedAt);
-          return publishDate >= monthStart && publishDate <= monthEnd;
-        });
-
-        const dateStr = monthStart.toISOString().split('T')[0];
-        
-        sentimentTrends.positive.push({
-          date: dateStr,
-          count: monthReviews.filter(r => r.sentiment === 'positive').length
-        });
-        
-        sentimentTrends.neutral.push({
-          date: dateStr,
-          count: monthReviews.filter(r => r.sentiment === 'neutral').length
-        });
-        
-        sentimentTrends.negative.push({
-          date: dateStr,
-          count: monthReviews.filter(r => r.sentiment === 'negative').length
-        });
-      }
+      // Get all data in parallel
+      const [stats, sentimentDistribution, ratingDistribution, sentimentTrends] = await Promise.all([
+        dashboardController._getStats(userId, locationIds),
+        dashboardController._getSentimentDistribution(locationIds),
+        dashboardController._getRatingDistribution(locationIds),
+        dashboardController._getSentimentTrends(locationIds)
+      ]);
 
       res.status(200).json({
-        success: true,
-        data: {
-          stats: {
-            totalReviews,
-            totalReviewsChange: 0, // Calculate based on previous period if needed
-            averageRating: parseFloat(averageRating.toFixed(2)),
-            averageRatingChange: 0, // Calculate based on previous period if needed
-            positiveReviewsPercentage: parseFloat(positivePercentage),
-            totalLocations: locations.length
-          },
-          sentimentDistribution,
-          ratingDistribution,
-          sentimentTrends
-        }
+        stats,
+        sentimentDistribution,
+        ratingDistribution,
+        sentimentTrends
       });
     } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: error.message
-      });
+      console.error('Error fetching dashboard analytics:', error);
+      res.status(500).json({ message: 'Failed to fetch dashboard analytics', error: error.message });
     }
   },
 
-  // Get dashboard stats only
+  // Get dashboard summary statistics
   getDashboardStats: async (req, res) => {
     try {
       const { userId } = req.params;
 
+      // Verify user exists
       const user = await User.findById(userId);
       if (!user) {
-        return res.status(404).json({
-          success: false,
-          message: 'User not found'
-        });
+        return res.status(404).json({ message: 'User not found' });
       }
 
-      const locations = await Location.find({ userId, status: 'active' });
-      const locationIds = locations.map(loc => loc._id);
-      const reviews = await Review.find({ locationId: { $in: locationIds } });
-
-      const totalReviews = reviews.length;
-      const averageRating = reviews.length > 0 
-        ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length 
-        : 0;
-
-      const positiveCount = reviews.filter(r => r.sentiment === 'positive').length;
-      const positivePercentage = totalReviews > 0 
-        ? (positiveCount / totalReviews * 100).toFixed(2) 
-        : 0;
-
-      res.status(200).json({
-        success: true,
-        data: {
-          totalReviews,
-          totalReviewsChange: 0,
-          averageRating: parseFloat(averageRating.toFixed(2)),
-          averageRatingChange: 0,
-          positiveReviewsPercentage: parseFloat(positivePercentage),
-          totalLocations: locations.length
-        }
+      // Get user's locations
+      const userLocations = await Location.find({ 
+        userId, 
+        status: { $ne: 'deleted' } 
       });
+      const locationIds = userLocations.map(loc => loc._id);
+
+      const stats = await dashboardController._getStats(userId, locationIds);
+
+      res.status(200).json(stats);
     } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: error.message
-      });
+      console.error('Error fetching dashboard stats:', error);
+      res.status(500).json({ message: 'Failed to fetch dashboard stats', error: error.message });
     }
   },
 
@@ -159,33 +73,24 @@ const dashboardController = {
     try {
       const { userId } = req.params;
 
+      // Verify user exists
       const user = await User.findById(userId);
       if (!user) {
-        return res.status(404).json({
-          success: false,
-          message: 'User not found'
-        });
+        return res.status(404).json({ message: 'User not found' });
       }
 
-      const locations = await Location.find({ userId, status: 'active' });
-      const locationIds = locations.map(loc => loc._id);
-      const reviews = await Review.find({ locationId: { $in: locationIds } });
+      // Get user's locations
+      const locationIds = await Location.find({ 
+        userId, 
+        status: { $ne: 'deleted' } 
+      }).distinct('_id');
 
-      const sentimentDistribution = {
-        positive: reviews.filter(r => r.sentiment === 'positive').length,
-        neutral: reviews.filter(r => r.sentiment === 'neutral').length,
-        negative: reviews.filter(r => r.sentiment === 'negative').length
-      };
+      const distribution = await dashboardController._getSentimentDistribution(locationIds);
 
-      res.status(200).json({
-        success: true,
-        data: sentimentDistribution
-      });
+      res.status(200).json(distribution);
     } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: error.message
-      });
+      console.error('Error fetching sentiment distribution:', error);
+      res.status(500).json({ message: 'Failed to fetch sentiment distribution', error: error.message });
     }
   },
 
@@ -194,158 +99,271 @@ const dashboardController = {
     try {
       const { userId } = req.params;
 
+      // Verify user exists
       const user = await User.findById(userId);
       if (!user) {
-        return res.status(404).json({
-          success: false,
-          message: 'User not found'
-        });
+        return res.status(404).json({ message: 'User not found' });
       }
 
-      const locations = await Location.find({ userId, status: 'active' });
-      const locationIds = locations.map(loc => loc._id);
-      const reviews = await Review.find({ locationId: { $in: locationIds } });
+      // Get user's locations
+      const locationIds = await Location.find({ 
+        userId, 
+        status: { $ne: 'deleted' } 
+      }).distinct('_id');
 
-      const ratingDistribution = [1, 2, 3, 4, 5].map(stars => ({
-        stars,
-        count: reviews.filter(r => r.rating === stars).length
-      }));
+      const distribution = await dashboardController._getRatingDistribution(locationIds);
 
-      res.status(200).json({
-        success: true,
-        data: ratingDistribution
-      });
+      res.status(200).json(distribution);
     } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: error.message
-      });
+      console.error('Error fetching rating distribution:', error);
+      res.status(500).json({ message: 'Failed to fetch rating distribution', error: error.message });
     }
   },
 
-  // Get sentiment trends
+  // Get sentiment trends over time
   getSentimentTrends: async (req, res) => {
     try {
       const { userId } = req.params;
       const { startDate, endDate } = req.query;
 
+      // Verify user exists
       const user = await User.findById(userId);
       if (!user) {
-        return res.status(404).json({
-          success: false,
-          message: 'User not found'
-        });
+        return res.status(404).json({ message: 'User not found' });
       }
 
-      const locations = await Location.find({ userId, status: 'active' });
-      const locationIds = locations.map(loc => loc._id);
-      const reviews = await Review.find({ locationId: { $in: locationIds } });
+      // Get user's locations
+      const locationIds = await Location.find({ 
+        userId, 
+        status: { $ne: 'deleted' } 
+      }).distinct('_id');
 
-      // Default to last 10 months if no date range provided
-      const now = new Date();
-      const start = startDate ? new Date(startDate) : new Date(now.getFullYear(), now.getMonth() - 9, 1);
-      const end = endDate ? new Date(endDate) : now;
+      const trends = await dashboardController._getSentimentTrends(locationIds, startDate, endDate);
 
-      const sentimentTrends = {
-        positive: [],
-        neutral: [],
-        negative: []
-      };
-
-      // Calculate number of months
-      const monthsDiff = (end.getFullYear() - start.getFullYear()) * 12 + 
-                         (end.getMonth() - start.getMonth()) + 1;
-
-      for (let i = 0; i < monthsDiff; i++) {
-        const monthStart = new Date(start.getFullYear(), start.getMonth() + i, 1);
-        const monthEnd = new Date(start.getFullYear(), start.getMonth() + i + 1, 0);
-        
-        const monthReviews = reviews.filter(r => {
-          const publishDate = new Date(r.publishedAt);
-          return publishDate >= monthStart && publishDate <= monthEnd;
-        });
-
-        const dateStr = monthStart.toISOString().split('T')[0];
-        
-        sentimentTrends.positive.push({
-          date: dateStr,
-          count: monthReviews.filter(r => r.sentiment === 'positive').length
-        });
-        
-        sentimentTrends.neutral.push({
-          date: dateStr,
-          count: monthReviews.filter(r => r.sentiment === 'neutral').length
-        });
-        
-        sentimentTrends.negative.push({
-          date: dateStr,
-          count: monthReviews.filter(r => r.sentiment === 'negative').length
-        });
-      }
-
-      res.status(200).json({
-        success: true,
-        data: sentimentTrends
-      });
+      res.status(200).json(trends);
     } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: error.message
-      });
+      console.error('Error fetching sentiment trends:', error);
+      res.status(500).json({ message: 'Failed to fetch sentiment trends', error: error.message });
     }
   },
 
-  // Get word cloud data
+  // Get word cloud data (keyword frequency)
   getWordCloudData: async (req, res) => {
     try {
       const { userId } = req.params;
 
+      // Verify user exists
       const user = await User.findById(userId);
       if (!user) {
-        return res.status(404).json({
-          success: false,
-          message: 'User not found'
-        });
+        return res.status(404).json({ message: 'User not found' });
       }
 
-      const locations = await Location.find({ userId, status: 'active' });
-      const locationIds = locations.map(loc => loc._id);
-      const reviews = await Review.find({ locationId: { $in: locationIds } });
+      // Get user's locations
+      const locationIds = await Location.find({ 
+        userId, 
+        status: { $ne: 'deleted' } 
+      }).distinct('_id');
 
-      // Aggregate keywords from all reviews
-      const wordFrequency = {};
+      if (locationIds.length === 0) {
+        return res.status(200).json([]);
+      }
+
+      // Get all reviews for user's locations
+      const reviews = await Review.find({ 
+        locationId: { $in: locationIds } 
+      }).select('keywords');
+
+      // Aggregate keywords
+      const keywordMap = new Map();
 
       reviews.forEach(review => {
-        // Positive keywords
-        if (review.keywords && review.keywords.positive) {
-          review.keywords.positive.forEach(word => {
-            wordFrequency[word] = (wordFrequency[word] || 0) + 1;
-          });
-        }
-        // Negative keywords
-        if (review.keywords && review.keywords.negative) {
-          review.keywords.negative.forEach(word => {
-            wordFrequency[word] = (wordFrequency[word] || 0) + 1;
-          });
-        }
+        // Combine positive and negative keywords
+        const allKeywords = [
+          ...(review.keywords?.positive || []),
+          ...(review.keywords?.negative || [])
+        ];
+
+        allKeywords.forEach(keyword => {
+          const normalizedKeyword = keyword.toLowerCase().trim();
+          if (normalizedKeyword) {
+            keywordMap.set(
+              normalizedKeyword,
+              (keywordMap.get(normalizedKeyword) || 0) + 1
+            );
+          }
+        });
       });
 
-      // Convert to array and sort by frequency
-      const wordCloudData = Object.entries(wordFrequency)
-        .map(([text, value]) => ({ text, value }))
+      // Convert to array format expected by word cloud
+      const wordCloudData = Array.from(keywordMap.entries())
+        .map(([text, value]) => ({ 
+          text,
+          value
+        }))
         .sort((a, b) => b.value - a.value)
-        .slice(0, 50); // Top 50 words
+        .slice(0, 100);
 
-      res.status(200).json({
-        success: true,
-        data: wordCloudData
-      });
+      res.status(200).json(wordCloudData);
     } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: error.message
-      });
+      console.error('Error fetching word cloud data:', error);
+      res.status(500).json({ message: 'Failed to fetch word cloud data', error: error.message });
     }
+  },
+
+  // Helper methods (internal use only)
+  _getStats: async (userId, locationIds) => {
+    const totalLocations = locationIds.length;
+
+    if (totalLocations === 0) {
+      return {
+        totalReviews: 0,
+        averageRating: 0,
+        positivePercentage: 0,
+        totalLocations: 0
+      };
+    }
+
+    const reviews = await Review.find({ 
+      locationId: { $in: locationIds } 
+    });
+
+    const totalReviews = reviews.length;
+    
+    if (totalReviews === 0) {
+      return {
+        totalReviews: 0,
+        averageRating: 0,
+        positivePercentage: 0,
+        totalLocations
+      };
+    }
+
+    const totalRating = reviews.reduce((sum, review) => sum + (review.rating || 0), 0);
+    const averageRating = totalRating / totalReviews;
+
+    const positiveReviews = reviews.filter(r => r.sentiment === 'positive').length;
+    const positivePercentage = (positiveReviews / totalReviews) * 100;
+
+    return {
+      totalReviews,
+      averageRating: parseFloat(averageRating.toFixed(2)),
+      positiveReviewsPercentage: parseFloat(positivePercentage.toFixed(2)),
+      totalLocations
+    };
+  },
+
+  _getSentimentDistribution: async (locationIds) => {
+    if (locationIds.length === 0) {
+      return { positive: 0, neutral: 0, negative: 0 };
+    }
+
+    const distribution = await Review.aggregate([
+      { $match: { locationId: { $in: locationIds } } },
+      {
+        $group: {
+          _id: '$sentiment',
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    const result = { positive: 0, neutral: 0, negative: 0 };
+    distribution.forEach(item => {
+      if (item._id && ['positive', 'neutral', 'negative'].includes(item._id)) {
+        result[item._id] = item.count;
+      }
+    });
+
+    return result;
+  },
+
+  _getRatingDistribution: async (locationIds) => {
+    if (locationIds.length === 0) {
+      return [
+        { stars: 1, count: 0 },
+        { stars: 2, count: 0 },
+        { stars: 3, count: 0 },
+        { stars: 4, count: 0 },
+        { stars: 5, count: 0 }
+      ];
+    }
+
+    const distribution = await Review.aggregate([
+      { $match: { locationId: { $in: locationIds } } },
+      {
+        $group: {
+          _id: '$rating',
+          count: { $sum: 1 }
+        }
+      },
+      { $sort: { _id: 1 } }
+    ]);
+
+    // Initialize all ratings 1-5
+    const result = Array.from({ length: 5 }, (_, i) => ({
+      stars: i + 1,
+      count: 0
+    }));
+
+    distribution.forEach(item => {
+      const rating = Math.round(item._id);
+      if (rating >= 1 && rating <= 5) {
+        result[rating - 1].count = item.count;
+      }
+    });
+
+    return result;
+  },
+
+  _getSentimentTrends: async (locationIds, startDate, endDate) => {
+    if (locationIds.length === 0) {
+      return { positive: [], neutral: [], negative: [] };
+    }
+
+    const matchStage = { locationId: { $in: locationIds } };
+
+    // Add date filter if provided
+    if (startDate || endDate) {
+      matchStage.publishedAt = {};
+      if (startDate) matchStage.publishedAt.$gte = new Date(startDate);
+      if (endDate) matchStage.publishedAt.$lte = new Date(endDate);
+    }
+
+    const trends = await Review.aggregate([
+      { $match: matchStage },
+      {
+        $group: {
+          _id: {
+            year: { $year: '$publishedAt' },
+            month: { $month: '$publishedAt' },
+            sentiment: '$sentiment'
+          },
+          count: { $sum: 1 }
+        }
+      },
+      { $sort: { '_id.year': 1, '_id.month': 1 } }
+    ]);
+
+    // Group by sentiment
+    const result = {
+      positive: [],
+      neutral: [],
+      negative: []
+    };
+
+    trends.forEach(item => {
+      const date = `${item._id.year}-${String(item._id.month).padStart(2, '0')}`;
+      const sentiment = item._id.sentiment;
+
+      if (sentiment && result[sentiment]) {
+        result[sentiment].push({
+          date,
+          count: item.count
+        });
+      }
+    });
+
+    return result;
   }
 };
 
