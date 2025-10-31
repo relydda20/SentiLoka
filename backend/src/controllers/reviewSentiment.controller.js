@@ -4,6 +4,8 @@ import {
 } from "../utils/reviewSentimentAnalyzer.js";
 import { CONFIG } from "../config/sentiment-analysis-config.js";
 import ReviewSummary from "../models/ReviewSummary.model.js";
+import Review from "../models/Review.model.js";
+import Location from "../models/Location.model.js";
 
 /**
  * Analyze sentiment of a single review
@@ -359,6 +361,233 @@ export const filterReviewsBySentiment = async (req, res) => {
     return res.status(500).json({
       success: false,
       error: "Failed to filter reviews",
+      details: error.message,
+    });
+  }
+};
+
+/**
+ * Analyze sentiment for all reviews of a specific location
+ * @route POST /api/reviews/analyze-location/:locationId
+ */
+export const analyzeLocationReviews = async (req, res) => {
+  try {
+    const { locationId } = req.params;
+    const userId = req.user._id;
+
+    // Verify the location belongs to the user
+    const location = await Location.findOne({ _id: locationId, userId });
+
+    if (!location) {
+      return res.status(404).json({
+        success: false,
+        error: "Location not found or you don't have access to it",
+      });
+    }
+
+    // Get all reviews for this location
+    const reviews = await Review.find({ locationId, userId });
+
+    if (reviews.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "No reviews found for this location",
+      });
+    }
+
+    console.log(`Starting sentiment analysis for ${reviews.length} reviews from location: ${location.name}`);
+
+    // Transform reviews to match the expected format for the analyzer
+    const reviewsToAnalyze = reviews.map(review => ({
+      review_id: review.googleReviewId,
+      author: review.author.name,
+      rating: review.rating,
+      description: review.text,
+      source: "Google Maps",
+    }));
+
+    // Use parallel batch processing for efficiency
+    const result = await processReviewsParallel(
+      reviewsToAnalyze,
+      CONFIG.BATCH_SIZE,
+      CONFIG.CONCURRENT_BATCHES
+    );
+
+    // Save all successful summaries to database
+    try {
+      const successfulResults = result.results.filter(
+        (r) => r.sentiment !== "error"
+      );
+
+      if (successfulResults.length > 0) {
+        const bulkOps = successfulResults.map((r, index) => {
+          const summaryData = {
+            reviewId: reviewsToAnalyze[index]?.review_id || null,
+            userId: userId,
+            locationId: locationId,
+            placeId: location.placeId,
+            author: r.author,
+            rating: r.rating,
+            text: r.text,
+            sentiment: r.sentiment,
+            sentimentScore: r.sentiment_score,
+            confidence: r.confidence,
+            sentimentKeywords: r.sentiment_keywords || [],
+            contextualTopics: r.contextual_topics || [],
+            summary: r.summary,
+            source: reviewsToAnalyze[index]?.source || "Google Maps",
+            processedAt: new Date(r.processed_at),
+          };
+
+          if (reviewsToAnalyze[index]?.review_id) {
+            return {
+              updateOne: {
+                filter: { reviewId: reviewsToAnalyze[index].review_id },
+                update: { $set: summaryData },
+                upsert: true,
+              },
+            };
+          } else {
+            return {
+              insertOne: {
+                document: summaryData,
+              },
+            };
+          }
+        });
+
+        const bulkResult = await ReviewSummary.bulkWrite(bulkOps, { ordered: false });
+        console.log(
+          `✓ Saved ${bulkResult.upsertedCount + bulkResult.insertedCount} new summaries, updated ${bulkResult.modifiedCount} existing summaries for location: ${location.name}`
+        );
+
+        // Update location's overall sentiment
+        await location.calculateSentiment();
+      }
+    } catch (dbError) {
+      console.error("Error saving summaries to database:", dbError.message);
+      if (dbError.writeErrors) {
+        console.error(`${dbError.writeErrors.length} documents failed to save`);
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Successfully analyzed ${result.results.length} reviews for ${location.name}`,
+      data: {
+        locationId: location._id,
+        locationName: location.name,
+        placeId: location.placeId,
+        totalReviews: reviews.length,
+        analyzedReviews: result.results.length,
+        statistics: result.statistics,
+      },
+    });
+  } catch (error) {
+    console.error("Error in analyzeLocationReviews:", error);
+
+    return res.status(500).json({
+      success: false,
+      error: "Failed to analyze location reviews",
+      details: error.message,
+    });
+  }
+};
+
+/**
+ * Get all sentiment analysis results for a specific location
+ * @route GET /api/reviews/location/:locationId
+ */
+export const getLocationSentiments = async (req, res) => {
+  try {
+    const { locationId } = req.params;
+    const userId = req.user._id;
+    const { sentiment, limit = 100 } = req.query;
+
+    // Verify the location belongs to the user
+    const location = await Location.findOne({ _id: locationId, userId });
+
+    if (!location) {
+      return res.status(404).json({
+        success: false,
+        error: "Location not found or you don't have access to it",
+      });
+    }
+
+    // Build query
+    const query = {
+      userId,
+      locationId,
+      sentiment: { $ne: "error" },
+    };
+
+    // Add sentiment filter if provided
+    if (sentiment && ["positive", "negative", "neutral"].includes(sentiment)) {
+      query.sentiment = sentiment;
+    }
+
+    // Get summaries
+    const summaries = await ReviewSummary.find(query)
+      .sort({ processedAt: -1 })
+      .limit(parseInt(limit))
+      .select("author rating text sentiment sentimentScore confidence sentimentKeywords contextualTopics summary processedAt");
+
+    // Calculate statistics
+    const totalSummaries = await ReviewSummary.countDocuments({ userId, locationId, sentiment: { $ne: "error" } });
+
+    const sentimentDistribution = await ReviewSummary.aggregate([
+      { $match: { userId, locationId, sentiment: { $ne: "error" } } },
+      {
+        $group: {
+          _id: "$sentiment",
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const distributionMap = sentimentDistribution.reduce((acc, item) => {
+      acc[item._id] = item.count;
+      return acc;
+    }, { positive: 0, negative: 0, neutral: 0 });
+
+    // Get average sentiment score and rating
+    const avgStats = await ReviewSummary.aggregate([
+      { $match: { userId, locationId, sentiment: { $ne: "error" } } },
+      {
+        $group: {
+          _id: null,
+          avgSentimentScore: { $avg: "$sentimentScore" },
+          avgRating: { $avg: "$rating" },
+        },
+      },
+    ]);
+
+    const statistics = {
+      totalSummaries,
+      sentimentDistribution: distributionMap,
+      averageSentimentScore: avgStats[0]?.avgSentimentScore?.toFixed(3) || 0,
+      averageRating: avgStats[0]?.avgRating?.toFixed(2) || 0,
+    };
+
+    return res.status(200).json({
+      success: true,
+      message: `Retrieved ${summaries.length} sentiment summaries for ${location.name}`,
+      data: {
+        location: {
+          id: location._id,
+          name: location.name,
+          placeId: location.placeId,
+        },
+        summaries,
+        statistics,
+      },
+    });
+  } catch (error) {
+    console.error("Error in getLocationSentiments:", error);
+
+    return res.status(500).json({
+      success: false,
+      error: "Failed to retrieve location sentiments",
       details: error.message,
     });
   }
