@@ -87,127 +87,6 @@ Respond with ONLY the combined summary text, no additional formatting or explana
   }
 };
 
-/**
- * Get aggregated summary for a company
- * @param {String} company - Company name
- * @param {Object} options - Aggregation options
- * @returns {Promise<Object>} - Aggregated summary with statistics
- */
-export const getAggregatedSummaryForCompany = async (company, options = {}) => {
-  try {
-    const {
-      limit = 100,
-      sentiment = null, // 'positive', 'negative', 'neutral', or null for all
-      focus = "overall",
-    } = options;
-
-    // Build query
-    const query = { company, sentiment: { $ne: "error" } };
-    if (sentiment) {
-      query.sentiment = sentiment;
-    }
-
-    // Get summaries from database
-    const reviews = await ReviewSummary.find(query)
-      .sort({ processedAt: -1 })
-      .limit(limit)
-      .select("summary sentiment sentimentScore author rating processedAt");
-
-    if (reviews.length === 0) {
-      return {
-        company,
-        aggregatedSummary: "No reviews found for this company.",
-        statistics: {
-          totalReviews: 0,
-          sentimentDistribution: { positive: 0, negative: 0, neutral: 0 },
-          averageSentimentScore: 0,
-          averageRating: 0,
-        },
-      };
-    }
-
-    // Extract summaries
-    const summaries = reviews.map((r) => r.summary);
-
-    // Combine summaries
-    const aggregatedSummary = await combineSummaries(summaries, {
-      focus,
-      maxLength: 500,
-    });
-
-    // Calculate statistics
-    const sentimentDistribution = reviews.reduce(
-      (acc, r) => {
-        acc[r.sentiment] = (acc[r.sentiment] || 0) + 1;
-        return acc;
-      },
-      { positive: 0, negative: 0, neutral: 0 }
-    );
-
-    const averageSentimentScore =
-      reviews.reduce((sum, r) => sum + (r.sentimentScore || 0), 0) /
-      reviews.length;
-
-    const averageRating =
-      reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length;
-
-    // Save the aggregated summary to database
-    const combinedSummaryDoc = new ReviewSummary({
-      author: "System (Aggregated)",
-      rating: averageRating,
-      text: `Aggregated summary from ${reviews.length} reviews`,
-      sentiment: averageSentimentScore > 0.3 ? "positive" : averageSentimentScore < -0.3 ? "negative" : "neutral",
-      sentimentScore: averageSentimentScore,
-      confidence: 0.9,
-      sentimentKeywords: [],
-      contextualTopics: [],
-      summary: aggregatedSummary,
-      company,
-      source: "Aggregated",
-      isCombined: true,
-      originalSummaryIds: reviews.map((r) => r._id),
-      processedAt: new Date(),
-    });
-
-    await combinedSummaryDoc.save();
-    console.log(
-      `✓ Saved aggregated summary for ${company} (${reviews.length} reviews)`
-    );
-
-    return {
-      company,
-      aggregatedSummary,
-      combinedSummaryId: combinedSummaryDoc._id,
-      statistics: {
-        totalReviews: reviews.length,
-        sentimentDistribution,
-        averageSentimentScore: parseFloat(averageSentimentScore.toFixed(3)),
-        averageRating: parseFloat(averageRating.toFixed(2)),
-        dateRange: {
-          oldest: reviews[reviews.length - 1].processedAt,
-          newest: reviews[0].processedAt,
-        },
-      },
-    };
-  } catch (error) {
-    console.error("Error getting aggregated summary:", error);
-    throw error;
-  }
-};
-
-/**
- * Get aggregated summary by sentiment type
- * @param {String} company - Company name
- * @param {String} sentiment - 'positive', 'negative', or 'neutral'
- * @returns {Promise<Object>} - Aggregated summary for that sentiment
- */
-export const getAggregatedSummaryBySentiment = async (company, sentiment) => {
-  return getAggregatedSummaryForCompany(company, {
-    sentiment,
-    focus: sentiment,
-    limit: 50,
-  });
-};
 
 /**
  * Get recent aggregated summary (last N reviews)
@@ -219,7 +98,7 @@ export const getRecentAggregatedSummary = async (limit = 50) => {
     const reviews = await ReviewSummary.find({ sentiment: { $ne: "error" } })
       .sort({ processedAt: -1 })
       .limit(limit)
-      .select("summary sentiment sentimentScore author rating company processedAt");
+      .select("summary sentiment sentimentScore author rating processedAt");
 
     if (reviews.length === 0) {
       return {
@@ -252,14 +131,10 @@ export const getRecentAggregatedSummary = async (limit = 50) => {
     const averageRating =
       reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length;
 
-    // Get unique companies
-    const companies = [...new Set(reviews.map((r) => r.company))];
-
     return {
       aggregatedSummary,
       statistics: {
         totalReviews: reviews.length,
-        companies,
         sentimentDistribution,
         averageSentimentScore: parseFloat(averageSentimentScore.toFixed(3)),
         averageRating: parseFloat(averageRating.toFixed(2)),
@@ -277,7 +152,5 @@ export const getRecentAggregatedSummary = async (limit = 50) => {
 
 export default {
   combineSummaries,
-  getAggregatedSummaryForCompany,
-  getAggregatedSummaryBySentiment,
   getRecentAggregatedSummary,
 };
