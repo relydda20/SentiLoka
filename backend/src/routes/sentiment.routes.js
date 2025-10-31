@@ -10,6 +10,7 @@ import {
   validateBatchSentimentRequest,
   asyncHandler,
 } from "../middleware/validation.middleware.js";
+import { authenticate } from "../middleware/auth.middleware.js";
 
 const router = express.Router();
 
@@ -20,10 +21,13 @@ const router = express.Router();
  */
 router.get("/health", asyncHandler(healthCheck));
 
+// All routes below require authentication
+router.use(authenticate);
+
 /**
  * @route POST /api/sentiment/analyze
  * @desc Analyze sentiment of a single text
- * @access Public
+ * @access Private
  * @body { text: string }
  */
 router.post(
@@ -35,7 +39,7 @@ router.post(
 /**
  * @route POST /api/sentiment/analyze-stream
  * @desc Analyze sentiment with streaming response (SSE)
- * @access Public
+ * @access Private
  * @body { text: string }
  */
 router.post(
@@ -47,7 +51,7 @@ router.post(
 /**
  * @route POST /api/sentiment/batch-analyze
  * @desc Batch analyze sentiment of multiple texts
- * @access Public
+ * @access Private
  * @body { texts: string[] }
  */
 router.post(
