@@ -19,6 +19,7 @@ export const chatWithBot = async (req, res) => {
       message,
       conversationHistory = [],
       sessionId, // Optional: for persistent conversation tracking
+      locationId, // Optional: for location-specific analysis
     } = req.body;
 
     if (!message || message.trim().length === 0) {
@@ -29,14 +30,26 @@ export const chatWithBot = async (req, res) => {
     }
 
     console.log(`\n🤖 Chatbot Request: "${message}"`);
+    if (locationId) {
+      console.log(`📍 Location-specific query for: ${locationId}`);
+    }
 
-    // STEP 1: Retrieve ALL summaries from database
-    const query = { sentiment: { $ne: "error" } };
+    // STEP 1: Retrieve summaries from database (all or location-specific)
+    const query = {
+      sentiment: { $ne: "error" },
+      userId: req.user._id // Only get reviews for this user
+    };
+
+    // Add location filter if provided
+    if (locationId) {
+      query.locationId = locationId;
+    }
 
     const allReviews = await ReviewSummary.find(query)
       .sort({ processedAt: -1 })
       .limit(100)
-      .select("summary sentiment rating author processedAt sentimentKeywords contextualTopics");
+      .select("summary sentiment rating author processedAt sentimentKeywords contextualTopics locationId")
+      .populate('locationId', 'name placeId');
 
     console.log(`📊 Retrieved ${allReviews.length} reviews from database`);
 
@@ -127,9 +140,14 @@ Keep it concise (3-4 paragraphs max).`,
     console.log(`   - Average Rating: ${averageRating}/5`);
     console.log(`   - Sentiment: ${sentimentCounts.positive}+ ${sentimentCounts.negative}- ${sentimentCounts.neutral}=`);
 
+    // Get location name if available
+    const locationName = locationId && allReviews.length > 0 && allReviews[0].locationId?.name
+      ? allReviews[0].locationId.name
+      : "your business";
+
     // STEP 4: Build comprehensive context for AI
     const comprehensiveContext = `
-=== COMPREHENSIVE REVIEW ANALYSIS ===
+=== COMPREHENSIVE REVIEW ANALYSIS ${locationId ? `FOR ${locationName.toUpperCase()}` : ''} ===
 
 📊 OVERALL STATISTICS:
 - Total Reviews Analyzed: ${allReviews.length}
@@ -160,28 +178,44 @@ ${topTopics.join(", ")}
     const messages = [
       {
         role: "system",
-        content: `You are an intelligent customer insights chatbot with deep knowledge of customer reviews.
+        content: `You are an intelligent business improvement advisor and customer insights expert. You analyze customer reviews to help business owners understand their strengths and areas for improvement.
 
-You have analyzed ${allReviews.length} customer reviews and have access to:
+You have analyzed ${allReviews.length} customer reviews${locationId ? ` for ${locationName}` : ''} and have access to:
 - Combined summary of all reviews
 - Sentiment analysis (positive/negative/neutral breakdown)
 - Rating statistics (1-5 stars)
-- Most frequently mentioned keywords
-- Common topics and themes
+- Most frequently mentioned keywords and themes
+- Specific topics customers care about
 
 YOUR KNOWLEDGE BASE:
 ${comprehensiveContext}
 
-GUIDELINES FOR RESPONSES:
-- Answer questions based on the review data provided
-- Use specific statistics and numbers when relevant
-- Be conversational, helpful, and insightful
-- If asked about trends, identify patterns from the data
-- If asked for recommendations, base them on the review insights
-- If you don't have enough information, say so honestly
-- Always ground your responses in the actual review data
+YOUR PRIMARY ROLE:
+Help business owners improve their business by:
+1. Identifying what customers love (strengths to maintain)
+2. Highlighting pain points and complaints (areas to improve)
+3. Recognizing patterns and trends in customer feedback
+4. Providing actionable recommendations based on review data
+5. Explaining the sentiment behind ratings and keywords
 
-TONE: Professional yet friendly, data-driven but conversational`,
+GUIDELINES FOR RESPONSES:
+- Be a helpful business advisor, not just a data reporter
+- Provide ACTIONABLE insights and recommendations
+- Use specific statistics and examples from the reviews
+- When asked "how can I improve?", analyze negative reviews and neutral feedback for improvement areas
+- When discussing strengths, reference positive keywords and high ratings
+- Identify quick wins (common complaints that are easy to fix)
+- Prioritize issues that affect customer satisfaction the most
+- Be honest about both strengths and weaknesses
+- Ground all advice in the actual review data provided
+- Be conversational, supportive, and constructive
+
+EXAMPLE RESPONSES:
+- "Based on your reviews, customers love [X], but 30% mention issues with [Y]. Here's how to improve..."
+- "Your strongest asset is [X] - mentioned in 45% of positive reviews. However, [Y] appears in 60% of negative feedback..."
+- "To boost your rating from ${averageRating} to 4.5+, focus on these 3 areas that customers frequently complain about..."
+
+TONE: Professional yet supportive, like a trusted business consultant`,
       },
     ];
 
