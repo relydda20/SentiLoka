@@ -2,6 +2,12 @@ import mongoose from 'mongoose';
 
 const reviewSchema = new mongoose.Schema(
   {
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: [true, 'User ID is required'],
+      index: true
+    },
     locationId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Location',
@@ -11,7 +17,6 @@ const reviewSchema = new mongoose.Schema(
     googleReviewId: {
       type: String,
       required: true,
-      unique: true,
       index: true
     },
     author: {
@@ -90,6 +95,8 @@ const reviewSchema = new mongoose.Schema(
   }
 );
 
+// Compound unique index: each user can only have one copy of each Google review
+reviewSchema.index({ userId: 1, googleReviewId: 1 }, { unique: true });
 reviewSchema.index({ userId: 1, locationId: 1 });
 reviewSchema.index({ userId: 1, sentiment: 1 });
 reviewSchema.index({ locationId: 1, publishedAt: -1 });
