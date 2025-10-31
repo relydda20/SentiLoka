@@ -1,0 +1,10 @@
+# Requirements for Google Maps Review Scraper Integration
+# Install with: python_env/bin/pip install -r requirements.txt
+
+# Core scraping dependencies
+scrapy>=2.11.0
+scrapy-playwright>=0.0.34
+playwright>=1.40.0
+
+# Utilities
+python-dateutil>=2.8.0
