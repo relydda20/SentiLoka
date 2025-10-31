@@ -10,6 +10,25 @@ const reviewSummarySchema = new mongoose.Schema(
       index: true,
     },
 
+    // Location and User association
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+      index: true
+    },
+    locationId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Location',
+      required: true,
+      index: true
+    },
+    placeId: {
+      type: String,
+      required: true,
+      index: true
+    },
+
     // Original review data
     author: {
       type: String,
@@ -84,16 +103,31 @@ const reviewSummarySchema = new mongoose.Schema(
 // Indexes for efficient querying
 reviewSummarySchema.index({ processedAt: -1 });
 reviewSummarySchema.index({ createdAt: -1 });
+reviewSummarySchema.index({ userId: 1, locationId: 1 });
+reviewSummarySchema.index({ userId: 1, placeId: 1 });
+reviewSummarySchema.index({ locationId: 1, sentiment: 1 });
 
-// Static method to get all summaries for a company
-reviewSummarySchema.statics.getSummariesByCompany = function (
-  company,
+// Static method to get all summaries for a location
+reviewSummarySchema.statics.getSummariesByLocation = function (
+  locationId,
   limit = 100
 ) {
-  return this.find({ company, sentiment: { $ne: "error" } })
+  return this.find({ locationId, sentiment: { $ne: "error" } })
     .sort({ processedAt: -1 })
     .limit(limit)
-    .select("summary sentiment sentimentScore author rating processedAt");
+    .select("summary sentiment sentimentScore author rating sentimentKeywords contextualTopics processedAt");
+};
+
+// Static method to get all summaries for a user's location
+reviewSummarySchema.statics.getSummariesByUserAndLocation = function (
+  userId,
+  locationId,
+  limit = 100
+) {
+  return this.find({ userId, locationId, sentiment: { $ne: "error" } })
+    .sort({ processedAt: -1 })
+    .limit(limit)
+    .select("summary sentiment sentimentScore author rating sentimentKeywords contextualTopics processedAt");
 };
 
 // Static method to get recent summaries
@@ -101,7 +135,7 @@ reviewSummarySchema.statics.getRecentSummaries = function (limit = 50) {
   return this.find({ sentiment: { $ne: "error" } })
     .sort({ processedAt: -1 })
     .limit(limit)
-    .select("summary sentiment sentimentScore author rating company processedAt");
+    .select("summary sentiment sentimentScore author rating processedAt");
 };
 
 // Static method to get summaries by sentiment
@@ -112,7 +146,7 @@ reviewSummarySchema.statics.getSummariesBySentiment = function (
   return this.find({ sentiment })
     .sort({ processedAt: -1 })
     .limit(limit)
-    .select("summary sentimentScore author rating company processedAt");
+    .select("summary sentimentScore author rating processedAt");
 };
 
 // Instance method to format for chatbot
@@ -126,7 +160,6 @@ reviewSummarySchema.methods.formatForChatbot = function () {
     summary: this.summary,
     keywords: this.sentimentKeywords,
     topics: this.contextualTopics,
-    company: this.company,
     processedAt: this.processedAt,
   };
 };
