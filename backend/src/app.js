@@ -33,7 +33,6 @@ app.use('/api/auth', authRoutes);
 app.use('/api/locations', locationRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/dashboard', dashboardRoutes);
-// app.use('/api/businesses', businessRoutes);
 // app.use('/api/ai', aiRoutes);
 
 // Error handling middleware
