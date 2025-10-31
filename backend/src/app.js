@@ -33,6 +33,11 @@ app.use('/api/chatbot', chatbotRoutes);
 // import authRoutes from './routes/auth.routes.js';
 // import businessRoutes from './routes/business.routes.js';
 // app.use('/api/auth', authRoutes);
+import authRoutes from './routes/auth.routes.js';
+// import businessRoutes from './routes/business.routes.js';
+// import aiRoutes from './routes/ai.routes.js';
+
+app.use('/api/auth', authRoutes);
 // app.use('/api/businesses', businessRoutes);
 
 // Error handling middleware

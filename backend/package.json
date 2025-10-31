@@ -25,6 +25,7 @@
     "supertest": "^7.1.4"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.2",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "crypto": "^1.0.1",
@@ -33,5 +34,7 @@
     "mongoose": "^8.19.2",
     "openai": "^6.7.0",
     "uuid": "^13.0.0"
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.19.2"
   }
 }

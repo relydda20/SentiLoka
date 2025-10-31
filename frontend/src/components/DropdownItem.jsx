@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { hoverScaleTap } from "../../utils/motionConfig";
+import { hoverScaleTap } from "../utils/motionConfig";
 
 const DropdownItem = ({ children, onClick, className }) => (
   <motion.button

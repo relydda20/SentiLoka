@@ -3,8 +3,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useState } from "react";
 import logo from "../../assets/sentiloka_logo.png";
 
-import NavItem from "../../components/features/NavItem";
-import DropdownItem from "../../components/common/DropdownItem";
+import NavItem from "../../components/NavItem";
+import DropdownItem from "../../components/DropdownItem";
 import {
   hoverScale,
   hoverScaleTap,
@@ -51,8 +51,8 @@ const DashboardLayout = () => {
             </h1>
           </motion.div>
 
-          {/* Links */}
-          <div className="flex font-semibold text-[#FAF6E9] text-2xl leading-8">
+          {/* Desktop Links */}
+          <div className="hidden md:flex gap-6 font-semibold text-[#FAF6E9] text-lg">
             {navItems.map((item) => (
               <NavLink key={item.path} to={item.path}>
                 <NavItem active={isLinkActive(item.path)}>{item.label}</NavItem>
@@ -60,86 +60,111 @@ const DashboardLayout = () => {
             ))}
           </div>
 
-          {/* Profile + Dropdown */}
-          <div className="relative">
-            <motion.div
-              className="flex items-center gap-8 px-4 py-2 cursor-pointer"
-              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-              {...hoverScaleTap}
-            >
-              {profileUrl ? (
-                <motion.img
-                  src={profileUrl}
-                  alt="Profile"
-                  className="rounded-full w-10 h-10 object-cover pointer-events-none"
-                  whileHover={{ scale: 1.1 }}
-                  transition={springTransition}
-                />
-              ) : (
-                <motion.div
-                  className="bg-[#D9D9D9] rounded-full w-10 h-10 pointer-events-none"
-                  whileHover={{ scale: 1.1, backgroundColor: "#C9C9C9" }}
-                  transition={springTransition}
-                />
-              )}
-
-              <motion.svg
-                width="33"
-                height="19"
-                viewBox="0 0 33 19"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-                className="pointer-events-none"
-                animate={{ rotate: isDropdownOpen ? 180 : 0 }}
+          {/* Profile + Dropdown Trigger */}
+          <div className="relative flex items-center gap-2">
+            {/* Profile Avatar */}
+            {profileUrl ? (
+              <motion.img
+                src={profileUrl}
+                alt="Profile"
+                className="rounded-full w-10 h-10 object-cover cursor-pointer"
+                whileHover={{ scale: 1.1 }}
                 transition={springTransition}
-              >
-                <path
-                  d="M1.5 1.5L16.5 16.5L31.5 1.5"
-                  stroke="#ECE8D9"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                />
-              </motion.svg>
-            </motion.div>
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+              />
+            ) : (
+              <motion.div
+                className="bg-[#D9D9D9] rounded-full w-10 h-10 cursor-pointer"
+                whileHover={{ scale: 1.1, backgroundColor: "#C9C9C9" }}
+                transition={springTransition}
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+              />
+            )}
+
+            {/* Arrow (only on small screens) */}
+            <motion.svg
+              width="32"
+              height="32"
+              viewBox="0 0 24 24"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              className="md:hidden cursor-pointer"
+              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+              animate={{ rotate: isDropdownOpen ? 180 : 0 }}
+              transition={springTransition}
+            >
+              <path
+                d="M6 9l6 6 6-6"
+                stroke="#ECE8D9"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </motion.svg>
 
             {/* Dropdown */}
             <AnimatePresence>
               {isDropdownOpen && (
                 <motion.div
                   {...dropdownMotion}
-                  className="right-0 absolute bg-white shadow-lg mt-2 rounded-2xl w-48 overflow-hidden"
+                  className="top-12 right-0 absolute bg-white shadow-lg mt-2 rounded-2xl w-56 overflow-hidden"
                 >
-                  <DropdownItem
-                    onClick={() => {
-                      setIsDropdownOpen(false);
-                      navigate("/dashboard/profile");
-                    }}
-                    className="hover:bg-[#FAF6E9] text-[#2F4B4E]"
-                  >
-                    Profile
-                  </DropdownItem>
+                  {/* On small screens: nav + profile actions */}
+                  <div className="md:hidden flex flex-col">
+                    {/* Label for pages */}
+                    <div className="px-4 py-2 font-semibold text-gray-500 text-xs uppercase tracking-wide">
+                      Pages
+                    </div>
+                    {navItems.map((item) => (
+                      <DropdownItem
+                        key={item.path}
+                        onClick={() => {
+                          setIsDropdownOpen(false);
+                          navigate(item.path);
+                        }}
+                        className="hover:bg-[#FAF6E9] text-[#2F4B4E]"
+                      >
+                        {item.label}
+                      </DropdownItem>
+                    ))}
+                    <div className="my-1 border-gray-200 border-t" />
+                  </div>
 
-                  <DropdownItem
-                    onClick={() => {
-                      setIsDropdownOpen(false);
-                      navigate("/dashboard/settings");
-                    }}
-                    className="hover:bg-[#FAF6E9] text-[#2F4B4E]"
-                  >
-                    Settings
-                  </DropdownItem>
-
-                  <div className="bg-gray-200 mx-4 h-px" />
-
-                  <DropdownItem
-                    onClick={() => {
-                      setIsDropdownOpen(false);
-                      handleLogout();
-                    }}
-                    className="hover:bg-red-50 text-red-600"
-                  >
-                    Logout
-                  </DropdownItem>
+                  {/* Profile actions (always) */}
+                  <div className="flex flex-col">
+                    {/* Label for account */}
+                    <div className="md:hidden px-4 py-2 font-semibold text-gray-500 text-xs uppercase tracking-wide">
+                      Account
+                    </div>
+                    <DropdownItem
+                      onClick={() => {
+                        setIsDropdownOpen(false);
+                        navigate("/dashboard/profile");
+                      }}
+                      className="hover:bg-[#FAF6E9] text-[#2F4B4E]"
+                    >
+                      Profile
+                    </DropdownItem>
+                    <DropdownItem
+                      onClick={() => {
+                        setIsDropdownOpen(false);
+                        navigate("/dashboard/settings");
+                      }}
+                      className="hover:bg-[#FAF6E9] text-[#2F4B4E]"
+                    >
+                      Settings
+                    </DropdownItem>
+                    <div className="bg-gray-200 mx-4 h-px" />
+                    <DropdownItem
+                      onClick={() => {
+                        setIsDropdownOpen(false);
+                        handleLogout();
+                      }}
+                      className="hover:bg-red-50 text-red-600"
+                    >
+                      Logout
+                    </DropdownItem>
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>
