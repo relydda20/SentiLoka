@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { MapPin, Lock, Edit3, Settings, Search, Star } from "lucide-react";
+import { MapPin, Smile, Frown, Meh, Lock, Edit3, Settings, Search, Star } from "lucide-react";
 import maxwellAvatar from "../../assets/maxwell.png";
 import fullStar from "../../assets/full-star.png";
 import emptyStar from "../../assets/not-full-star.png";
@@ -123,6 +123,11 @@ const Profile = () => {
   // Watch new password for validation
   const newPassword = watch("newPassword");
 
+  // Retry individual sections
+  const retrySection = (queryKey) => {
+    queryClient.invalidateQueries([queryKey]);
+  };
+
   // Filter & Search Logic
   const filteredStores = stores.filter((store) => {
     const matchesSearch =
@@ -162,230 +167,309 @@ const Profile = () => {
     }
   };
 
-  if (loadingProfile) {
-    return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="text-center">
-          <div className="inline-block border-[#2F4B4E] border-t-4 rounded-full w-16 h-16 animate-spin"></div>
-          <p className="mt-4 text-gray-600">Loading profile...</p>
+  // --- Skeleton Components ---
+  const ProfileCardSkeleton = () => (
+    <div className="bg-white shadow-lg mb-8 p-6 md:p-8 border border-gray-100 rounded-3xl animate-pulse">
+      <div className="flex md:flex-row flex-col items-start gap-6">
+        <div className="flex flex-1 items-start gap-4 w-full">
+          {/* Avatar skeleton */}
+          <div className="bg-gray-200 rounded-2xl w-16 md:w-20 h-16 md:h-20 shrink-0"></div>
+          
+          <div className="flex-1 space-y-3 min-w-0">
+            {/* Name skeleton */}
+            <div className="bg-gray-200 rounded w-40 h-8"></div>
+            {/* Bio skeleton */}
+            <div className="space-y-2">
+              <div className="bg-gray-200 rounded w-full h-4"></div>
+              <div className="bg-gray-200 rounded w-3/4 h-4"></div>
+              <div className="bg-gray-200 rounded w-1/2 h-4"></div>
+            </div>
+          </div>
         </div>
-      </div>
-    );
-  }
 
-  if (profileError) {
-    return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="bg-red-50 p-6 border border-red-200 rounded-xl text-center">
-          <p className="font-semibold text-red-600">Error loading profile</p>
-          <p className="text-red-500 text-sm">{profileError.message}</p>
+        {/* Action buttons skeleton */}
+        <div className="flex gap-2">
+          <div className="bg-gray-200 rounded-xl w-10 h-10"></div>
+          <div className="bg-gray-200 rounded-xl w-10 h-10"></div>
         </div>
       </div>
-    );
-  }
+
+      {/* Stats skeleton */}
+      <div className="gap-4 grid grid-cols-3 mt-6 pt-6 border-gray-100 border-t">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="text-center">
+            <div className="flex justify-center items-center gap-2 mb-2">
+              <div className="bg-gray-200 rounded w-16 h-8"></div>
+            </div>
+            <div className="bg-gray-200 mx-auto rounded w-20 h-4"></div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const StoreCardSkeleton = () => (
+    <div className="bg-white shadow-sm p-5 border border-gray-200 rounded-2xl animate-pulse">
+      {/* Header */}
+      <div className="flex items-start gap-3 mb-4">
+        <div className="bg-gray-200 rounded-xl w-12 h-12 shrink-0"></div>
+        <div className="flex-1 space-y-2">
+          <div className="bg-gray-200 rounded w-3/4 h-5"></div>
+          <div className="bg-gray-200 rounded w-1/2 h-4"></div>
+        </div>
+      </div>
+
+      {/* Sentiment badge skeleton */}
+      <div className="bg-gray-200 mb-3 rounded-full w-24 h-7"></div>
+
+      {/* Rating skeleton */}
+      <div className="flex justify-between items-center pt-3 border-gray-100 border-t">
+        <div className="flex items-center gap-1">
+          <div className="bg-gray-200 rounded w-24 h-4"></div>
+        </div>
+        <div className="bg-gray-200 rounded w-20 h-4"></div>
+      </div>
+
+      {/* Button skeleton */}
+      <div className="bg-gray-200 mt-4 rounded-xl w-full h-10"></div>
+    </div>
+  );
+
+  const LoadingSkeleton = ({ height = "300px" }) => (
+    <div
+      className="bg-gray-100 rounded-xl animate-pulse"
+      style={{ height }}
+    ></div>
+  );
+
+  // --- Error Component ---
+  const ErrorDisplay = ({ message, onRetry }) => (
+    <div className="flex flex-col justify-center items-center gap-3 bg-red-50 p-6 border border-red-200 rounded-xl h-full min-h-[200px]">
+      <div className="text-red-600 text-center">
+        <p className="font-semibold">Error loading data</p>
+        <p className="text-sm">{message}</p>
+      </div>
+      <button
+        onClick={onRetry}
+        className="bg-red-500 hover:bg-red-600 px-4 py-2 rounded text-white text-sm transition-colors"
+      >
+        Retry
+      </button>
+    </div>
+  );
 
   return (
     <div className="bg-linear-to-b from-gray-50 to-white min-h-screen">
       <div className="mx-auto mt-30 px-4 md:px-8 pb-12 w-full max-w-[1440px]">
         {/* Profile Card */}
-        <motion.div
-          className="bg-white shadow-lg mb-8 p-6 md:p-8 border border-gray-100 rounded-3xl"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-        >
-          <div className="flex md:flex-row flex-col items-start gap-6">
-            {/* Avatar & Basic Info */}
-            <div className="flex flex-1 items-start gap-4 w-full">
-              <motion.img
-                src={maxwellAvatar}
-                alt="User Avatar"
-                className="rounded-2xl ring-[#E8E5D5] ring-4 w-16 md:w-20 h-16 md:h-20 object-cover shrink-0"
-                whileHover={{ scale: 1.05 }}
-                transition={{ duration: 0.2 }}
-              />
+        {loadingProfile ? (
+          <ProfileCardSkeleton />
+        ) : profileError ? (
+          <div className="mb-8">
+            <ErrorDisplay
+              message={profileError.message}
+              onRetry={() => retrySection("userProfile")}
+            />
+          </div>
+        ) : (
+          <motion.div
+            className="bg-white shadow-lg mb-8 p-6 md:p-8 border border-gray-100 rounded-3xl"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+          >
+            <div className="flex md:flex-row flex-col items-start gap-6">
+              {/* Avatar & Basic Info */}
+              <div className="flex flex-1 items-start gap-4 w-full">
+                <motion.img
+                  src={maxwellAvatar}
+                  alt="User Avatar"
+                  className="rounded-2xl ring-[#E8E5D5] ring-4 w-16 md:w-20 h-16 md:h-20 object-cover shrink-0"
+                  whileHover={{ scale: 1.05 }}
+                  transition={{ duration: 0.2 }}
+                />
 
-              <div className="flex-1 min-w-0">
-                {isEditing ? (
-                  <motion.form
-                    onSubmit={handleSubmitProfile(onSubmitProfile)}
-                    className="w-full"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                  >
-                    <div className="mb-3">
-                      <input
-                        {...registerProfile("name", {
-                          required: "Name is required",
-                          minLength: {
-                            value: 2,
-                            message: "Name must be at least 2 characters",
-                          },
-                        })}
-                        className="bg-gray-50 p-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-[#2F4B4E] focus:ring-2 w-full md:w-2/3 font-semibold text-gray-900 text-base"
-                        placeholder="Your name..."
-                      />
-                      {profileErrors.name && (
-                        <p className="mt-1 text-red-500 text-xs">
-                          {profileErrors.name.message}
-                        </p>
-                      )}
-                    </div>
+                <div className="flex-1 min-w-0">
+                  {isEditing ? (
+                    <motion.form
+                      onSubmit={handleSubmitProfile(onSubmitProfile)}
+                      className="w-full"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                    >
+                      <div className="mb-3">
+                        <input
+                          {...registerProfile("name", {
+                            required: "Name is required",
+                            minLength: {
+                              value: 2,
+                              message: "Name must be at least 2 characters",
+                            },
+                          })}
+                          className="bg-gray-50 p-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-[#2F4B4E] focus:ring-2 w-full md:w-2/3 font-semibold text-gray-900 text-base"
+                          placeholder="Your name..."
+                        />
+                        {profileErrors.name && (
+                          <p className="mt-1 text-red-500 text-xs">
+                            {profileErrors.name.message}
+                          </p>
+                        )}
+                      </div>
 
-                    <div className="mb-3">
-                      <textarea
-                        {...registerProfile("bio", {
-                          maxLength: {
-                            value: 500,
-                            message: "Bio must be less than 500 characters",
-                          },
-                        })}
-                        rows={5}
-                        className="bg-gray-50 p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-[#2F4B4E] focus:ring-2 w-full text-gray-700 text-sm resize-none"
-                        placeholder="Write something about yourself..."
-                      />
-                      {profileErrors.bio && (
-                        <p className="mt-1 text-red-500 text-xs">
-                          {profileErrors.bio.message}
-                        </p>
-                      )}
-                    </div>
+                      <div className="mb-3">
+                        <textarea
+                          {...registerProfile("bio", {
+                            maxLength: {
+                              value: 500,
+                              message: "Bio must be less than 500 characters",
+                            },
+                          })}
+                          rows={5}
+                          className="bg-gray-50 p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-[#2F4B4E] focus:ring-2 w-full text-gray-700 text-sm resize-none"
+                          placeholder="Write something about yourself..."
+                        />
+                        {profileErrors.bio && (
+                          <p className="mt-1 text-red-500 text-xs">
+                            {profileErrors.bio.message}
+                          </p>
+                        )}
+                      </div>
 
-                    <div className="flex flex-wrap gap-2">
-                      <motion.button
-                        type="submit"
-                        disabled={updateProfileMutation.isPending}
-                        className="bg-[#5F7F7A] hover:bg-[#2F4B4E] disabled:bg-gray-400 shadow-md px-5 py-2 rounded-xl font-semibold text-white disabled:cursor-not-allowed"
-                        {...hoverScaleTap}
-                      >
-                        {updateProfileMutation.isPending ? "Saving..." : "Save Changes"}
-                      </motion.button>
-                      <motion.button
-                        type="button"
-                        onClick={() => {
-                          setIsEditing(false);
-                          resetProfile();
-                        }}
-                        className="hover:bg-gray-50 px-5 py-2 border border-gray-300 rounded-xl text-gray-700"
-                        {...hoverScaleTap}
-                      >
-                        Cancel
-                      </motion.button>
-                    </div>
-                  </motion.form>
-                ) : (
-                  <>
-                    <h2 className="mb-1 font-bold text-gray-900 text-2xl md:text-3xl">
-                      {userProfile?.name}
-                    </h2>
-                    <p className="max-w-3xl text-gray-700 text-sm leading-relaxed">
-                      {showFullBio
-                        ? userProfile?.bio
-                        : `${userProfile?.bio?.substring(0, 150)}...`}
-                      {userProfile?.bio && userProfile.bio.length > 150 && (
-                        <button
-                          onClick={() => setShowFullBio(!showFullBio)}
-                          className="ml-1 font-medium text-[#2F4B4E] hover:underline"
-                        >
-                          {showFullBio ? "Show less" : "Read more"}
-                        </button>
-                      )}
-                    </p>
-                  </>
-                )}
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            {!isEditing && (
-              <div className="flex gap-2">
-                <motion.button
-                  onClick={() => setIsEditing(true)}
-                  className="hover:bg-gray-100 p-2.5 rounded-xl transition-colors"
-                  title="Edit Profile"
-                  {...hoverScaleTap}
-                >
-                  <Edit3 className="w-5 h-5 text-gray-600" />
-                </motion.button>
-                <div className="relative">
-                  <motion.button
-                    onClick={() => setDropdownOpen(!dropdownOpen)}
-                    className="hover:bg-gray-100 p-2.5 rounded-xl transition-colors"
-                    title="Settings"
-                    {...hoverScaleTap}
-                  >
-                    <Settings className="w-5 h-5 text-gray-600" />
-                  </motion.button>
-
-                  <AnimatePresence>
-                    {dropdownOpen && (
-                      <motion.div
-                        className="right-0 z-10 absolute bg-white shadow-xl mt-2 border border-gray-100 rounded-xl w-48 overflow-hidden"
-                        {...dropdownMotion}
-                      >
+                      <div className="flex flex-wrap gap-2">
                         <motion.button
-                          onClick={() => {
-                            setShowPasswordModal(true);
-                            setDropdownOpen(false);
-                          }}
-                          className="flex items-center gap-2 hover:bg-gray-50 px-4 py-3 w-full text-gray-700 text-left"
+                          type="submit"
+                          disabled={updateProfileMutation.isPending}
+                          className="bg-[#5F7F7A] hover:bg-[#2F4B4E] disabled:bg-gray-400 shadow-md px-5 py-2 rounded-xl font-semibold text-white disabled:cursor-not-allowed"
                           {...hoverScaleTap}
                         >
-                          <Lock size={16} />
-                          Change Password
+                          {updateProfileMutation.isPending ? "Saving..." : "Save Changes"}
                         </motion.button>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+                        <motion.button
+                          type="button"
+                          onClick={() => {
+                            setIsEditing(false);
+                            resetProfile();
+                          }}
+                          className="hover:bg-gray-50 px-5 py-2 border border-gray-300 rounded-xl text-gray-700"
+                          {...hoverScaleTap}
+                        >
+                          Cancel
+                        </motion.button>
+                      </div>
+                    </motion.form>
+                  ) : (
+                    <>
+                      <h2 className="mb-1 font-bold text-gray-900 text-2xl md:text-3xl">
+                        {userProfile?.name}
+                      </h2>
+                      <p className="max-w-3xl text-gray-700 text-sm leading-relaxed">
+                        {showFullBio
+                          ? userProfile?.bio
+                          : `${userProfile?.bio?.substring(0, 150)}...`}
+                        {userProfile?.bio && userProfile.bio.length > 150 && (
+                          <button
+                            onClick={() => setShowFullBio(!showFullBio)}
+                            className="ml-1 font-medium text-[#2F4B4E] hover:underline"
+                          >
+                            {showFullBio ? "Show less" : "Read more"}
+                          </button>
+                        )}
+                      </p>
+                    </>
+                  )}
                 </div>
               </div>
+
+              {/* Action Buttons */}
+              {!isEditing && (
+                <div className="flex gap-2">
+                  <motion.button
+                    onClick={() => setIsEditing(true)}
+                    className="hover:bg-gray-100 p-2.5 rounded-xl transition-colors"
+                    title="Edit Profile"
+                    {...hoverScaleTap}
+                  >
+                    <Edit3 className="w-5 h-5 text-gray-600" />
+                  </motion.button>
+                  <div className="relative">
+                    <motion.button
+                      onClick={() => setDropdownOpen(!dropdownOpen)}
+                      className="hover:bg-gray-100 p-2.5 rounded-xl transition-colors"
+                      title="Settings"
+                      {...hoverScaleTap}
+                    >
+                      <Settings className="w-5 h-5 text-gray-600" />
+                    </motion.button>
+
+                    <AnimatePresence>
+                      {dropdownOpen && (
+                        <motion.div
+                          className="right-0 z-10 absolute bg-white shadow-xl mt-2 border border-gray-100 rounded-xl w-48 overflow-hidden"
+                          {...dropdownMotion}
+                        >
+                          <motion.button
+                            onClick={() => {
+                              setShowPasswordModal(true);
+                              setDropdownOpen(false);
+                            }}
+                            className="flex items-center gap-2 hover:bg-gray-50 px-4 py-3 w-full text-gray-700 text-left"
+                            {...hoverScaleTap}
+                          >
+                            <Lock size={16} />
+                            Change Password
+                          </motion.button>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Stats Cards */}
+            {!isEditing && (
+              <motion.div
+                className="gap-4 grid grid-cols-3 mt-6 pt-6 border-gray-100 border-t"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.2 }}
+              >
+                <div className="text-center">
+                  <div className="flex justify-center items-center gap-2 mb-1">
+                    <MapPin className="w-4 h-4 text-[#2F4B4E]" />
+                    <span className="font-bold text-gray-900 text-2xl">
+                      {totalLocations}
+                    </span>
+                  </div>
+                  <p className="text-gray-600 text-sm">Locations</p>
+                </div>
+
+                <div className="border-gray-100 border-x text-center">
+                  <div className="flex justify-center items-center gap-2 mb-1">
+                    <Star className="fill-yellow-500 w-4 h-4 text-yellow-500" />
+                    <span className="font-bold text-gray-900 text-2xl">{avgRating}</span>
+                  </div>
+                  <p className="text-gray-600 text-sm">Avg Rating</p>
+                </div>
+
+                <div className="text-center">
+                  <div className="flex justify-center items-center gap-2 mb-1">
+                    <span className="font-bold text-gray-900 text-2xl">
+                      {totalReviews}
+                    </span>
+                  </div>
+                  <p className="text-gray-600 text-sm">Reviews</p>
+                </div>
+              </motion.div>
             )}
-          </div>
-
-          {/* Stats Cards */}
-          {!isEditing && (
-            <motion.div
-              className="gap-4 grid grid-cols-3 mt-6 pt-6 border-gray-100 border-t"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.2 }}
-            >
-              <div className="text-center">
-                <div className="flex justify-center items-center gap-2 mb-1">
-                  <MapPin className="w-4 h-4 text-[#2F4B4E]" />
-                  <span className="font-bold text-gray-900 text-2xl">
-                    {totalLocations}
-                  </span>
-                </div>
-                <p className="text-gray-600 text-sm">Locations</p>
-              </div>
-
-              <div className="border-gray-100 border-x text-center">
-                <div className="flex justify-center items-center gap-2 mb-1">
-                  <Star className="fill-yellow-500 w-4 h-4 text-yellow-500" />
-                  <span className="font-bold text-gray-900 text-2xl">{avgRating}</span>
-                </div>
-                <p className="text-gray-600 text-sm">Avg Rating</p>
-              </div>
-
-              <div className="text-center">
-                <div className="flex justify-center items-center gap-2 mb-1">
-                  <span className="font-bold text-gray-900 text-2xl">
-                    {totalReviews}
-                  </span>
-                </div>
-                <p className="text-gray-600 text-sm">Reviews</p>
-              </div>
-            </motion.div>
-          )}
-        </motion.div>
+          </motion.div>
+        )}
 
         {/* Store Locations Section */}
         <motion.div
           className="bg-white shadow-lg p-6 md:p-8 border border-gray-100 rounded-3xl"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
         >
           {/* Header */}
           <div className="mb-6">
@@ -405,7 +489,7 @@ const Profile = () => {
                 placeholder="Search locations..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="py-2.5 pr-4 pl-10 border border-gray-200 focus:border-[#2F4B4E] rounded-xl outline-none focus:ring-[#2F4B4E]/20 focus:ring-2 w-full transition-all"
+                className="py-2.5 pr-4 pl-10 border border-gray-200 focus:border-[#2F4B4E] rounded-xl outline-none focus:ring-[#2F4B4E]/20 focus:ring-2 w-full"
               />
             </div>
 
@@ -456,17 +540,16 @@ const Profile = () => {
 
           {/* Location Cards Grid */}
           {loadingStores ? (
-            <div className="flex justify-center items-center py-12">
-              <div className="text-center">
-                <div className="inline-block border-[#2F4B4E] border-t-4 rounded-full w-12 h-12 animate-spin"></div>
-                <p className="mt-4 text-gray-600">Loading stores...</p>
-              </div>
+            <div className="gap-4 md:gap-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <StoreCardSkeleton key={i} />
+              ))}
             </div>
           ) : storesError ? (
-            <div className="bg-red-50 p-6 border border-red-200 rounded-xl text-center">
-              <p className="font-semibold text-red-600">Error loading stores</p>
-              <p className="text-red-500 text-sm">{storesError.message}</p>
-            </div>
+            <ErrorDisplay
+              message={storesError.message}
+              onRetry={() => retrySection("userStores")}
+            />
           ) : (
             <div className="gap-4 md:gap-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
               {filteredStores.map((store) => {
