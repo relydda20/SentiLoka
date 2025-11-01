@@ -18,6 +18,11 @@ const locationSchema = new mongoose.Schema(
       required: [true, 'Business name is required'],
       trim: true
     },
+    slug: {
+      type: String,
+      lowercase: true,
+      trim: true
+    },
     address: {
       type: String,
       required: true,
@@ -139,7 +144,7 @@ const locationSchema = new mongoose.Schema(
 );
 
 locationSchema.index({ userId: 1, placeId: 1 }, { unique: true });
-locationSchema.index({ userId: 1, slug: 1 }, { unique: true }); // Slug unique per user
+locationSchema.index({ userId: 1, slug: 1 }, { unique: true, sparse: true }); // Slug unique per user
 locationSchema.index({ userId: 1, status: 1 });
 locationSchema.index({ 'coordinates.lat': 1, 'coordinates.lng': 1 });
 

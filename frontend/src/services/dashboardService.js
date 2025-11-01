@@ -1,7 +1,7 @@
 import apiClient from "../utils/apiClient";
 
 // Default userId for testing (before authentication is implemented)
-const DEFAULT_USER_ID = "69045361bcca1e6aab800963";
+const DEFAULT_USER_ID = "690642f68a31e7e5669832f7";
 
 /**
  * Helper function to ensure userId is a string

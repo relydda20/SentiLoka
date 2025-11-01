@@ -24,44 +24,5 @@
       "endDate": "2025-06-01T00:00:00.000Z",
       "isActive": true
     }
-  },
-  {
-    "name": "Ahmad Rizky",
-    "email": "ahmad.rizky@example.com",
-    "password": "password123",
-    "image": "https://i.pravatar.cc/150?img=12",
-    "description": "Hotel chain owner with properties across Indonesia",
-    "subscription": {
-      "plan": "enterprise",
-      "startDate": "2024-03-01T00:00:00.000Z",
-      "endDate": "2025-03-01T00:00:00.000Z",
-      "isActive": true
-    }
-  },
-  {
-    "name": "Sarah Johnson",
-    "email": "sarah.johnson@example.com",
-    "password": "password123",
-    "image": "https://i.pravatar.cc/150?img=8",
-    "description": "Small cafe owner exploring sentiment analysis",
-    "subscription": {
-      "plan": "free",
-      "startDate": "2024-10-01T00:00:00.000Z",
-      "endDate": "2025-10-01T00:00:00.000Z",
-      "isActive": true
-    }
-  },
-  {
-    "name": "Test User",
-    "email": "test@example.com",
-    "password": "password123",
-    "image": "https://i.pravatar.cc/150?img=3",
-    "description": "Test account for development purposes",
-    "subscription": {
-      "plan": "free",
-      "startDate": "2024-10-01T00:00:00.000Z",
-      "endDate": "2025-10-01T00:00:00.000Z",
-      "isActive": true
-    }
   }
 ]

@@ -219,12 +219,33 @@ const dashboardController = {
         totalReviews: 0,
         averageRating: 0,
         positivePercentage: 0,
-        totalLocations: 0
+        totalLocations: 0,
+        totalReviewsChange: 0,
+        averageRatingChange: 0
       };
     }
 
+    // Get current date and last month's date
+    const now = new Date();
+    const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+    const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    // Get all reviews
     const reviews = await Review.find({ 
       locationId: { $in: locationIds } 
+    });
+
+    // Get last month's reviews
+    const lastMonthReviews = await Review.find({
+      locationId: { $in: locationIds },
+      publishedAt: { $gte: lastMonthStart, $lte: lastMonthEnd }
+    });
+
+    // Get current month's reviews
+    const currentMonthReviews = await Review.find({
+      locationId: { $in: locationIds },
+      publishedAt: { $gte: currentMonthStart }
     });
 
     const totalReviews = reviews.length;
@@ -234,7 +255,9 @@ const dashboardController = {
         totalReviews: 0,
         averageRating: 0,
         positivePercentage: 0,
-        totalLocations
+        totalLocations,
+        totalReviewsChange: 0,
+        averageRatingChange: 0
       };
     }
 
@@ -244,11 +267,34 @@ const dashboardController = {
     const positiveReviews = reviews.filter(r => r.sentiment === 'positive').length;
     const positivePercentage = (positiveReviews / totalReviews) * 100;
 
+    // Calculate changes from last month
+    let totalReviewsChange = 0;
+    let averageRatingChange = 0;
+
+    if (lastMonthReviews.length > 0) {
+      const currentCount = currentMonthReviews.length;
+      const lastCount = lastMonthReviews.length;
+      totalReviewsChange = lastCount > 0 
+        ? parseFloat((((currentCount - lastCount) / lastCount) * 100).toFixed(1))
+        : 0;
+
+      const lastMonthAvgRating = lastMonthReviews.reduce((sum, r) => sum + (r.rating || 0), 0) / lastMonthReviews.length;
+      const currentMonthAvgRating = currentMonthReviews.length > 0
+        ? currentMonthReviews.reduce((sum, r) => sum + (r.rating || 0), 0) / currentMonthReviews.length
+        : averageRating;
+      
+      averageRatingChange = lastMonthAvgRating > 0
+        ? parseFloat((((currentMonthAvgRating - lastMonthAvgRating) / lastMonthAvgRating) * 100).toFixed(1))
+        : 0;
+    }
+
     return {
       totalReviews,
       averageRating: parseFloat(averageRating.toFixed(2)),
       positiveReviewsPercentage: parseFloat(positivePercentage.toFixed(2)),
-      totalLocations
+      totalLocations,
+      totalReviewsChange,
+      averageRatingChange
     };
   },
 
@@ -352,7 +398,7 @@ const dashboardController = {
     };
 
     trends.forEach(item => {
-      const date = `${item._id.year}-${String(item._id.month).padStart(2, '0')}`;
+      const date = `${item._id.year}-${String(item._id.month).padStart(2, '0')}-01`;
       const sentiment = item._id.sentiment;
 
       if (sentiment && result[sentiment]) {

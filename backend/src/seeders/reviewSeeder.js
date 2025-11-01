@@ -41,14 +41,20 @@ export const seedReviews = async (locations) => {
     const reviewsWithLocations = reviewsData.map((review, index) => {
       const location = locations[index % locations.length];
       const slug = generateSlug(review.text, index);
-      
+
+      // Helper to safely parse date or return null
+      const safeDate = (val) => {
+        const d = new Date(val);
+        return isNaN(d.getTime()) ? null : d;
+      };
+
       return {
         ...review,
         locationId: location._id,
         slug,
-        publishedAt: new Date(review.publishedAt),
-        scrapedAt: new Date(review.scrapedAt),
-        analyzedAt: new Date(review.analyzedAt)
+        publishedAt: safeDate(review.publishedAt),
+        scrapedAt: safeDate(review.scrapedAt),
+        analyzedAt: safeDate(review.analyzedAt)
       };
     });
 

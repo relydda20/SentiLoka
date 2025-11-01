@@ -64,49 +64,5 @@
     "status": "active",
     "tags": ["hotel", "luxury", "jakarta"],
     "notes": "5-star hotel in central Jakarta"
-  },
-  {
-    "placeId": "ChIJc8Q9g0_5aS4RkOFOXGDCFI0",
-    "name": "Warung Tekko",
-    "address": "Jl. Cipete Raya No.45, Jakarta Selatan, DKI Jakarta 12410",
-    "coordinates": {
-      "lat": -6.2754321,
-      "lng": 106.8012345
-    },
-    "googleData": {
-      "rating": 4.3,
-      "userRatingsTotal": 567,
-      "types": ["restaurant", "food", "indonesian_restaurant"]
-    },
-    "scrapeConfig": {
-      "autoScrape": true,
-      "scrapeFrequency": "weekly",
-      "maxReviews": 150
-    },
-    "status": "active",
-    "tags": ["indonesian", "restaurant", "jakarta"],
-    "notes": "Traditional Indonesian restaurant"
-  },
-  {
-    "placeId": "ChIJc8Q9g0_5aS4RkOFOXGDCFI1",
-    "name": "Starbucks Reserve Dewata",
-    "address": "Jl. Dewi Sartika No.289, Jakarta Timur, DKI Jakarta 13630",
-    "coordinates": {
-      "lat": -6.2433928,
-      "lng": 106.8703288
-    },
-    "googleData": {
-      "rating": 4.4,
-      "userRatingsTotal": 2100,
-      "types": ["cafe", "coffee_shop", "food"]
-    },
-    "scrapeConfig": {
-      "autoScrape": false,
-      "scrapeFrequency": "manual",
-      "maxReviews": 100
-    },
-    "status": "active",
-    "tags": ["coffee", "starbucks", "jakarta"],
-    "notes": "Starbucks Reserve location"
   }
 ]

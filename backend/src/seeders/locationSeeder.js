@@ -41,8 +41,7 @@ export const seedLocations = async (users) => {
         }
       };
     });
-
-    const locations = await Location.insertMany(locationsWithUsers);
+    const locations = await Location.create(locationsWithUsers);
     console.log(`✅ ${locations.length} locations seeded`);
     return locations;
   } catch (error) {
