@@ -1,97 +1,194 @@
-import { useState } from "react";
-import { MapPin, Smile, Frown, Meh, Lock, Edit3, Settings, Search, Filter, Star } from "lucide-react";
+import { useState, useEffect } from "react";
+import { useForm } from "react-hook-form";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { MapPin, Lock, Edit3, Settings, Search, Star } from "lucide-react";
 import maxwellAvatar from "../../assets/maxwell.png";
 import fullStar from "../../assets/full-star.png";
 import emptyStar from "../../assets/not-full-star.png";
 import { motion, AnimatePresence } from "framer-motion";
-import { dropdownMotion, hoverScaleTap} from "../../utils/motionConfig";
+import { dropdownMotion, hoverScaleTap } from "../../utils/motionConfig";
+import {
+  fetchUserProfile,
+  updateUserProfile,
+  changePassword,
+  fetchUserStores,
+} from "../../services/profileService";
 
 const Profile = () => {
+  const queryClient = useQueryClient();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showFullBio, setShowFullBio] = useState(false);
-  const [filterSentiment, setFilterSentiment] = useState('all');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [filterSentiment, setFilterSentiment] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
 
-  const [name, setName] = useState("Maxwell");
-  const [bio, setBio] = useState(
-    "Hey, I'm Maxwell! I run a cozy pet store where every furry, feathery, and scaly friend is welcome. I started the shop out of my love for animals and a passion for helping people care for their pets. When I'm not at the store, you'll probably find me playing fetch with my dog, Luna, or trying to stop my cat from knocking things off the counter (again)."
-  );
+  // Fetch user profile
+  const {
+    data: userProfile,
+    isLoading: loadingProfile,
+    error: profileError,
+  } = useQuery({
+    queryKey: ["userProfile"],
+    queryFn: fetchUserProfile,
+  });
 
-  const [tempName, setTempName] = useState(name);
-  const [tempBio, setTempBio] = useState(bio);
+  // Fetch user stores
+  const {
+    data: stores = [],
+    isLoading: loadingStores,
+    error: storesError,
+  } = useQuery({
+    queryKey: ["userStores"],
+    queryFn: fetchUserStores,
+  });
 
-  const [oldPass, setOldPass] = useState("");
-  const [newPass, setNewPass] = useState("");
-  const [confirmPass, setConfirmPass] = useState("");
+  // React Hook Form for profile edit
+  const {
+    register: registerProfile,
+    handleSubmit: handleSubmitProfile,
+    reset: resetProfile,
+    formState: { errors: profileErrors },
+  } = useForm({
+    defaultValues: {
+      name: "",
+      bio: "",
+    },
+  });
 
-  const handleSaveProfile = () => {
-    setName(tempName);
-    setBio(tempBio);
-    setIsEditing(false);
-    alert("Profile updated successfully!");
-  };
+  // React Hook Form for password change
+  const {
+    register: registerPassword,
+    handleSubmit: handleSubmitPassword,
+    reset: resetPassword,
+    watch,
+    formState: { errors: passwordErrors },
+  } = useForm({
+    defaultValues: {
+      oldPassword: "",
+      newPassword: "",
+      confirmPassword: "",
+    },
+  });
 
-  const handleChangePassword = () => {
-    if (newPass !== confirmPass) {
-      alert("New password and confirmation do not match!");
-      return;
+  // Update profile mutation
+  const updateProfileMutation = useMutation({
+    mutationFn: updateUserProfile,
+    onSuccess: (data) => {
+      queryClient.invalidateQueries(["userProfile"]);
+      setIsEditing(false);
+      alert("Profile updated successfully!");
+    },
+    onError: (error) => {
+      alert(`Error: ${error.message}`);
+    },
+  });
+
+  // Change password mutation
+  const changePasswordMutation = useMutation({
+    mutationFn: changePassword,
+    onSuccess: () => {
+      setShowPasswordModal(false);
+      resetPassword();
+      alert("Password changed successfully!");
+    },
+    onError: (error) => {
+      alert(`Error: ${error.message}`);
+    },
+  });
+
+  // Reset form when user profile is loaded
+  useEffect(() => {
+    if (userProfile) {
+      resetProfile({
+        name: userProfile.name,
+        bio: userProfile.bio,
+      });
     }
-    alert("Password updated successfully (not connected to backend yet)");
-    setShowPasswordModal(false);
-    setOldPass("");
-    setNewPass("");
-    setConfirmPass("");
+  }, [userProfile, resetProfile]);
+
+  // Handle profile update
+  const onSubmitProfile = (data) => {
+    updateProfileMutation.mutate(data);
   };
 
-  const [stores] = useState([
-    { id: 1, name: "Maxwell Urban Pet House", address: "Jl. Mampang Prapatan Raya", sentiment: "Good", sentimentIcon: <Smile className="inline text-emerald-500" size={18} />, reviews: 4, reviewCount: 67 },
-    { id: 2, name: "Maxwell Pet House Tebet", address: "Jl. Tebet Barat Dalam", sentiment: "Bad", sentimentIcon: <Frown className="inline text-red-500" size={18} />, reviews: 2, reviewCount: 45 },
-    { id: 3, name: "Maxwell Pet House Bintaro", address: "Jl. Bintaro Utama Sektor 9", sentiment: "Neutral", sentimentIcon: <Meh className="inline text-yellow-500" size={18} />, reviews: 3, reviewCount: 44 },
-    { id: 4, name: "Maxwell Pet House Senopati", address: "Jl. Senopati Raya No. 12", sentiment: "Good", sentimentIcon: <Smile className="inline text-emerald-500" size={18} />, reviews: 4, reviewCount: 52 },
-    { id: 5, name: "Maxwell Pet House Kemang", address: "Jl. Kemang Raya No. 8", sentiment: "Neutral", sentimentIcon: <Meh className="inline text-yellow-500" size={18} />, reviews: 3, reviewCount: 38 },
-    { id: 6, name: "Maxwell Pet House Pondok Indah", address: "Jl. Metro Pondok Indah", sentiment: "Good", sentimentIcon: <Smile className="inline text-emerald-500" size={18} />, reviews: 5, reviewCount: 78 },
-  ]);
+  // Handle password change
+  const onSubmitPassword = (data) => {
+    changePasswordMutation.mutate({
+      oldPassword: data.oldPassword,
+      newPassword: data.newPassword,
+    });
+  };
+
+  // Watch new password for validation
+  const newPassword = watch("newPassword");
 
   // Filter & Search Logic
-  const filteredStores = stores.filter(store => {
-    const matchesSearch = store.name.toLowerCase().includes(searchQuery.toLowerCase()) || store.address.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesSentiment = filterSentiment === 'all' || store.sentiment.toLowerCase() === filterSentiment;
+  const filteredStores = stores.filter((store) => {
+    const matchesSearch =
+      store.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      store.address.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSentiment =
+      filterSentiment === "all" ||
+      store.sentiment.toLowerCase() === filterSentiment;
     return matchesSearch && matchesSentiment;
   });
 
   const sentimentCounts = {
     all: stores.length,
-    good: stores.filter(s => s.sentiment === 'Good').length,
-    neutral: stores.filter(s => s.sentiment === 'Neutral').length,
-    bad: stores.filter(s => s.sentiment === 'Bad').length
+    good: stores.filter((s) => s.sentiment === "Good").length,
+    neutral: stores.filter((s) => s.sentiment === "Neutral").length,
+    bad: stores.filter((s) => s.sentiment === "Bad").length,
   };
 
   // Calculate stats
   const totalLocations = stores.length;
   const totalReviews = stores.reduce((sum, store) => sum + store.reviewCount, 0);
-  const avgRating = (stores.reduce((sum, store) => sum + store.reviews, 0) / stores.length).toFixed(1);
+  const avgRating =
+    stores.length > 0
+      ? (stores.reduce((sum, store) => sum + store.reviews, 0) / stores.length).toFixed(1)
+      : "0.0";
 
   const getSentimentBadge = (sentiment) => {
-    switch(sentiment) {
-      case 'Good':
-        return { bg: 'bg-emerald-100', text: 'text-emerald-700', emoji: '😊' };
-      case 'Neutral':
-        return { bg: 'bg-yellow-100', text: 'text-yellow-700', emoji: '😐' };
-      case 'Bad':
-        return { bg: 'bg-red-100', text: 'text-red-700', emoji: '😢' };
+    switch (sentiment) {
+      case "Good":
+        return { bg: "bg-emerald-100", text: "text-emerald-700", emoji: "😊" };
+      case "Neutral":
+        return { bg: "bg-yellow-100", text: "text-yellow-700", emoji: "😐" };
+      case "Bad":
+        return { bg: "bg-red-100", text: "text-red-700", emoji: "😢" };
       default:
-        return { bg: 'bg-gray-100', text: 'text-gray-700', emoji: '😶' };
+        return { bg: "bg-gray-100", text: "text-gray-700", emoji: "😶" };
     }
   };
+
+  if (loadingProfile) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="text-center">
+          <div className="inline-block border-[#2F4B4E] border-t-4 rounded-full w-16 h-16 animate-spin"></div>
+          <p className="mt-4 text-gray-600">Loading profile...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (profileError) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="bg-red-50 p-6 border border-red-200 rounded-xl text-center">
+          <p className="font-semibold text-red-600">Error loading profile</p>
+          <p className="text-red-500 text-sm">{profileError.message}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-linear-to-b from-gray-50 to-white min-h-screen">
       <div className="mx-auto mt-30 px-4 md:px-8 pb-12 w-full max-w-[1440px]">
-        
         {/* Profile Card */}
-        <motion.div 
+        <motion.div
           className="bg-white shadow-lg mb-8 p-6 md:p-8 border border-gray-100 rounded-3xl"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -102,41 +199,72 @@ const Profile = () => {
             <div className="flex flex-1 items-start gap-4 w-full">
               <motion.img
                 src={maxwellAvatar}
-                alt="Maxwell Avatar"
+                alt="User Avatar"
                 className="rounded-2xl ring-[#E8E5D5] ring-4 w-16 md:w-20 h-16 md:h-20 object-cover shrink-0"
                 whileHover={{ scale: 1.05 }}
                 transition={{ duration: 0.2 }}
               />
-              
+
               <div className="flex-1 min-w-0">
                 {isEditing ? (
-                  <motion.div className="w-full" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                    <input
-                      value={tempName}
-                      onChange={(e) => setTempName(e.target.value)}
-                      className="bg-gray-50 mb-3 p-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-[#2F4B4E] focus:ring-2 w-full md:w-2/3 font-semibold text-gray-900 text-base"
-                      placeholder="Your name..."
-                    />
-                    <textarea
-                      value={tempBio}
-                      onChange={(e) => setTempBio(e.target.value)}
-                      rows={5}
-                      className="bg-gray-50 p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-[#2F4B4E] focus:ring-2 w-full text-gray-700 text-sm resize-none"
-                      placeholder="Write something about yourself..."
-                    />
-                    <div className="flex flex-wrap gap-2 mt-4">
+                  <motion.form
+                    onSubmit={handleSubmitProfile(onSubmitProfile)}
+                    className="w-full"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                  >
+                    <div className="mb-3">
+                      <input
+                        {...registerProfile("name", {
+                          required: "Name is required",
+                          minLength: {
+                            value: 2,
+                            message: "Name must be at least 2 characters",
+                          },
+                        })}
+                        className="bg-gray-50 p-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-[#2F4B4E] focus:ring-2 w-full md:w-2/3 font-semibold text-gray-900 text-base"
+                        placeholder="Your name..."
+                      />
+                      {profileErrors.name && (
+                        <p className="mt-1 text-red-500 text-xs">
+                          {profileErrors.name.message}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="mb-3">
+                      <textarea
+                        {...registerProfile("bio", {
+                          maxLength: {
+                            value: 500,
+                            message: "Bio must be less than 500 characters",
+                          },
+                        })}
+                        rows={5}
+                        className="bg-gray-50 p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-[#2F4B4E] focus:ring-2 w-full text-gray-700 text-sm resize-none"
+                        placeholder="Write something about yourself..."
+                      />
+                      {profileErrors.bio && (
+                        <p className="mt-1 text-red-500 text-xs">
+                          {profileErrors.bio.message}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
                       <motion.button
-                        onClick={handleSaveProfile}
-                        className="bg-[#5F7F7A] hover:bg-[#2F4B4E] shadow-md px-5 py-2 rounded-xl font-semibold text-white"
+                        type="submit"
+                        disabled={updateProfileMutation.isPending}
+                        className="bg-[#5F7F7A] hover:bg-[#2F4B4E] disabled:bg-gray-400 shadow-md px-5 py-2 rounded-xl font-semibold text-white disabled:cursor-not-allowed"
                         {...hoverScaleTap}
                       >
-                        Save Changes
+                        {updateProfileMutation.isPending ? "Saving..." : "Save Changes"}
                       </motion.button>
                       <motion.button
+                        type="button"
                         onClick={() => {
                           setIsEditing(false);
-                          setTempName(name);
-                          setTempBio(bio);
+                          resetProfile();
                         }}
                         className="hover:bg-gray-50 px-5 py-2 border border-gray-300 rounded-xl text-gray-700"
                         {...hoverScaleTap}
@@ -144,18 +272,24 @@ const Profile = () => {
                         Cancel
                       </motion.button>
                     </div>
-                  </motion.div>
+                  </motion.form>
                 ) : (
                   <>
-                    <h2 className="mb-1 font-bold text-gray-900 text-2xl md:text-3xl">{name}</h2>
+                    <h2 className="mb-1 font-bold text-gray-900 text-2xl md:text-3xl">
+                      {userProfile?.name}
+                    </h2>
                     <p className="max-w-3xl text-gray-700 text-sm leading-relaxed">
-                      {showFullBio ? bio : `${bio.substring(0, 150)}...`}
-                      <button 
-                        onClick={() => setShowFullBio(!showFullBio)}
-                        className="ml-1 font-medium text-[#2F4B4E] hover:underline"
-                      >
-                        {showFullBio ? 'Show less' : 'Read more'}
-                      </button>
+                      {showFullBio
+                        ? userProfile?.bio
+                        : `${userProfile?.bio?.substring(0, 150)}...`}
+                      {userProfile?.bio && userProfile.bio.length > 150 && (
+                        <button
+                          onClick={() => setShowFullBio(!showFullBio)}
+                          className="ml-1 font-medium text-[#2F4B4E] hover:underline"
+                        >
+                          {showFullBio ? "Show less" : "Read more"}
+                        </button>
+                      )}
                     </p>
                   </>
                 )}
@@ -165,7 +299,7 @@ const Profile = () => {
             {/* Action Buttons */}
             {!isEditing && (
               <div className="flex gap-2">
-                <motion.button 
+                <motion.button
                   onClick={() => setIsEditing(true)}
                   className="hover:bg-gray-100 p-2.5 rounded-xl transition-colors"
                   title="Edit Profile"
@@ -174,7 +308,7 @@ const Profile = () => {
                   <Edit3 className="w-5 h-5 text-gray-600" />
                 </motion.button>
                 <div className="relative">
-                  <motion.button 
+                  <motion.button
                     onClick={() => setDropdownOpen(!dropdownOpen)}
                     className="hover:bg-gray-100 p-2.5 rounded-xl transition-colors"
                     title="Settings"
@@ -185,15 +319,15 @@ const Profile = () => {
 
                   <AnimatePresence>
                     {dropdownOpen && (
-                      <motion.div 
-                        className="right-0 z-10 absolute bg-white shadow-xl mt-2 border border-gray-100 rounded-xl w-48 overflow-hidden" 
+                      <motion.div
+                        className="right-0 z-10 absolute bg-white shadow-xl mt-2 border border-gray-100 rounded-xl w-48 overflow-hidden"
                         {...dropdownMotion}
                       >
-                        <motion.button 
+                        <motion.button
                           onClick={() => {
                             setShowPasswordModal(true);
                             setDropdownOpen(false);
-                          }} 
+                          }}
                           className="flex items-center gap-2 hover:bg-gray-50 px-4 py-3 w-full text-gray-700 text-left"
                           {...hoverScaleTap}
                         >
@@ -210,7 +344,7 @@ const Profile = () => {
 
           {/* Stats Cards */}
           {!isEditing && (
-            <motion.div 
+            <motion.div
               className="gap-4 grid grid-cols-3 mt-6 pt-6 border-gray-100 border-t"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -219,11 +353,13 @@ const Profile = () => {
               <div className="text-center">
                 <div className="flex justify-center items-center gap-2 mb-1">
                   <MapPin className="w-4 h-4 text-[#2F4B4E]" />
-                  <span className="font-bold text-gray-900 text-2xl">{totalLocations}</span>
+                  <span className="font-bold text-gray-900 text-2xl">
+                    {totalLocations}
+                  </span>
                 </div>
                 <p className="text-gray-600 text-sm">Locations</p>
               </div>
-              
+
               <div className="border-gray-100 border-x text-center">
                 <div className="flex justify-center items-center gap-2 mb-1">
                   <Star className="fill-yellow-500 w-4 h-4 text-yellow-500" />
@@ -231,10 +367,12 @@ const Profile = () => {
                 </div>
                 <p className="text-gray-600 text-sm">Avg Rating</p>
               </div>
-              
+
               <div className="text-center">
                 <div className="flex justify-center items-center gap-2 mb-1">
-                  <span className="font-bold text-gray-900 text-2xl">{totalReviews}</span>
+                  <span className="font-bold text-gray-900 text-2xl">
+                    {totalReviews}
+                  </span>
                 </div>
                 <p className="text-gray-600 text-sm">Reviews</p>
               </div>
@@ -243,7 +381,7 @@ const Profile = () => {
         </motion.div>
 
         {/* Store Locations Section */}
-        <motion.div 
+        <motion.div
           className="bg-white shadow-lg p-6 md:p-8 border border-gray-100 rounded-3xl"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -251,7 +389,9 @@ const Profile = () => {
         >
           {/* Header */}
           <div className="mb-6">
-            <h3 className="mb-2 font-bold text-gray-900 text-2xl md:text-3xl">Store Locations</h3>
+            <h3 className="mb-2 font-bold text-gray-900 text-2xl md:text-3xl">
+              Store Locations
+            </h3>
             <p className="text-gray-600">Manage and monitor all your business locations</p>
           </div>
 
@@ -270,129 +410,146 @@ const Profile = () => {
             </div>
 
             {/* Filter Buttons */}
-            <div className="relative">
-              <div className="flex gap-2 pb-2 sm:pb-0 overflow-x-auto scrollbar-hide">
-                {/* Filter buttons here */}
-                <motion.button
-                onClick={() => setFilterSentiment('all')}
+            <div className="flex gap-2 pb-2 sm:pb-0 overflow-x-auto scrollbar-hide">
+              <motion.button
+                onClick={() => setFilterSentiment("all")}
                 className={`px-4 py-2 rounded-xl font-medium whitespace-nowrap ${
-                  filterSentiment === 'all'
-                    ? 'bg-[#2F4B4E] text-white shadow-md'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  filterSentiment === "all"
+                    ? "bg-[#2F4B4E] text-white shadow-md"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                 }`}
-                >
-                  All ({sentimentCounts.all})
-                </motion.button>
-                <motion.button
-                  onClick={() => setFilterSentiment('good')}
-                  className={`px-4 py-2 rounded-xl font-medium whitespace-nowrap ${
-                    filterSentiment === 'good'
-                      ? 'bg-emerald-500 text-white shadow-md'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  😊 Good ({sentimentCounts.good})
-                </motion.button>
-                <motion.button
-                  onClick={() => setFilterSentiment('neutral')}
-                  className={`px-4 py-2 rounded-xl font-medium whitespace-nowrap ${
-                    filterSentiment === 'neutral'
-                      ? 'bg-yellow-500 text-white shadow-md'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  😐 Neutral ({sentimentCounts.neutral})
-                </motion.button>
-                <motion.button
-                  onClick={() => setFilterSentiment('bad')}
-                  className={`px-4 py-2 rounded-xl font-medium whitespace-nowrap ${
-                    filterSentiment === 'bad'
-                      ? 'bg-red-500 text-white shadow-md'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  😢 Bad ({sentimentCounts.bad})
-                </motion.button>
-              </div>
+              >
+                All ({sentimentCounts.all})
+              </motion.button>
+              <motion.button
+                onClick={() => setFilterSentiment("good")}
+                className={`px-4 py-2 rounded-xl font-medium whitespace-nowrap ${
+                  filterSentiment === "good"
+                    ? "bg-emerald-500 text-white shadow-md"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                }`}
+              >
+                😊 Good ({sentimentCounts.good})
+              </motion.button>
+              <motion.button
+                onClick={() => setFilterSentiment("neutral")}
+                className={`px-4 py-2 rounded-xl font-medium whitespace-nowrap ${
+                  filterSentiment === "neutral"
+                    ? "bg-yellow-500 text-white shadow-md"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                }`}
+              >
+                😐 Neutral ({sentimentCounts.neutral})
+              </motion.button>
+              <motion.button
+                onClick={() => setFilterSentiment("bad")}
+                className={`px-4 py-2 rounded-xl font-medium whitespace-nowrap ${
+                  filterSentiment === "bad"
+                    ? "bg-red-500 text-white shadow-md"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                }`}
+              >
+                😢 Bad ({sentimentCounts.bad})
+              </motion.button>
             </div>
           </div>
 
           {/* Location Cards Grid */}
-          <div className="gap-4 md:gap-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-            {filteredStores.map((store, index) => {
-              const badge = getSentimentBadge(store.sentiment);
-              return (
-                <motion.div
-                  key={store.id}
-                  className="group bg-white hover:shadow-xl p-5 border border-gray-200 rounded-2xl hover:-translate-y-1 duration-300 cursor-pointer"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                >
-                  {/* Header */}
-                  <div className="flex items-start gap-3 mb-4">
-                    <div className="flex justify-center items-center bg-gray-100 group-hover:bg-[#E8E5D5] rounded-xl w-12 h-12 transition-colors shrink-0">
-                      <MapPin className="w-6 h-6 text-[#2F4B4E]" />
+          {loadingStores ? (
+            <div className="flex justify-center items-center py-12">
+              <div className="text-center">
+                <div className="inline-block border-[#2F4B4E] border-t-4 rounded-full w-12 h-12 animate-spin"></div>
+                <p className="mt-4 text-gray-600">Loading stores...</p>
+              </div>
+            </div>
+          ) : storesError ? (
+            <div className="bg-red-50 p-6 border border-red-200 rounded-xl text-center">
+              <p className="font-semibold text-red-600">Error loading stores</p>
+              <p className="text-red-500 text-sm">{storesError.message}</p>
+            </div>
+          ) : (
+            <div className="gap-4 md:gap-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+              {filteredStores.map((store) => {
+                const badge = getSentimentBadge(store.sentiment);
+                return (
+                  <motion.div
+                    key={store.id}
+                    className="group bg-white hover:shadow-xl p-5 border border-gray-200 rounded-2xl hover:-translate-y-1 duration-300 cursor-pointer"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    {/* Header */}
+                    <div className="flex items-start gap-3 mb-4">
+                      <div className="flex justify-center items-center bg-gray-100 group-hover:bg-[#E8E5D5] rounded-xl w-12 h-12 transition-colors shrink-0">
+                        <MapPin className="w-6 h-6 text-[#2F4B4E]" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="mb-1 font-bold text-gray-900 group-hover:text-[#2F4B4E] line-clamp-1 transition-colors">
+                          {store.name}
+                        </h4>
+                        <p className="text-gray-600 text-sm line-clamp-1">
+                          {store.address}
+                        </p>
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="mb-1 font-bold text-gray-900 group-hover:text-[#2F4B4E] line-clamp-1 transition-colors">
-                        {store.name}
-                      </h4>
-                      <p className="text-gray-600 text-sm line-clamp-1">{store.address}</p>
+
+                    {/* Sentiment Badge */}
+                    <div
+                      className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full ${badge.bg} ${badge.text} text-sm font-medium mb-3`}
+                    >
+                      <span>{badge.emoji}</span>
+                      <span>{store.sentiment}</span>
                     </div>
-                  </div>
 
-                  {/* Sentiment Badge */}
-                  <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full ${badge.bg} ${badge.text} text-sm font-medium mb-3`}>
-                    <span>{badge.emoji}</span>
-                    <span>{store.sentiment}</span>
-                  </div>
-
-                  {/* Rating & Reviews */}
-                  <div className="flex justify-between items-center pt-3 border-gray-100 border-t">
-                    <div className="flex items-center gap-1">
-                      {Array.from({ length: 5 }).map((_, i) => (
-                        <img
-                          key={i}
-                          src={i < store.reviews ? fullStar : emptyStar}
-                          alt="star"
-                          className="w-4 h-4"
-                        />
-                      ))}
-                      <span className="ml-2 font-semibold text-gray-900 text-sm">
-                        {store.reviews}.0
+                    {/* Rating & Reviews */}
+                    <div className="flex justify-between items-center pt-3 border-gray-100 border-t">
+                      <div className="flex items-center gap-1">
+                        {Array.from({ length: 5 }).map((_, i) => (
+                          <img
+                            key={i}
+                            src={i < store.reviews ? fullStar : emptyStar}
+                            alt="star"
+                            className="w-4 h-4"
+                          />
+                        ))}
+                        <span className="ml-2 font-semibold text-gray-900 text-sm">
+                          {store.reviews}.0
+                        </span>
+                      </div>
+                      <span className="text-gray-600 text-sm">
+                        {store.reviewCount} reviews
                       </span>
                     </div>
-                    <span className="text-gray-600 text-sm">
-                      {store.reviewCount} reviews
-                    </span>
-                  </div>
 
-                  {/* Action Button */}
-                  <motion.button 
-                    className="bg-gray-50 hover:bg-[#E8E5D5] group-hover:bg-[#2F4B4E] mt-4 px-4 py-2.5 rounded-xl w-full font-medium text-gray-900 group-hover:text-white duration-200"
-                    {...hoverScaleTap}
-                  >
-                    View Details
-                  </motion.button>
-                </motion.div>
-              );
-            })}
-          </div>
+                    {/* Action Button */}
+                    <motion.button
+                      className="bg-gray-50 hover:bg-[#E8E5D5] group-hover:bg-[#2F4B4E] mt-4 px-4 py-2.5 rounded-xl w-full font-medium text-gray-900 group-hover:text-white duration-200"
+                      {...hoverScaleTap}
+                    >
+                      View Details
+                    </motion.button>
+                  </motion.div>
+                );
+              })}
+            </div>
+          )}
 
           {/* Empty State */}
-          {filteredStores.length === 0 && (
+          {!loadingStores && !storesError && filteredStores.length === 0 && (
             <div className="py-12 text-center">
               <MapPin className="mx-auto mb-4 w-16 h-16 text-gray-300" />
               <p className="font-medium text-gray-600">No locations found</p>
-              <p className="mt-1 text-gray-500 text-sm">Try adjusting your search or filters</p>
+              <p className="mt-1 text-gray-500 text-sm">
+                Try adjusting your search or filters
+              </p>
             </div>
           )}
         </motion.div>
       </div>
 
-      {/* Password Modal - Modern Style */}
+      {/* Password Modal */}
       <AnimatePresence>
         {showPasswordModal && (
           <motion.div
@@ -402,7 +559,7 @@ const Profile = () => {
             exit={{ opacity: 0 }}
             onClick={() => setShowPasswordModal(false)}
           >
-            <motion.div 
+            <motion.div
               className="bg-white shadow-2xl p-6 md:p-8 rounded-3xl w-full max-w-md"
               initial={{ y: 60, opacity: 0, scale: 0.9 }}
               animate={{ y: 0, opacity: 1, scale: 1 }}
@@ -416,46 +573,85 @@ const Profile = () => {
                 <h2 className="font-bold text-gray-900 text-2xl">Change Password</h2>
               </div>
 
-              <div className="space-y-4">
-                <input
-                  type="password"
-                  placeholder="Old password"
-                  value={oldPass}
-                  onChange={(e) => setOldPass(e.target.value)}
-                  className="p-3 border border-gray-200 focus:border-[#5F7F7A] rounded-xl outline-none focus:ring-[#5F7F7A] focus:ring-2 w-full"
-                />
-                <input
-                  type="password"
-                  placeholder="New password"
-                  value={newPass}
-                  onChange={(e) => setNewPass(e.target.value)}
-                  className="p-3 border border-gray-200 focus:border-[#5F7F7A] rounded-xl outline-none focus:ring-[#5F7F7A] focus:ring-2 w-full"
-                />
-                <input
-                  type="password"
-                  placeholder="Confirm new password"
-                  value={confirmPass}
-                  onChange={(e) => setConfirmPass(e.target.value)}
-                  className="p-3 border border-gray-200 focus:border-[#5F7F7A] rounded-xl outline-none focus:ring-[#5F7F7A] focus:ring-2 w-full"
-                />
-              </div>
+              <form onSubmit={handleSubmitPassword(onSubmitPassword)} className="space-y-4">
+                <div>
+                  <input
+                    type="password"
+                    {...registerPassword("oldPassword", {
+                      required: "Old password is required",
+                    })}
+                    placeholder="Old password"
+                    className="p-3 border border-gray-200 focus:border-[#5F7F7A] rounded-xl outline-none focus:ring-[#5F7F7A] focus:ring-2 w-full"
+                  />
+                  {passwordErrors.oldPassword && (
+                    <p className="mt-1 text-red-500 text-xs">
+                      {passwordErrors.oldPassword.message}
+                    </p>
+                  )}
+                </div>
 
-              <div className="flex gap-3 mt-6">
-                <motion.button 
-                  onClick={() => setShowPasswordModal(false)} 
-                  className="flex-1 hover:bg-gray-50 px-4 py-2.5 border border-gray-300 rounded-xl font-medium text-gray-700"
-                  {...hoverScaleTap}
-                >
-                  Cancel
-                </motion.button>
-                <motion.button 
-                  onClick={handleChangePassword} 
-                  className="flex-1 bg-[#5F7F7A] hover:bg-[#4a6660] shadow-md px-4 py-2.5 rounded-xl font-medium text-white"
-                  {...hoverScaleTap}
-                >
-                  Update Password
-                </motion.button>
-              </div>
+                <div>
+                  <input
+                    type="password"
+                    {...registerPassword("newPassword", {
+                      required: "New password is required",
+                      minLength: {
+                        value: 6,
+                        message: "Password must be at least 6 characters",
+                      },
+                    })}
+                    placeholder="New password"
+                    className="p-3 border border-gray-200 focus:border-[#5F7F7A] rounded-xl outline-none focus:ring-[#5F7F7A] focus:ring-2 w-full"
+                  />
+                  {passwordErrors.newPassword && (
+                    <p className="mt-1 text-red-500 text-xs">
+                      {passwordErrors.newPassword.message}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <input
+                    type="password"
+                    {...registerPassword("confirmPassword", {
+                      required: "Please confirm your password",
+                      validate: (value) =>
+                        value === newPassword || "Passwords do not match",
+                    })}
+                    placeholder="Confirm new password"
+                    className="p-3 border border-gray-200 focus:border-[#5F7F7A] rounded-xl outline-none focus:ring-[#5F7F7A] focus:ring-2 w-full"
+                  />
+                  {passwordErrors.confirmPassword && (
+                    <p className="mt-1 text-red-500 text-xs">
+                      {passwordErrors.confirmPassword.message}
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex gap-3 mt-6">
+                  <motion.button
+                    type="button"
+                    onClick={() => {
+                      setShowPasswordModal(false);
+                      resetPassword();
+                    }}
+                    className="flex-1 hover:bg-gray-50 px-4 py-2.5 border border-gray-300 rounded-xl font-medium text-gray-700"
+                    {...hoverScaleTap}
+                  >
+                    Cancel
+                  </motion.button>
+                  <motion.button
+                    type="submit"
+                    disabled={changePasswordMutation.isPending}
+                    className="flex-1 bg-[#5F7F7A] hover:bg-[#4a6660] disabled:bg-gray-400 shadow-md px-4 py-2.5 rounded-xl font-medium text-white disabled:cursor-not-allowed"
+                    {...hoverScaleTap}
+                  >
+                    {changePasswordMutation.isPending
+                      ? "Updating..."
+                      : "Update Password"}
+                  </motion.button>
+                </div>
+              </form>
             </motion.div>
           </motion.div>
         )}
