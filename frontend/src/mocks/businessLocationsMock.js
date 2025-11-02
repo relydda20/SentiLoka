@@ -6,7 +6,8 @@ export const mockBusinessLocations = [
     id: "1",
     businessName: "Kopi Kenangan Grand Indonesia",
     placeId: "ChIJt7K_zWr1aS4RnGv8hMT5oHI",
-    address: "Grand Indonesia Shopping Town, Jl. MH Thamrin No.1, Jakarta Pusat",
+    address:
+      "Grand Indonesia Shopping Town, Jl. MH Thamrin No.1, Jakarta Pusat",
     coordinates: {
       lat: -6.1952,
       lng: 106.8219,
@@ -481,5 +482,97 @@ export const mockBusinessLocations = [
     ],
     createdAt: "2025-06-15T08:00:00.000Z",
     updatedAt: "2025-10-28T08:00:00.000Z",
+  },
+  {
+    id: "11",
+    businessName: "Warung Kopi Anyar",
+    placeId: "ChIJkXw_zWr1aS4RnGv8hMT5oHQ",
+    address: "Jl. Cendrawasih No. 45, Jakarta Selatan",
+    coordinates: {
+      lat: -6.2415,
+      lng: 106.8227,
+    },
+    phoneNumber: "+62215551234",
+    category: "Coffee Shop",
+    status: "active",
+    reviewsCount: 0,
+    averageRating: 0,
+    sentiment: {
+      positive: 0,
+      neutral: 0,
+      negative: 0,
+      positivePercentage: 0,
+      negativePercentage: 0,
+    },
+    cacheStatus: {
+      isCached: false,
+      lastScrapedAt: null,
+      cacheExpiresAt: null,
+      hoursUntilExpiry: 0,
+      needsRefresh: true, // Needs scraping
+    },
+    reviews: [], // No reviews yet
+    createdAt: "2025-11-01T10:00:00.000Z",
+    updatedAt: "2025-11-01T10:00:00.000Z",
+  },
+  {
+    id: "12",
+    businessName: "Restoran Sambal Pedas Mampus",
+    placeId: "ChIJqZz_yWr1aS4RnGv8hMT5oHM",
+    address: "Jl. Raya Pejuang No. 13, Jakarta Timur",
+    coordinates: {
+      lat: -6.2145,
+      lng: 106.9142,
+    },
+    phoneNumber: "+62217778899",
+    category: "Indonesian Restaurant",
+    status: "active",
+    reviewsCount: 388,
+    averageRating: 2.1, // Very low average rating
+    sentiment: {
+      positive: 40,
+      neutral: 68,
+      negative: 280, // High negative count
+      positivePercentage: 10.3, // Low positive percentage
+      negativePercentage: 72.2, // High negative percentage
+    },
+    cacheStatus: {
+      isCached: true,
+      lastScrapedAt: "2025-10-30T09:00:00.000Z",
+      cacheExpiresAt: "2025-10-31T09:00:00.000Z",
+      hoursUntilExpiry: 24,
+      needsRefresh: false,
+    },
+    reviews: [
+      {
+        reviewId: "rev_1001",
+        author: "Kecewa Berat",
+        rating: 1,
+        text: "Pelayanan SANGAT LAMBAT! Nunggu makanan 1.5 jam padahal restoran sepi. Pas dateng, ayamnya masih mentah. Gak akan balik lagi.",
+        time: "2025-10-29T19:30:00.000Z",
+        sentiment: "Negative",
+        sentimentScore: -0.95,
+      },
+      {
+        reviewId: "rev_1002",
+        author: "Rina Marlina",
+        rating: 2,
+        text: "Tempatnya kotor banget, banyak lalat. Meja lengket. Sambalnya sih pedas, tapi rasa makanannya biasa aja. Harganya juga mahal untuk kualitas segitu.",
+        time: "2025-10-28T14:10:00.000Z",
+        sentiment: "Negative",
+        sentimentScore: -0.8,
+      },
+      {
+        reviewId: "rev_1003",
+        author: "Bambang G.",
+        rating: 1,
+        text: "Kasirnya jutek parah. Ditanya baik-baik malah melotot. Mending makan di tempat lain.",
+        time: "2025-10-27T20:00:00.000Z",
+        sentiment: "Negative",
+        sentimentScore: -0.88,
+      },
+    ],
+    createdAt: "2025-04-01T08:00:00.000Z",
+    updatedAt: "2025-10-30T09:00:00.000Z",
   },
 ];

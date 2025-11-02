@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import ReactApexChart from "react-apexcharts";
 import {
@@ -7,7 +7,6 @@ import {
   Star,
   MessageSquare,
   GripVertical,
-  ChevronUp,
   ChevronDown,
   Eye,
   EyeOff,
@@ -24,6 +23,17 @@ const AnalyticsPanel = ({
 }) => {
   const [isExpanded, setIsExpanded] = useState(true);
   const [isDragging, setIsDragging] = useState(false);
+  const dragEndTimeout = useRef(null);
+
+  // helper function to reset drag safely after a small delay
+  const handleDragEnd = () => {
+    // keep isDragging true for a short time to suppress clicks
+    clearTimeout(dragEndTimeout.current);
+    setIsDragging(true);
+    dragEndTimeout.current = setTimeout(() => {
+      setIsDragging(false);
+    }, 150);
+  };
 
   // Prepare chart data
   const pieChartSeries = analytics.sentimentCounts
@@ -40,20 +50,14 @@ const AnalyticsPanel = ({
       dragMomentum={false}
       dragElastic={0}
       dragConstraints={containerRef}
-      // dragConstraints={{
-      //   top: -305,
-      //   left: 0,
-      //   right: window.innerWidth - 320,
-      //   bottom: 0,
-      // }}
       onDragStart={() => setIsDragging(true)}
-      onDragEnd={() => setIsDragging(false)}
+      onDragEnd={handleDragEnd}
       whileHover={!isDragging ? { scale: 1.01 } : {}}
       transition={springTransition}
       className={`bg-white shadow-xl rounded-xl w-80 overflow-hidden cursor-move ${className}`}
       style={{ touchAction: "none" }}
     >
-      {/* Header with Drag Handle */}
+      {/* Header */}
       <div className="bg-gradient-to-r from-[#2F4B4E] to-[#42676B] p-4">
         <div className="flex items-center gap-2 mb-3">
           <GripVertical className="opacity-70 w-4 h-4 text-[#FAF6E9] cursor-grab active:cursor-grabbing" />
@@ -62,18 +66,32 @@ const AnalyticsPanel = ({
             Overview Analytics
           </h4>
           <button
-            onClick={() => setIsExpanded(!isExpanded)}
+            onClick={(e) => {
+              if (isDragging) {
+                e.preventDefault();
+                return; // ⛔ ignore click right after drag
+              }
+              setIsExpanded(!isExpanded);
+            }}
             className="hover:bg-white/10 p-1 rounded text-[#FAF6E9] hover:text-[#CED7B0] transition-colors"
           >
             <ChevronDown
-              className={`w-4 h-4 ${isExpanded ? "rotate-180" : ""}`}
+              className={`w-4 h-4 transition-transform duration-200 ${
+                isExpanded ? "rotate-180" : ""
+              }`}
             />
           </button>
         </div>
 
         {/* POI Toggle */}
         <button
-          onClick={onTogglePOI}
+          onClick={(e) => {
+            if (isDragging) {
+              e.preventDefault();
+              return; // ⛔ ignore click right after drag
+            }
+            onTogglePOI?.();
+          }}
           className={`flex items-center gap-2 px-3 py-2 rounded-lg w-full font-medium transition-all ${
             poiVisible
               ? "bg-[#FAF6E9] text-[#2F4B4E] hover:bg-[#E1E6C3]"

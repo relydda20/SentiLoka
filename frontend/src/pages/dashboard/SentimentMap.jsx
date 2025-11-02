@@ -3,16 +3,11 @@ import { GoogleMap, useJsApiLoader } from "@react-google-maps/api";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X,
-  MapPin,
-  Star,
   TrendingUp,
   TrendingDown,
   Minus,
-  RefreshCw,
   Loader2,
   AlertCircle,
-  ChevronDown,
-  MessageSquare,
 } from "lucide-react";
 import OverlappingMarkerSpiderfier from "./OverlappingMarkerSpiderfier";
 
@@ -22,9 +17,8 @@ import SearchLocation from "../../components/sentimentMap/SearchLocation";
 import MapLegend from "../../components/sentimentMap/MapLegend";
 import AnalyticsPanel from "../../components/sentimentMap/AnalyticsPanel";
 
-//Sidebar Components
-import SentimentBar from "../../components/sentimentMap/sidebar/SentimentBar";
-import ReviewCard from "../../components/sentimentMap/sidebar/ReviewCard";
+// Sidebar Components
+import ReviewSidebar from "../../components/sentimentMap/sidebar/ReviewSidebar.jsx";
 
 // Marker Components
 import LocationMarker from "../../components/sentimentMap/marker/LocationMarker";
@@ -39,7 +33,7 @@ import {
 } from "../../services/locationReviewService";
 
 // Utils
-import { getMarkerColor, getSentimentLabel } from "../../utils/sentimentUtils";
+import { getMarkerColor } from "../../utils/sentimentUtils";
 
 const libraries = ["places"];
 
@@ -438,12 +432,6 @@ const SentimentMapViewEnhanced = () => {
     );
   }
 
-  const displayedReviews =
-    selectedLocation?.reviews?.slice(0, reviewsPage * 5) || [];
-  const totalReviews = selectedLocation?.reviews?.length || 0;
-  const hasReviews =
-    selectedLocation?.reviews && selectedLocation.reviews.length > 0;
-
   // Rendered component
   return (
     <div className="relative w-full h-screen">
@@ -504,7 +492,6 @@ const SentimentMapViewEnhanced = () => {
           fullscreenControl: false,
           disableDefaultUI: true,
           panControl: false,
-
           gestureHandling: "greedy",
         }}
       >
@@ -530,180 +517,17 @@ const SentimentMapViewEnhanced = () => {
 
       {/* Sidebar */}
       <AnimatePresence>
-        {sidebarOpen && (
-          <motion.div
-            initial={{ x: "100%" }}
-            animate={{ x: 0 }}
-            exit={{ x: "100%" }}
-            transition={{ type: "spring", damping: 30, stiffness: 300 }}
-            className="top-0 right-0 z-50 fixed bg-white shadow-2xl w-full sm:w-96 h-full"
-          >
-            {selectedLocation && (
-              <div className="flex flex-col h-full">
-                {/* Header */}
-                <div className="bg-linear-to-r from-[#2F4B4E] to-[#42676B] p-6 text-white shrink-0">
-                  <div className="flex justify-between items-start gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-2">
-                        <MapPin className="w-5 h-5 shrink-0" />
-                        <h2 className="font-bold text-xl truncate">
-                          {selectedLocation.businessName}
-                        </h2>
-                      </div>
-                      <p className="text-[#E1E6C3] text-sm line-clamp-2">
-                        {selectedLocation.address}
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => setSidebarOpen(false)}
-                      className="text-white hover:text-[#E1E6C3] transition-colors shrink-0"
-                    >
-                      <X className="w-6 h-6" />
-                    </button>
-                  </div>
-
-                  <div className="flex items-center gap-4 mt-4">
-                    {selectedLocation.averageRating ? (
-                      <div className="flex items-center gap-2">
-                        <Star className="fill-[#CED7B0] w-5 h-5 text-[#CED7B0]" />
-                        <span className="font-bold text-2xl">
-                          {selectedLocation.averageRating.toFixed(1)}
-                        </span>
-                      </div>
-                    ) : (
-                      <p className="text-[#E1E6C3] text-sm">No rating data</p>
-                    )}
-                  </div>
-
-                  {!hasReviews && (
-                    <motion.button
-                      onClick={() => handleLoadReviews(selectedLocation.id)}
-                      disabled={loadingReviews}
-                      whileHover={!loadingReviews ? { scale: 1.02 } : {}}
-                      whileTap={!loadingReviews ? { scale: 0.98 } : {}}
-                      className="flex justify-center items-center gap-2 bg-white hover:bg-[#FAF6E9] disabled:opacity-50 shadow-md mt-4 px-4 py-2.5 rounded-lg w-full font-medium text-[#2F4B4E] transition-colors"
-                    >
-                      {loadingReviews ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          Loading Reviews...
-                        </>
-                      ) : (
-                        <>
-                          <RefreshCw className="w-4 h-4" />
-                          Load Reviews
-                        </>
-                      )}
-                    </motion.button>
-                  )}
-                </div>
-
-                {/* Sentiment Summary - Only show if reviews exist */}
-                {hasReviews && selectedLocation.sentiment && (
-                  <div className="bg-[#FAF6E9] p-6 border-[#CED7B0] border-b shrink-0">
-                    <div className="flex justify-between items-center mb-3">
-                      <h3 className="font-semibold text-[#2F4B4E]">
-                        Overall Sentiment
-                      </h3>
-                      <div className="flex items-center gap-2">
-                        {getSentimentIcon(selectedLocation.sentiment)}
-                        <span className="font-medium text-sm">
-                          {getSentimentLabel(selectedLocation.sentiment)}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <SentimentBar
-                        label="Positive"
-                        count={selectedLocation.sentiment.positive}
-                        percentage={
-                          selectedLocation.sentiment.positivePercentage
-                        }
-                        color="green"
-                      />
-                      <SentimentBar
-                        label="Neutral"
-                        count={selectedLocation.sentiment.neutral}
-                        percentage={
-                          (selectedLocation.sentiment.neutral /
-                            selectedLocation.reviewsCount) *
-                            100 || 0
-                        }
-                        color="yellow"
-                      />
-                      <SentimentBar
-                        label="Negative"
-                        count={selectedLocation.sentiment.negative}
-                        percentage={
-                          selectedLocation.sentiment.negativePercentage
-                        }
-                        color="red"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* Reviews List */}
-                <div className="flex-1 p-6 overflow-y-auto">
-                  {!hasReviews ? (
-                    <div className="py-12 text-center">
-                      <MessageSquare className="mx-auto mb-3 w-12 h-12 text-[#CED7B0]" />
-                      <p className="mb-2 text-[#42676B]">
-                        No reviews loaded yet
-                      </p>
-                      <p className="text-[#42676B] text-sm">
-                        Click "Load Reviews" to fetch and analyze reviews
-                      </p>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="flex justify-between items-center mb-4">
-                        <h3 className="flex items-center gap-2 font-semibold text-[#2F4B4E]">
-                          <MessageSquare className="w-5 h-5" />
-                          Recent Reviews
-                        </h3>
-                        <span className="text-[#42676B] text-sm">
-                          {displayedReviews.length} of {totalReviews}
-                        </span>
-                      </div>
-
-                      {loadingReviews ? (
-                        <div className="space-y-4">
-                          {[1, 2, 3].map((i) => (
-                            <SkeletonReviewCard key={i} />
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="space-y-4">
-                          {displayedReviews.map((review, index) => (
-                            <ReviewCard
-                              key={review.reviewId || index}
-                              review={review}
-                              onGenerateReply={handleGenerateReply}
-                            />
-                          ))}
-
-                          {displayedReviews.length < totalReviews && (
-                            <motion.button
-                              onClick={loadMoreReviews}
-                              whileHover={{ scale: 1.02 }}
-                              whileTap={{ scale: 0.98 }}
-                              className="flex justify-center items-center gap-2 hover:bg-[#FAF6E9] py-3 border-[#CED7B0] border-2 hover:border-[#2F4B4E] border-dashed rounded-lg w-full font-medium text-[#42676B] hover:text-[#2F4B4E] transition-colors"
-                            >
-                              <ChevronDown className="w-4 h-4" />
-                              Load More Reviews
-                            </motion.button>
-                          )}
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              </div>
-            )}
-          </motion.div>
-        )}
+        <ReviewSidebar
+          isOpen={sidebarOpen}
+          selectedLocation={selectedLocation}
+          loadingReviews={loadingReviews}
+          reviewsPage={reviewsPage}
+          onClose={() => setSidebarOpen(false)}
+          onLoadReviews={handleLoadReviews}
+          onGenerateReply={handleGenerateReply}
+          onLoadMoreReviews={loadMoreReviews}
+          getSentimentIcon={getSentimentIcon}
+        />
       </AnimatePresence>
 
       {/* Overlay when sidebar is open */}
@@ -740,22 +564,5 @@ const SentimentMapViewEnhanced = () => {
     </div>
   );
 };
-
-// Skeleton Loading Component
-const SkeletonReviewCard = () => (
-  <div className="bg-white p-4 border border-[#E1E6C3] rounded-lg animate-pulse">
-    <div className="flex justify-between items-start mb-2">
-      <div className="flex-1">
-        <div className="bg-[#E1E6C3] mb-2 rounded w-1/3 h-4"></div>
-        <div className="bg-[#E1E6C3] rounded w-1/2 h-3"></div>
-      </div>
-      <div className="bg-[#E1E6C3] rounded-full w-16 h-6"></div>
-    </div>
-    <div className="space-y-2 mt-3">
-      <div className="bg-[#E1E6C3] rounded w-full h-3"></div>
-      <div className="bg-[#E1E6C3] rounded w-5/6 h-3"></div>
-    </div>
-  </div>
-);
 
 export default SentimentMapViewEnhanced;

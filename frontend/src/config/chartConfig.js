@@ -45,7 +45,10 @@ export const littlePieChartConfig = {
     },
   },
   dataLabels: {
-    enabled: false, // Remove percentage labels on the chart
+    enabled: true, // Remove percentage labels on the chart
+    style: {
+      colors: ["#DCE2BE "],
+    },
   },
   stroke: {
     width: 0, // Remove borders between segments
