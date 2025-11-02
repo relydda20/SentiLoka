@@ -20,6 +20,9 @@ import AnalyticsPanel from "../../components/sentimentMap/AnalyticsPanel";
 // Sidebar Components
 import ReviewSidebar from "../../components/sentimentMap/sidebar/ReviewSidebar.jsx";
 
+// Modal Components
+import GenerateReplyModal from "../../components/sentimentMap/modal/GenerateReplyModal.jsx";
+
 // Marker Components
 import LocationMarker from "../../components/sentimentMap/marker/LocationMarker";
 import SelectedMarker from "../../components/sentimentMap/marker/SelectedMarker";
@@ -29,7 +32,6 @@ import {
   fetchBusinessLocations,
   registerBusinessLocation,
   loadBusinessReviews,
-  generateReviewReply,
 } from "../../services/locationReviewService";
 
 // Utils
@@ -47,7 +49,7 @@ const defaultCenter = {
   lng: 106.8456,
 };
 
-const SentimentMapViewEnhanced = () => {
+const SentimentMap = () => {
   const [map, setMap] = useState(null);
   const [locations, setLocations] = useState([]);
   const [selectedLocation, setSelectedLocation] = useState(null);
@@ -62,6 +64,10 @@ const SentimentMapViewEnhanced = () => {
   const [markerRefs, setMarkerRefs] = useState({});
   const [poiVisible, setPoiVisible] = useState(false);
   const [savedLocations, setSavedLocations] = useState([]);
+
+  // Modal states
+  const [isReplyModalOpen, setIsReplyModalOpen] = useState(false);
+  const [selectedReview, setSelectedReview] = useState(null);
 
   const omsRef = useRef(null);
 
@@ -324,22 +330,20 @@ const SentimentMapViewEnhanced = () => {
     }
   };
 
-  const handleGenerateReply = async (review) => {
-    console.log("=== Generate Reply ===");
+  // Open modal with selected review
+  const handleGenerateReply = (review) => {
+    console.log("=== Opening Reply Modal ===");
     console.log("Review:", review);
-    console.log("====================");
+    console.log("========================");
 
-    try {
-      const data = await generateReviewReply(
-        selectedLocation.id,
-        review.reviewId,
-        review,
-      );
-      alert(`✨ Generated reply: ${data.reply}`);
-    } catch (error) {
-      console.error("Error generating reply:", error);
-      alert("Failed to generate reply");
-    }
+    setSelectedReview(review);
+    setIsReplyModalOpen(true);
+  };
+
+  // Close modal
+  const handleCloseReplyModal = () => {
+    setIsReplyModalOpen(false);
+    setSelectedReview(null);
   };
 
   const loadMoreReviews = () => {
@@ -530,6 +534,13 @@ const SentimentMapViewEnhanced = () => {
         />
       </AnimatePresence>
 
+      {/* Reply Generator Modal */}
+      <GenerateReplyModal
+        isOpen={isReplyModalOpen}
+        onClose={handleCloseReplyModal}
+        review={selectedReview}
+      />
+
       {/* Overlay when sidebar is open */}
       <AnimatePresence>
         {sidebarOpen && (
@@ -565,4 +576,4 @@ const SentimentMapViewEnhanced = () => {
   );
 };
 
-export default SentimentMapViewEnhanced;
+export default SentimentMap;

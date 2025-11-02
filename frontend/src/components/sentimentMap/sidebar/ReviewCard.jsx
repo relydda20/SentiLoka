@@ -45,7 +45,7 @@ const ReviewCard = ({ review, onGenerateReply }) => {
         </div>
         {review.sentiment && (
           <span
-            className={`text-xs px-2 py-1 rounded-full font-medium flex-shrink-0 ${getSentimentBadgeColor(
+            className={`text-xs px-2 py-1 rounded-full font-medium shrink-0 ${getSentimentBadgeColor(
               review.sentiment,
             )}`}
           >
