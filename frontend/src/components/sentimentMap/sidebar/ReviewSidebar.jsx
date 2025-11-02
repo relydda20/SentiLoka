@@ -7,21 +7,26 @@ import ReviewList from "./ReviewList";
 const ReviewSidebar = ({
   isOpen,
   selectedLocation,
-  loadingReviews,
-  reviewsPage,
+  loadingReviews, // For initial load
   onClose,
   onLoadReviews,
   onGenerateReply,
-  onLoadMoreReviews,
   getSentimentIcon,
+  loadingSentiment, // For initial analysis
+  onAnalyzeSentiment,
+  // *** NEW PROPS ***
+  reviewFilters,
+  reviewPage,
+  onFilterOrPageChange,
+  isFetchingReviews, // General loading for filters/pagination
 }) => {
   if (!isOpen || !selectedLocation) return null;
 
-  const displayedReviews =
-    selectedLocation?.reviews?.slice(0, reviewsPage * 5) || [];
-  const totalReviews = selectedLocation?.reviews?.length || 0;
-  const hasReviews =
-    selectedLocation?.reviews && selectedLocation.reviews.length > 0;
+  // Reviews and pagination info are now directly on selectedLocation
+  const { reviews = [], pagination = null } = selectedLocation;
+
+  // This prop is TRUE if the location has reviews in the DB (even if not loaded yet)
+  const hasReviews = (selectedLocation.reviewsCount || 0) > 0;
 
   return (
     <motion.div
@@ -35,29 +40,34 @@ const ReviewSidebar = ({
         {/* Header */}
         <ReviewSidebarHeader
           selectedLocation={selectedLocation}
-          hasReviews={hasReviews}
+          hasReviews={hasReviews} // Use this to show/hide "Load Reviews"
           loadingReviews={loadingReviews}
           onClose={onClose}
-          onLoadReviews={onLoadReviews}
+          onLoadReviews={() => onLoadReviews(selectedLocation.id)}
         />
 
         {/* Sentiment Summary */}
-        {hasReviews && selectedLocation.sentiment && (
-          <ReviewSidebarSentiment
-            sentiment={selectedLocation.sentiment}
-            reviewsCount={selectedLocation.reviewsCount}
-            getSentimentIcon={getSentimentIcon}
-          />
-        )}
+        <ReviewSidebarSentiment
+          sentiment={selectedLocation.sentiment}
+          reviewsCount={selectedLocation.reviewsCount}
+          getSentimentIcon={getSentimentIcon}
+          hasReviews={hasReviews}
+          loadingSentiment={loadingSentiment}
+          onAnalyzeSentiment={() => onAnalyzeSentiment(selectedLocation.id)}
+        />
 
         {/* Reviews List */}
         <ReviewList
-          hasReviews={hasReviews}
-          displayedReviews={displayedReviews}
-          totalReviews={totalReviews}
-          loadingReviews={loadingReviews}
+          reviews={reviews} // Pass paginated reviews
+          pagination={pagination} // Pass pagination info
+          hasReviews={hasReviews} // *** THIS IS THE FIX: Pass hasReviews ***
+          loadingReviews={loadingReviews} // For initial load skeleton
+          isFetchingReviews={isFetchingReviews} // For filter/page loading
           onGenerateReply={onGenerateReply}
-          onLoadMoreReviews={onLoadMoreReviews}
+          // Pass filter state and handlers
+          reviewFilters={reviewFilters}
+          reviewPage={reviewPage}
+          onFilterOrPageChange={onFilterOrPageChange}
         />
       </div>
     </motion.div>

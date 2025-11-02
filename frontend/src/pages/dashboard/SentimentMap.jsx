@@ -9,7 +9,7 @@ import {
   Loader2,
   AlertCircle,
 } from "lucide-react";
-import OverlappingMarkerSpiderfier from "./OverlappingMarkerSpiderfier";
+import OverlappingMarkerSpiderfier from "../../utils/OverlappingMarkerSpiderfier";
 
 // Panel Components
 import LocationsPanel from "../../components/sentimentMap/LocationsPanel";
@@ -32,6 +32,7 @@ import {
   fetchBusinessLocations,
   registerBusinessLocation,
   loadBusinessReviews,
+  analyzeLocationSentiment,
 } from "../../services/locationReviewService";
 
 // Utils
@@ -49,6 +50,12 @@ const defaultCenter = {
   lng: 106.8456,
 };
 
+const defaultFilters = {
+  searchTerm: "",
+  sentiment: "all",
+  rating: 0,
+};
+
 const SentimentMap = () => {
   const [map, setMap] = useState(null);
   const [locations, setLocations] = useState([]);
@@ -58,12 +65,18 @@ const SentimentMap = () => {
   const [selectedPlace, setSelectedPlace] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [reviewsPage, setReviewsPage] = useState(1);
-  const [loadingReviews, setLoadingReviews] = useState(false);
+
+  // *** STATE for filters and pagination ***
+  const [reviewPage, setReviewPage] = useState(1);
+  const [reviewFilters, setReviewFilters] = useState(defaultFilters);
+  const [isFetchingReviews, setIsFetchingReviews] = useState(false); // Combined loading state
+
+  const [loadingReviews, setLoadingReviews] = useState(false); // For initial load
+  const [loadingSentiment, setLoadingSentiment] = useState(false); // For initial analysis
+
   const [hoveredMarker, setHoveredMarker] = useState(null);
   const [markerRefs, setMarkerRefs] = useState({});
   const [poiVisible, setPoiVisible] = useState(false);
-  const [savedLocations, setSavedLocations] = useState([]);
 
   // Modal states
   const [isReplyModalOpen, setIsReplyModalOpen] = useState(false);
@@ -79,23 +92,6 @@ const SentimentMap = () => {
   // Load mock data on mount
   useEffect(() => {
     fetchBusinessLocationsData();
-    // Simulate connected locations
-    setSavedLocations([
-      {
-        id: "conn-1",
-        name: "My Restaurant Jakarta",
-        address: "Jl. Sudirman No. 123, Jakarta",
-        coordinates: { lat: -6.2088, lng: 106.8456 },
-        status: "active",
-      },
-      {
-        id: "conn-2",
-        name: "Coffee Shop Menteng",
-        address: "Jl. Menteng Raya No. 45, Jakarta",
-        coordinates: { lat: -6.1944, lng: 106.8294 },
-        status: "active",
-      },
-    ]);
   }, []);
 
   // Register markers with Spiderfy when locations or marker refs change
@@ -171,8 +167,6 @@ const SentimentMap = () => {
 
   const onMapLoad = useCallback((map) => {
     setMap(map);
-
-    // Set initial POI visibility to off
     map.setOptions({
       styles: [
         {
@@ -182,7 +176,6 @@ const SentimentMap = () => {
         },
       ],
     });
-
     const oms = new OverlappingMarkerSpiderfier(map, {
       markersWontMove: true,
       markersWontHide: true,
@@ -190,11 +183,7 @@ const SentimentMap = () => {
       nearbyDistance: 40,
       circleFootSeparation: 35,
     });
-
-    map.addListener("click", () => {
-      oms.unspiderfy();
-    });
-
+    map.addListener("click", () => oms.unspiderfy());
     omsRef.current = oms;
   }, []);
 
@@ -205,7 +194,6 @@ const SentimentMap = () => {
   const onPlaceChanged = () => {
     if (searchBox !== null) {
       const place = searchBox.getPlace();
-
       if (place.geometry && place.geometry.location) {
         const placeData = {
           placeId: place.place_id,
@@ -221,9 +209,7 @@ const SentimentMap = () => {
           types: place.types,
           phoneNumber: place.formatted_phone_number,
         };
-
         setSelectedPlace(placeData);
-
         if (map) {
           map.panTo(placeData.coordinates);
           map.setZoom(16);
@@ -232,42 +218,87 @@ const SentimentMap = () => {
     }
   };
 
-  const handleMarkerClick = async (location) => {
-    setSelectedLocation(location);
-    setSidebarOpen(true);
-    setReviewsPage(1);
-  };
-
-  const handleSpiderfiedMarkerClick = async (location) => {
-    setSelectedLocation(location);
-    setSidebarOpen(true);
-    setReviewsPage(1);
-  };
-
-  const handleLoadReviews = async (locationId) => {
-    setLoadingReviews(true);
+  // *** HELPER to fetch reviews based on current state ***
+  const fetchReviewData = async (locationId, options) => {
+    setIsFetchingReviews(true);
     setError(null);
 
-    console.log("=== Load Reviews Request ===");
-    console.log("Location ID:", locationId);
-    console.log("Action: Start scraping reviews from Google");
-    console.log("==========================");
+    // Check if the base location (in the main list) has sentiment
+    const baseLocation = locations.find((loc) => loc.id === locationId);
+    const hasSentiment = !!baseLocation?.sentiment;
 
     try {
-      const data = await loadBusinessReviews(locationId);
+      const fetchFn = hasSentiment
+        ? analyzeLocationSentiment
+        : loadBusinessReviews;
 
-      // Update location with scraped reviews
+      const data = await fetchFn(locationId, options);
+
+      // Update the main locations list
       setLocations((prev) =>
         prev.map((loc) =>
           loc.id === locationId ? { ...loc, ...data.business } : loc,
         ),
       );
-
+      // Update the selectedLocation state
       if (selectedLocation?.id === locationId) {
         setSelectedLocation((prev) => ({ ...prev, ...data.business }));
       }
+    } catch (error) {
+      console.error("Error fetching review data:", error);
+      setError("Failed to fetch reviews. Please try again.");
+    } finally {
+      setIsFetchingReviews(false);
+    }
+  };
 
-      alert("✅ Reviews loaded and analyzed successfully!");
+  const handleMarkerClick = async (location) => {
+    // *** Reset filters on new location click ***
+    setReviewFilters(defaultFilters);
+    setReviewPage(1);
+
+    setSelectedLocation(location);
+    setSidebarOpen(true);
+
+    // Pan to the marker when clicked
+    if (map) {
+      map.panTo(location.coordinates);
+      map.setZoom(16);
+    }
+
+    // *** Automatically fetch page 1 if reviews are already loaded ***
+    if (location.reviews?.length > 0 || location.sentiment) {
+      fetchReviewData(location.id, { page: 1, ...defaultFilters });
+    }
+  };
+
+  const handleSpiderfiedMarkerClick = async (location) => {
+    setReviewFilters(defaultFilters);
+    setReviewPage(1);
+    setSelectedLocation(location);
+    setSidebarOpen(true);
+    if (location.reviews?.length > 0 || location.sentiment) {
+      fetchReviewData(location.id, { page: 1, ...defaultFilters });
+    }
+  };
+
+  // *** RENAMED & MODIFIED ***
+  const handleInitialLoadReviews = async (locationId) => {
+    setLoadingReviews(true); // Specific loader for *initial* load
+    setError(null);
+    console.log("=== Load Reviews Request ===");
+    try {
+      const options = { page: 1, ...defaultFilters };
+      const data = await loadBusinessReviews(locationId, options);
+
+      setLocations((prev) =>
+        prev.map((loc) =>
+          loc.id === locationId ? { ...loc, ...data.business } : loc,
+        ),
+      );
+      if (selectedLocation?.id === locationId) {
+        setSelectedLocation((prev) => ({ ...prev, ...data.business }));
+      }
     } catch (error) {
       console.error("Error loading reviews:", error);
       setError("Failed to load reviews");
@@ -276,16 +307,66 @@ const SentimentMap = () => {
     }
   };
 
+  // *** RENAMED & MODIFIED ***
+  const handleInitialAnalyzeSentiment = async (locationId) => {
+    setLoadingSentiment(true); // Specific loader for *initial* analysis
+    setError(null);
+    console.log("=== Analyze Sentiment Request ===");
+    try {
+      const options = { page: 1, ...defaultFilters };
+      const data = await analyzeLocationSentiment(locationId, options);
+
+      setLocations((prev) =>
+        prev.map((loc) =>
+          loc.id === locationId ? { ...loc, ...data.business } : loc,
+        ),
+      );
+      if (selectedLocation?.id === locationId) {
+        setSelectedLocation((prev) => ({ ...prev, ...data.business }));
+      }
+      alert("✅ Sentiment analyzed successfully!");
+    } catch (error) {
+      console.error("Error analyzing sentiment:", error);
+      setError("Failed to analyze sentiment");
+    } finally {
+      setLoadingSentiment(false);
+    }
+  };
+
+  // *** NEW HANDLER for pagination & filtering ***
+  const handleFilterOrPageChange = (newOptions) => {
+    if (!selectedLocation) return;
+
+    const newPage = newOptions.page !== undefined ? newOptions.page : 1;
+    const newFilters = {
+      searchTerm:
+        newOptions.searchTerm !== undefined
+          ? newOptions.searchTerm
+          : reviewFilters.searchTerm,
+      sentiment:
+        newOptions.sentiment !== undefined
+          ? newOptions.sentiment
+          : reviewFilters.sentiment,
+      rating:
+        newOptions.rating !== undefined
+          ? newOptions.rating
+          : reviewFilters.rating,
+    };
+
+    setReviewPage(newPage);
+    setReviewFilters(newFilters);
+
+    fetchReviewData(selectedLocation.id, { ...newFilters, page: newPage });
+  };
+
   const handleMarkerLoad = (marker, locationId) => {
     setMarkerRefs((prev) => ({ ...prev, [locationId]: marker }));
   };
 
   const handleAddLocationToAnalysis = async () => {
     if (!selectedPlace) return;
-
     setLoading(true);
     setError(null);
-
     const businessData = {
       businessName: selectedPlace.name,
       placeId: selectedPlace.placeId,
@@ -300,19 +381,14 @@ const SentimentMap = () => {
       addedAt: new Date().toISOString(),
     };
 
-    console.log("=== Business Location Data ===");
-    console.log("Google Maps URL:", businessData.googleMapsUrl);
-    console.log("Full Payload:", JSON.stringify(businessData, null, 2));
-    console.log("============================");
-
     try {
       const data = await registerBusinessLocation(businessData);
-      await fetchBusinessLocationsData();
+      setLocations((prev) => [...prev, data.business]);
       setSelectedPlace(null);
       setError(null);
       setTimeout(() => {
         alert(
-          "✅ Location added successfully! Use 'Load Reviews' to fetch and analyze reviews.",
+          "✅ Location added successfully! Click the new marker to load and analyze reviews.",
         );
       }, 100);
     } catch (error) {
@@ -320,13 +396,6 @@ const SentimentMap = () => {
       setError("Failed to add location");
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleLocationClick = (location) => {
-    if (map) {
-      map.panTo(location.coordinates);
-      map.setZoom(16);
     }
   };
 
@@ -346,16 +415,10 @@ const SentimentMap = () => {
     setSelectedReview(null);
   };
 
-  const loadMoreReviews = () => {
-    setReviewsPage((prev) => prev + 1);
-  };
-
   const getSentimentIcon = (sentiment) => {
     if (!sentiment) return <Minus className="w-4 h-4" />;
-
     const positivePercentage = sentiment.positivePercentage || 0;
     const negativePercentage = sentiment.negativePercentage || 0;
-
     if (positivePercentage > 60)
       return <TrendingUp className="w-4 h-4 text-green-500" />;
     if (negativePercentage > 40)
@@ -363,15 +426,15 @@ const SentimentMap = () => {
     return <Minus className="w-4 h-4 text-yellow-500" />;
   };
 
-  // Calculate overall analytics
   const calculateAnalytics = () => {
     const totalLocations = locations.length;
     const totalReviews = locations.reduce(
       (sum, loc) => sum + (loc.reviewsCount || 0),
       0,
     );
+    // This now reflects the *total* count from the objects, not just paginated length
     const analyzedReviews = locations.reduce(
-      (sum, loc) => sum + (loc.reviews?.length || 0),
+      (sum, loc) => sum + (loc.sentiment?.totalReviews || 0),
       0,
     );
     const avgRating =
@@ -381,7 +444,6 @@ const SentimentMap = () => {
             locations.length
           ).toFixed(1)
         : "0.0";
-
     const sentimentCounts = locations.reduce(
       (acc, loc) => {
         if (loc.sentiment) {
@@ -393,7 +455,6 @@ const SentimentMap = () => {
       },
       { positive: 0, neutral: 0, negative: 0 },
     );
-
     return {
       totalLocations,
       totalReviews,
@@ -477,9 +538,9 @@ const SentimentMap = () => {
       {/* Connected Locations Panel */}
       <div className="top-56 left-4 z-10 absolute">
         <LocationsPanel
-          locations={savedLocations}
-          onLocationClick={handleLocationClick}
-          title="Saved Locations"
+          locations={locations}
+          onLocationClick={handleMarkerClick}
+          title="Analysis Locations"
         />
       </div>
 
@@ -508,7 +569,7 @@ const SentimentMap = () => {
             onMouseOver={() => setHoveredMarker(location.id)}
             onMouseOut={() => setHoveredMarker(null)}
             onLoad={handleMarkerLoad}
-            getMarkerColor={getMarkerColor}
+            getMarkerColor={getMarkerColor} // *** THIS IS THE FIX ***
           />
         ))}
 
@@ -524,13 +585,18 @@ const SentimentMap = () => {
         <ReviewSidebar
           isOpen={sidebarOpen}
           selectedLocation={selectedLocation}
-          loadingReviews={loadingReviews}
-          reviewsPage={reviewsPage}
+          loadingReviews={loadingReviews} // For initial load button
           onClose={() => setSidebarOpen(false)}
-          onLoadReviews={handleLoadReviews}
+          onLoadReviews={handleInitialLoadReviews} // Use initial loader
           onGenerateReply={handleGenerateReply}
-          onLoadMoreReviews={loadMoreReviews}
           getSentimentIcon={getSentimentIcon}
+          loadingSentiment={loadingSentiment} // For initial analyze button
+          onAnalyzeSentiment={handleInitialAnalyzeSentiment} // Use initial analyzer
+          // *** NEW PROPS for filtering/pagination ***
+          reviewFilters={reviewFilters}
+          reviewPage={reviewPage}
+          onFilterOrPageChange={handleFilterOrPageChange}
+          isFetchingReviews={isFetchingReviews} // General loading state
         />
       </AnimatePresence>
 

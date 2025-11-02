@@ -1,3 +1,6 @@
+/* Fetched content from:
+ * - relydda20/sentiloka/SentiLoka-feature-sentiment-map-design/frontend/src/utils/sentimentUtils.js
+ */
 /**
  * Sentiment Utilities
  * Helper functions for sentiment analysis
@@ -11,7 +14,15 @@ export const getMarkerColor = (sentiment) => {
 
   if (positivePercentage > 60) return "#22c55e"; // green
   if (negativePercentage > 40) return "#ef4444"; // red
-  return "#eab308"; // yellow
+  // Use a fallback for neutral if total reviews exist
+  if (
+    sentiment.totalReviews > 0 ||
+    positivePercentage > 0 ||
+    negativePercentage > 0
+  ) {
+    return "#eab308"; // yellow
+  }
+  return "#9ca3af"; // gray if no data
 };
 
 export const getSentimentLabel = (sentiment) => {
@@ -22,19 +33,60 @@ export const getSentimentLabel = (sentiment) => {
 
   if (positivePercentage > 60) return "Positive";
   if (negativePercentage > 40) return "Negative";
-  return "Neutral";
+  // Check if any reviews exist to classify as neutral
+  if (
+    sentiment.totalReviews > 0 ||
+    positivePercentage > 0 ||
+    negativePercentage > 0
+  ) {
+    return "Neutral";
+  }
+  return "No Data";
 };
 
+/**
+ * *** MODIFIED: Handles both complex objects and simple strings ***
+ * This is used by LocationsPanel and ReviewCard
+ */
 export const getSentimentBadgeColor = (sentiment) => {
-  if (!sentiment) return "bg-gray-100 text-gray-800";
+  let sentimentLabel = "No Data";
 
-  switch (sentiment.toLowerCase()) {
+  if (typeof sentiment === "string") {
+    // Handles simple strings like "Positive", "Negative", null
+    sentimentLabel = sentiment || "No Data";
+  } else if (sentiment && sentiment.positivePercentage !== undefined) {
+    // Handles the complex object from mockBusinessLocations
+    // We re-use the logic from getSentimentLabel
+    sentimentLabel = getSentimentLabel(sentiment);
+  }
+
+  const sentimentStr = sentimentLabel.toLowerCase();
+
+  switch (sentimentStr) {
     case "positive":
-      return "bg-green-100 text-green-800";
+      return {
+        label: "Positive",
+        bgColor: "bg-green-100",
+        textColor: "text-green-800",
+      };
     case "negative":
-      return "bg-red-100 text-red-800";
+      return {
+        label: "Negative",
+        bgColor: "bg-red-100",
+        textColor: "text-red-800",
+      };
+    case "neutral":
+      return {
+        label: "Neutral",
+        bgColor: "bg-yellow-100",
+        textColor: "text-yellow-800",
+      };
     default:
-      return "bg-gray-100 text-gray-800";
+      return {
+        label: "No Data",
+        bgColor: "bg-gray-100",
+        textColor: "text-gray-800",
+      };
   }
 };
 

@@ -14,6 +14,9 @@ const ReviewCard = ({ review, onGenerateReply }) => {
     });
   };
 
+  // *** MODIFIED: Get badge colors as an object ***
+  const sentimentBadge = getSentimentBadgeColor(review.sentiment);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -43,15 +46,13 @@ const ReviewCard = ({ review, onGenerateReply }) => {
             </span>
           </div>
         </div>
-        {review.sentiment && (
-          <span
-            className={`text-xs px-2 py-1 rounded-full font-medium shrink-0 ${getSentimentBadgeColor(
-              review.sentiment,
-            )}`}
-          >
-            {review.sentiment}
-          </span>
-        )}
+
+        {/* *** MODIFIED: Use object properties for classes *** */}
+        <span
+          className={`text-xs px-2 py-1 rounded-full font-medium shrink-0 ${sentimentBadge.bgColor} ${sentimentBadge.textColor}`}
+        >
+          {sentimentBadge.label}
+        </span>
       </div>
 
       {review.text && (
@@ -60,18 +61,21 @@ const ReviewCard = ({ review, onGenerateReply }) => {
         </p>
       )}
 
-      <div className="flex justify-end items-center mt-3 pt-3 border-[#E1E6C3] border-t">
-        <motion.button
-          onClick={() => onGenerateReply(review)}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          transition={springTransition}
-          className="flex items-center gap-1.5 bg-gradient-to-r from-[#2F4B4E] hover:from-[#42676B] to-[#42676B] hover:to-[#4B7069] shadow-sm hover:shadow-md px-3 py-1.5 rounded-lg font-medium text-white text-xs transition-all"
-        >
-          <Sparkles className="w-3.5 h-3.5" />
-          Generate Reply
-        </motion.button>
-      </div>
+      {/* Show Generate Reply button only if sentiment is analyzed */}
+      {review.sentiment && (
+        <div className="flex justify-end items-center mt-3 pt-3 border-[#E1E6C3] border-t">
+          <motion.button
+            onClick={() => onGenerateReply(review)}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            transition={springTransition}
+            className="flex items-center gap-1.5 bg-gradient-to-r from-[#2F4B4E] hover:from-[#42676B] to-[#42676B] hover:to-[#4B7069] shadow-sm hover:shadow-md px-3 py-1.5 rounded-lg font-medium text-white text-xs transition-all"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            Generate Reply
+          </motion.button>
+        </div>
+      )}
     </motion.div>
   );
 };
