@@ -9,6 +9,21 @@ const ReviewSidebarHeader = ({
   onClose,
   onLoadReviews,
 }) => {
+  // Determine button state and message
+  const getLoadingMessage = () => {
+    const status = selectedLocation.scrapeStatus;
+    
+    if (status === 'pending' || status === 'scraping') {
+      return 'Scraping Reviews...';
+    }
+    return 'Loading Reviews...';
+  };
+
+  const isScrapingInProgress = selectedLocation.scrapeStatus === 'pending' || 
+                                 selectedLocation.scrapeStatus === 'scraping';
+  
+  const isLoading = loadingReviews || isScrapingInProgress;
+
   return (
     <div className="bg-gradient-to-r from-[#2F4B4E] to-[#42676B] p-6 text-white shrink-0">
       <div className="flex justify-between items-start gap-3">
@@ -47,15 +62,15 @@ const ReviewSidebarHeader = ({
       {!hasReviews && (
         <motion.button
           onClick={() => onLoadReviews(selectedLocation.id)}
-          disabled={loadingReviews}
-          whileHover={!loadingReviews ? { scale: 1.02 } : {}}
-          whileTap={!loadingReviews ? { scale: 0.98 } : {}}
-          className="flex justify-center items-center gap-2 bg-white hover:bg-[#FAF6E9] disabled:opacity-50 shadow-md mt-4 px-4 py-2.5 rounded-lg w-full font-medium text-[#2F4B4E] transition-colors"
+          disabled={isLoading}
+          whileHover={!isLoading ? { scale: 1.02 } : {}}
+          whileTap={!isLoading ? { scale: 0.98 } : {}}
+          className="flex justify-center items-center gap-2 bg-white hover:bg-[#FAF6E9] disabled:opacity-50 disabled:cursor-not-allowed shadow-md mt-4 px-4 py-2.5 rounded-lg w-full font-medium text-[#2F4B4E] transition-colors"
         >
-          {loadingReviews ? (
+          {isLoading ? (
             <>
               <Loader2 className="w-4 h-4 animate-spin" />
-              Loading Reviews...
+              {getLoadingMessage()}
             </>
           ) : (
             <>

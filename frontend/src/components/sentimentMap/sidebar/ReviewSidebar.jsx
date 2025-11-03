@@ -25,8 +25,23 @@ const ReviewSidebar = ({
   // Reviews and pagination info are now directly on selectedLocation
   const { reviews = [], pagination = null } = selectedLocation;
 
-  // This prop is TRUE if the location has reviews in the DB (even if not loaded yet)
-  const hasReviews = (selectedLocation.reviewsCount || 0) > 0;
+  // hasReviews is TRUE if the location has reviews in the database (even if current filter shows 0)
+  // Use reviewsCount (total in DB) instead of current filtered results
+  // This ensures filter UI stays visible even when filters return 0 results
+  const hasReviews = (selectedLocation.reviewsCount && selectedLocation.reviewsCount > 0) || 
+                     reviews.length > 0 || 
+                     (pagination && pagination.totalReviews > 0);
+  
+  // Debug log
+  console.log("📊 ReviewSidebar state:", {
+    locationId: selectedLocation.id,
+    reviewsCount: selectedLocation.reviewsCount,
+    hasReviews,
+    reviewsLength: reviews.length,
+    reviewIds: reviews.map(r => r.reviewId || r.id).slice(0, 3), // First 3 review IDs
+    reviewAuthors: reviews.map(r => r.author).slice(0, 3), // First 3 authors
+    pagination,
+  });
 
   return (
     <AnimatePresence>

@@ -89,6 +89,7 @@ export const transformReviewsForAnalysis = (reviews) => {
     rating: review.rating,
     description: review.text || '', // Handle reviews with no text
     source: 'Google Maps',
+    publishedAt: review.publishedAt, // Include publishedAt for ReviewSummary
   }));
 };
 
@@ -155,6 +156,7 @@ export const saveAnalysisResults = async (
       author: result.author,
       rating: result.rating,
       text: result.text,
+      publishedAt: originalReviews[index]?.publishedAt || new Date(), // Include publishedAt
       sentiment: result.sentiment,
       sentimentScore: result.sentiment_score,
       confidence: result.confidence,

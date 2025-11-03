@@ -25,32 +25,16 @@ export const startScrape = async (req, res) => {
       });
     }
 
-    // Scrape all available reviews from the location
-    const { locationId, url } = req.body;
+    // Get locationId from request body
+    const { locationId } = req.body;
 
     // Validate required fields
-    if (!locationId || !url) {
+    if (!locationId) {
       return res.status(400).json({
         success: false,
-        message: 'locationId and url are required',
+        message: 'locationId is required',
       });
     }
-
-    // Validate Google Maps URL
-    if (!validateGoogleMapsUrl(url)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid Google Maps URL format',
-      });
-    }
-
-    // Validation disabled - scrape ALL available reviews
-    // if (maxReviews < 1 || maxReviews > 800) {
-    //   return res.status(400).json({
-    //     success: false,
-    //     message: 'maxReviews must be between 1 and 800',
-    //   });
-    // }
 
     // Find location and verify ownership
     const location = await Location.findById(locationId);
@@ -70,6 +54,24 @@ export const startScrape = async (req, res) => {
       });
     }
 
+    // Get Google Maps URL from location model
+    const url = location.googleMapsUrl;
+
+    if (!url) {
+      return res.status(400).json({
+        success: false,
+        message: 'Google Maps URL not found for this location. Please update the location with a valid Google Maps URL.',
+      });
+    }
+
+    // Validate Google Maps URL
+    if (!validateGoogleMapsUrl(url)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid Google Maps URL format stored in location. Please update the location.',
+      });
+    }
+
     // Check if location is already being scraped
     if (location.scrapeStatus === 'scraping' || location.scrapeStatus === 'pending') {
       return res.status(409).json({
@@ -79,14 +81,14 @@ export const startScrape = async (req, res) => {
       });
     }
 
-    // Add job to queue
+    // Add job to queue using URL from location model
     const jobResult = await addScrapeJob({
       locationId: locationId,
       url: url,
       userId: req.user._id.toString(),
     });
 
-    console.log(`Scrape job created: ${jobResult.jobId} for location ${locationId}`);
+    console.log(`Scrape job created: ${jobResult.jobId} for location ${locationId} using stored URL: ${url}`);
 
     return res.status(201).json({
       success: true,
@@ -94,6 +96,7 @@ export const startScrape = async (req, res) => {
       data: {
         jobId: jobResult.jobId,
         locationId: jobResult.locationId,
+        url: url,
         status: jobResult.status,
         createdAt: jobResult.createdAt,
       },

@@ -43,6 +43,10 @@ const reviewSummarySchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    publishedAt: {
+      type: Date,
+      index: true,
+    },
 
     // Sentiment analysis results
     sentiment: {

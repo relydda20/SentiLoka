@@ -78,6 +78,9 @@ const ReviewList = ({
     reviewFilters.sentiment !== "all" ||
     reviewFilters.rating !== 0;
 
+  // Check if reviews have been analyzed (have sentiment data)
+  const hasAnalyzedReviews = reviews.length > 0 && reviews.some(review => review.sentiment);
+
   return (
     <div className="flex flex-col flex-1 p-6 overflow-y-auto">
       {/* Case 1: Initial load skeleton */}
@@ -121,27 +124,36 @@ const ReviewList = ({
             <div className="flex justify-between items-center">
               <span className="font-medium text-[#2F4B4E] text-sm">
                 Sentiment
+                {!hasAnalyzedReviews && (
+                  <span className="ml-2 text-xs text-gray-400 italic">
+                    (Analyze reviews first)
+                  </span>
+                )}
               </span>
               <div className="flex gap-1">
                 <SentimentButton
                   sentiment="all"
                   active={reviewFilters.sentiment}
-                  onClick={handleSentimentChange}
+                  onClick={hasAnalyzedReviews ? handleSentimentChange : () => {}}
+                  disabled={!hasAnalyzedReviews}
                 />
                 <SentimentButton
                   sentiment="Positive"
                   active={reviewFilters.sentiment}
-                  onClick={handleSentimentChange}
+                  onClick={hasAnalyzedReviews ? handleSentimentChange : () => {}}
+                  disabled={!hasAnalyzedReviews}
                 />
                 <SentimentButton
                   sentiment="Neutral"
                   active={reviewFilters.sentiment}
-                  onClick={handleSentimentChange}
+                  onClick={hasAnalyzedReviews ? handleSentimentChange : () => {}}
+                  disabled={!hasAnalyzedReviews}
                 />
                 <SentimentButton
                   sentiment="Negative"
                   active={reviewFilters.sentiment}
-                  onClick={handleSentimentChange}
+                  onClick={hasAnalyzedReviews ? handleSentimentChange : () => {}}
+                  disabled={!hasAnalyzedReviews}
                 />
               </div>
             </div>
@@ -237,7 +249,7 @@ const ReviewList = ({
 
 // --- Filter Button Sub-components ---
 
-const SentimentButton = ({ sentiment, active, onClick }) => {
+const SentimentButton = ({ sentiment, active, onClick, disabled = false }) => {
   const isActive = active.toLowerCase() === sentiment.toLowerCase();
   const sentimentMap = {
     all: {
@@ -245,35 +257,45 @@ const SentimentButton = ({ sentiment, active, onClick }) => {
       label: "All",
       active: "bg-[#4B7069] text-white",
       inactive: "bg-white hover:bg-gray-50 text-[#42676B]",
+      disabled: "bg-gray-100 text-gray-400 cursor-not-allowed",
     },
     Positive: {
       icon: <Smile className="w-4 h-4" />,
       label: "",
       active: "bg-green-600 text-white",
       inactive: "bg-green-100 hover:bg-green-200 text-green-700",
+      disabled: "bg-gray-100 text-gray-400 cursor-not-allowed",
     },
     Neutral: {
       icon: <Meh className="w-4 h-4" />,
       label: "",
       active: "bg-yellow-500 text-white",
       inactive: "bg-yellow-100 hover:bg-yellow-200 text-yellow-700",
+      disabled: "bg-gray-100 text-gray-400 cursor-not-allowed",
     },
     Negative: {
       icon: <Frown className="w-4 h-4" />,
       label: "",
       active: "bg-red-600 text-white",
       inactive: "bg-red-100 hover:bg-red-200 text-red-700",
+      disabled: "bg-gray-100 text-gray-400 cursor-not-allowed",
     },
   };
   const config = sentimentMap[sentiment];
+  
+  // Determine button style based on state
+  const buttonClass = disabled 
+    ? config.disabled 
+    : (isActive ? config.active : config.inactive);
+  
   return (
     <button
-      onClick={() => onClick(sentiment)}
-      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-        isActive ? config.active : config.inactive
-      } ${
+      onClick={() => !disabled && onClick(sentiment)}
+      disabled={disabled}
+      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${buttonClass} ${
         sentiment === "all" ? "w-16" : "w-10"
       } flex justify-center items-center`}
+      title={disabled ? "Analyze reviews first to use sentiment filters" : ""}
     >
       {config.icon}
       {config.label}

@@ -279,7 +279,7 @@ export const createLocation = async (req, res) => {
         scrapeFrequency: 'manual',
         maxReviews: req.body.maxReviews || 100,
       },
-      scrapeStatus: 'pending',
+      scrapeStatus: 'idle',
       googleMapsUrl: googleMapsUrl || null,
     });
 

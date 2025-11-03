@@ -675,17 +675,16 @@ export const getLocationSentiments = async (req, res) => {
     const { locationId } = req.params;
     const userId = req.user._id;
 
-    // Check cache first
-    const cached = await getCachedLocationSentiments(locationId, userId.toString());
-    if (cached) {
-      console.log(`✓ Cache hit for location sentiments: ${locationId}`);
-      return res.status(200).json({
-        success: true,
-        message: `Found ${cached.summaries.length} sentiment analysis results for ${cached.location.name}`,
-        data: cached,
-        cached: true,
-      });
-    }
+    // Parse query parameters for pagination and filtering
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const sortBy = req.query.sortBy || 'date';
+    const sortOrder = req.query.sortOrder || 'desc';
+    const sentiment = req.query.sentiment;
+    const rating = req.query.rating ? parseInt(req.query.rating) : null;
+    const searchTerm = req.query.search ? req.query.search.trim() : null;
+
+    const skip = (page - 1) * limit;
 
     // Verify the location belongs to the user
     const location = await Location.findOne({ _id: locationId, userId });
@@ -697,43 +696,80 @@ export const getLocationSentiments = async (req, res) => {
       });
     }
 
-    // Get all sentiment summaries for this location
-    const summaries = await ReviewSummary.getSummariesByLocation(locationId);
+    // Build query for ReviewSummary
+    const query = { locationId };
+    
+    // Add sentiment filter
+    if (sentiment && sentiment !== 'all') {
+      query.sentiment = sentiment.charAt(0).toUpperCase() + sentiment.slice(1).toLowerCase();
+    }
 
-    if (summaries.length === 0) {
+    // Add rating filter
+    if (rating && rating >= 1 && rating <= 5) {
+      query.rating = rating;
+    }
+
+    // Add search filter (search in review text and author name)
+    if (searchTerm) {
+      query.$or = [
+        { text: { $regex: searchTerm, $options: 'i' } },
+        { author: { $regex: searchTerm, $options: 'i' } }
+      ];
+    }
+
+    // Build sort object
+    const sortField = sortBy === 'date' ? 'publishedAt' : 'rating';
+    const sort = { [sortField]: sortOrder === 'asc' ? 1 : -1 };
+
+    // Get total count for pagination with filters
+    const totalItems = await ReviewSummary.countDocuments(query);
+
+    // Get paginated sentiment summaries
+    const summaries = await ReviewSummary.find(query)
+      .sort(sort)
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+    if (summaries.length === 0 && page === 1) {
+      // Determine appropriate error message based on filters
+      let errorMessage = "No reviews found for this location.";
+      if (sentiment && sentiment !== 'all') {
+        errorMessage = `No ${sentiment} reviews found. Try different filters.`;
+      } else if (searchTerm || rating) {
+        errorMessage = "No reviews found matching your search or filter criteria.";
+      } else {
+        errorMessage = "No analyzed reviews found. Please analyze reviews first.";
+      }
+      
       return res.status(404).json({
         success: false,
-        error: "No sentiment analysis found for this location. Please analyze reviews first.",
+        error: errorMessage,
       });
     }
 
-    // Prepare response data
+    // Calculate pagination metadata
+    const totalPages = Math.ceil(totalItems / limit);
+    const hasNext = page < totalPages;
+    const hasPrev = page > 1;
+
+    // Prepare response data with pagination
     const responseData = {
-      location: {
-        id: location._id,
-        name: location.name,
-        placeId: location.placeId,
-      },
-      summaries: summaries,
-      sentiment: {
-        positive: location.overallSentiment?.positive || 0,
-        neutral: location.overallSentiment?.neutral || 0,
-        negative: location.overallSentiment?.negative || 0,
-        averageRating: location.overallSentiment?.averageRating || 0,
-        totalReviews: location.overallSentiment?.totalReviews || 0,
-        lastCalculated: location.overallSentiment?.lastCalculated,
+      reviews: summaries,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalItems,
+        limit,
+        hasNext,
+        hasPrev,
       },
     };
 
-    // Cache the response
-    await cacheLocationSentiments(locationId, userId.toString(), responseData);
-    console.log(`✓ Cached location sentiments for: ${locationId}`);
-
     return res.status(200).json({
       success: true,
-      message: `Found ${summaries.length} sentiment analysis results for ${location.name}`,
+      message: `Found ${summaries.length} reviews (page ${page}/${totalPages})`,
       data: responseData,
-      cached: false,
     });
   } catch (error) {
     console.error("Error in getLocationSentiments:", error);

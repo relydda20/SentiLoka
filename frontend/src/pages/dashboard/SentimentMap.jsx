@@ -226,26 +226,39 @@ const SentimentMap = () => {
     setIsFetchingReviews(true);
     setError(null);
 
-    // Check if the base location (in the main list) has sentiment
-    const baseLocation = locations.find((loc) => loc.id === locationId);
-    const hasSentiment = !!baseLocation?.sentiment;
+    console.log("🔍 fetchReviewData called with options:", options);
 
     try {
-      const fetchFn = hasSentiment
-        ? analyzeLocationSentiment
-        : loadBusinessReviews;
+      // Always use loadBusinessReviews to fetch reviews (handles both raw and analyzed)
+      const data = await loadBusinessReviews(locationId, options);
 
-      const data = await fetchFn(locationId, options);
-
-      // Update the main locations list
-      setLocations((prev) =>
-        prev.map((loc) =>
-          loc.id === locationId ? { ...loc, ...data.business } : loc,
-        ),
-      );
-      // Update the selectedLocation state
+      // IMPORTANT: Only update locations array if this is an INITIAL load (no filters/pagination)
+      // Filtered/paginated results should ONLY update selectedLocation, not the locations array
+      const isInitialLoad = !options.rating && !options.searchTerm && 
+                           (!options.sentiment || options.sentiment === 'all') && 
+                           (!options.page || options.page === 1);
+      
+      if (isInitialLoad) {
+        // Update the main locations list only for initial unfiltered load
+        setLocations((prev) =>
+          prev.map((loc) =>
+            loc.id === locationId ? { ...loc, ...data.business } : loc,
+          ),
+        );
+      }
+      
+      // Always update the selectedLocation state with current results (filtered or not)
       if (selectedLocation?.id === locationId) {
-        setSelectedLocation((prev) => ({ ...prev, ...data.business }));
+        console.log("📝 Updating selectedLocation with reviews:", {
+          isFiltered: !isInitialLoad,
+          reviewsLength: data.business.reviews?.length,
+          pagination: data.business.pagination,
+        });
+        setSelectedLocation((prev) => {
+          const updated = { ...prev, ...data.business };
+          console.log("📝 Updated selectedLocation reviews count:", updated.reviews?.length);
+          return updated;
+        });
       }
     } catch (error) {
       console.error("Error fetching review data:", error);
@@ -260,7 +273,22 @@ const SentimentMap = () => {
     setReviewFilters(defaultFilters);
     setReviewPage(1);
 
-    setSelectedLocation(location);
+    // Find the latest location data from locations array (includes previously loaded reviews)
+    const latestLocation = locations.find(loc => loc.id === location.id) || location;
+    
+    console.log(`📍 Opening location: ${latestLocation.businessName}`);
+    console.log(`   Reviews in latestLocation:`, latestLocation.reviews?.length || 0);
+    console.log(`   Reviews count in latestLocation:`, latestLocation.reviewsCount || 0);
+    console.log(`   Full latestLocation object:`, JSON.stringify({
+      id: latestLocation.id,
+      businessName: latestLocation.businessName,
+      reviewsCount: latestLocation.reviewsCount,
+      hasReviews: !!latestLocation.reviews,
+      reviewsLength: latestLocation.reviews?.length,
+      hasPagination: !!latestLocation.pagination,
+    }, null, 2));
+    
+    setSelectedLocation(latestLocation);
     setSidebarOpen(true);
 
     // Pan to the marker when clicked
@@ -269,19 +297,21 @@ const SentimentMap = () => {
       map.setZoom(16);
     }
 
-    // *** Automatically fetch page 1 if reviews are already loaded ***
-    if (location.reviews?.length > 0 || location.sentiment) {
-      fetchReviewData(location.id, { page: 1, ...defaultFilters });
-    }
+    // *** REMOVED: Don't automatically fetch - we already have the data in latestLocation ***
+    // Reviews are already in latestLocation from the locations array
   };
 
   const handleSpiderfiedMarkerClick = async (location) => {
     setReviewFilters(defaultFilters);
     setReviewPage(1);
-    setSelectedLocation(location);
+    
+    // Find the latest location data from locations array (includes previously loaded reviews)
+    const latestLocation = locations.find(loc => loc.id === location.id) || location;
+    setSelectedLocation(latestLocation);
     setSidebarOpen(true);
-    if (location.reviews?.length > 0 || location.sentiment) {
-      fetchReviewData(location.id, { page: 1, ...defaultFilters });
+    
+    if (latestLocation.reviews?.length > 0 || latestLocation.sentiment) {
+      fetchReviewData(latestLocation.id, { page: 1, ...defaultFilters });
     }
   };
 
@@ -291,20 +321,50 @@ const SentimentMap = () => {
     setError(null);
     console.log("=== Load Reviews Request ===");
     try {
-      const options = { page: 1, ...defaultFilters };
+      const options = { 
+        page: 1, 
+        ...defaultFilters,
+        // Progress callback for scraping updates
+        onScrapeProgress: (status) => {
+          console.log("📊 Scrape progress:", status.state, status.progress);
+          // Update location with scraping status
+          setLocations((prev) =>
+            prev.map((loc) =>
+              loc.id === locationId 
+                ? { ...loc, scrapeStatus: status.state, scrapeProgress: status.progress }
+                : loc
+            )
+          );
+        }
+      };
       const data = await loadBusinessReviews(locationId, options);
 
+      console.log("✅ Reviews loaded successfully:", data);
+
+      // Update locations with the full business data including reviews
       setLocations((prev) =>
         prev.map((loc) =>
           loc.id === locationId ? { ...loc, ...data.business } : loc,
         ),
       );
+      
+      // Update selected location with reviews
       if (selectedLocation?.id === locationId) {
-        setSelectedLocation((prev) => ({ ...prev, ...data.business }));
+        setSelectedLocation((prev) => ({ 
+          ...prev, 
+          ...data.business,
+          reviews: data.business.reviews || [],
+          pagination: data.business.pagination,
+        }));
+      }
+
+      // Show success message if reviews were scraped
+      if (data.business.reviews && data.business.reviews.length > 0) {
+        console.log(`✅ Successfully loaded ${data.business.reviews.length} reviews`);
       }
     } catch (error) {
       console.error("Error loading reviews:", error);
-      setError("Failed to load reviews");
+      setError(error.message || "Failed to load reviews");
     } finally {
       setLoadingReviews(false);
     }
@@ -316,21 +376,36 @@ const SentimentMap = () => {
     setError(null);
     console.log("=== Analyze Sentiment Request ===");
     try {
+      // Step 1: Trigger sentiment analysis
+      const analysisData = await analyzeLocationSentiment(locationId);
+      
+      console.log(`✅ Analysis complete: ${analysisData.business.analysis.newlyAnalyzed} new, ${analysisData.business.analysis.alreadyAnalyzed} existing`);
+      
+      // Step 2: Reload reviews to get the analyzed versions with sentiment data
       const options = { page: 1, ...defaultFilters };
-      const data = await analyzeLocationSentiment(locationId, options);
+      const reviewData = await loadBusinessReviews(locationId, options);
+
+      // Step 3: Update state with both analysis results and reloaded reviews
+      const updatedBusiness = {
+        ...analysisData.business,
+        ...reviewData.business,
+      };
 
       setLocations((prev) =>
         prev.map((loc) =>
-          loc.id === locationId ? { ...loc, ...data.business } : loc,
+          loc.id === locationId ? { ...loc, ...updatedBusiness } : loc,
         ),
       );
+      
       if (selectedLocation?.id === locationId) {
-        setSelectedLocation((prev) => ({ ...prev, ...data.business }));
+        setSelectedLocation((prev) => ({ ...prev, ...updatedBusiness }));
       }
-      alert("✅ Sentiment analyzed successfully!");
+      
+      alert(`✅ Sentiment analyzed successfully!\n${analysisData.business.analysis.newlyAnalyzed} reviews newly analyzed.`);
     } catch (error) {
       console.error("Error analyzing sentiment:", error);
-      setError("Failed to analyze sentiment");
+      setError(error.message || "Failed to analyze sentiment");
+      alert(`❌ Failed to analyze sentiment: ${error.message}`);
     } finally {
       setLoadingSentiment(false);
     }
@@ -584,7 +659,10 @@ const SentimentMap = () => {
         isOpen={sidebarOpen}
         selectedLocation={selectedLocation}
         loadingReviews={loadingReviews} // For initial load button
-        onClose={() => setSidebarOpen(false)}
+        onClose={() => {
+          setSidebarOpen(false);
+          // Keep selectedLocation so reviews persist when reopened
+        }}
         onLoadReviews={handleInitialLoadReviews} // Use initial loader
         onGenerateReply={handleGenerateReply}
         getSentimentIcon={getSentimentIcon}

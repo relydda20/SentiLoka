@@ -1,214 +1,11 @@
-/* Fetched content from:
- * - relydda20/sentiloka/SentiLoka-feature-sentiment-map-design/frontend/src/services/locationReviewService.js
+/**
+ * Location Review Service
+ * Service layer for location and review management
+ * Follows MVC architecture - This is the Model/Service layer for the frontend
  */
 import apiClient from "../utils/apiClient";
 
-// NEW: Removed mock data imports like 'delay' and 'mockBusinessLocations'
-
 const REVIEWS_PER_PAGE = 5;
-
-// --- MOCK DATA HELPERS ---
-// Kept for the functions that are not yet integrated
-// (loadBusinessReviews, analyzeLocationSentiment)
-
-const mockRawReviewsStore = {
-  /* locationId: [reviews] */
-};
-const mockAnalyzedReviewsStore = {
-  /* locationId: [reviews] */
-};
-const mockSentimentStore = {
-  /* locationId: sentimentObject */
-};
-
-const getMockRawReviews = (locationId) => {
-  if (mockRawReviewsStore[locationId]) {
-    return mockRawReviewsStore[locationId];
-  }
-  const raw = [
-    {
-      reviewId: `rev_${locationId}_1`,
-      author: "John Doe (Raw)",
-      rating: 5,
-      text: "Amazing place! The service was exceptional and the atmosphere was wonderful. Highly recommended!",
-      time: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-    },
-    {
-      reviewId: `rev_${locationId}_2`,
-      author: "Jane Smith (Raw)",
-      rating: 4,
-      text: "Good experience overall. The place was clean and staff were friendly. Would come back again.",
-      time: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-    },
-
-    {
-      reviewId: `rev_${locationId}_4`,
-      author: "Negative Nancy (Raw)",
-      rating: 1,
-      text: "Terrible service. Waited 45 minutes for water. The food was cold.",
-      time: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString(),
-    },
-    // Add more reviews for pagination
-    {
-      reviewId: `rev_${locationId}_5`,
-      author: "Positive Penny",
-      rating: 5,
-      text: "Absolutely loved it! Best coffee in town.",
-      time: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
-    },
-    {
-      reviewId: `rev_${locationId}_6`,
-      author: "Sam (Raw)",
-      rating: 4,
-      text: "The staff was very friendly. Good place for work.",
-      time: new Date(Date.now() - 12 * 24 * 60 * 60 * 1000).toISOString(),
-    },
-    {
-      reviewId: `rev_${locationId}_7`,
-      author: "Another User",
-      rating: 2,
-      text: "Not great. The music was too loud and my order was wrong.",
-      time: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
-    },
-  ];
-  mockRawReviewsStore[locationId] = raw;
-  return raw;
-};
-
-const getMockAnalyzedReviews = (locationId) => {
-  if (mockAnalyzedReviewsStore[locationId]) {
-    return mockAnalyzedReviewsStore[locationId];
-  }
-  const analyzed = [
-    {
-      reviewId: `rev_${locationId}_1`,
-      author: "John Doe (Raw)",
-      rating: 5,
-      text: "Amazing place! The service was exceptional and the atmosphere was wonderful. Highly recommended!",
-      time: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-      sentiment: "Positive",
-      sentimentScore: 0.95,
-    },
-    {
-      reviewId: `rev_${locationId}_2`,
-      author: "Jane Smith (Raw)",
-      rating: 4,
-      text: "Good experience overall. The place was clean and staff were friendly. Would come back again.",
-      time: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-      sentiment: "Positive",
-      sentimentScore: 0.78,
-    },
-    {
-      reviewId: `rev_${locationId}_4`,
-      author: "Negative Nancy (Raw)",
-      rating: 1,
-      text: "Terrible service. Waited 45 minutes for water. The food was cold.",
-      time: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString(),
-      sentiment: "Negative",
-      sentimentScore: -0.85,
-    },
-    {
-      reviewId: `rev_${locationId}_5`,
-      author: "Positive Penny",
-      rating: 5,
-      text: "Absolutely loved it! Best coffee in town.",
-      time: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
-      sentiment: "Positive",
-      sentimentScore: 0.9,
-    },
-    {
-      reviewId: `rev_${locationId}_6`,
-      author: "Sam (Raw)",
-      rating: 4,
-      text: "The staff was very friendly. Good place for work.",
-      time: new Date(Date.now() - 12 * 24 * 60 * 60 * 1000).toISOString(),
-      sentiment: "Positive",
-      sentimentScore: 0.8,
-    },
-    {
-      reviewId: `rev_${locationId}_7`,
-      author: "Another User",
-      rating: 2,
-      text: "Not great. The music was too loud and my order was wrong.",
-      time: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
-      sentiment: "Negative",
-      sentimentScore: -0.7,
-    },
-  ];
-  mockAnalyzedReviewsStore[locationId] = analyzed;
-
-  // Calculate and store sentiment
-  const positive = analyzed.filter((r) => r.sentiment === "Positive").length;
-  const neutral = analyzed.filter((r) => r.sentiment === "Neutral").length;
-  const negative = analyzed.filter((r) => r.sentiment === "Negative").length;
-  const total = analyzed.length;
-  const avgRating = analyzed.reduce((sum, r) => sum + r.rating, 0) / total;
-
-  mockSentimentStore[locationId] = {
-    positive: positive,
-    neutral: neutral,
-    negative: negative,
-    positivePercentage: (positive / total) * 100,
-    negativePercentage: (negative / total) * 100,
-    averageRating: avgRating,
-    totalReviews: total,
-  };
-
-  return analyzed;
-};
-
-// --- SIMULATED BACKEND FILTERING ---
-// Kept for mock functions
-const getPaginatedAndFilteredReviews = (allReviews, options = {}) => {
-  const {
-    page = 1,
-    limit = REVIEWS_PER_PAGE,
-    searchTerm = "",
-    sentiment = "all",
-    rating = 0,
-  } = options;
-
-  // 1. Filter
-  const filteredReviews = allReviews.filter((review) => {
-    // Sentiment Filter
-    if (
-      sentiment !== "all" &&
-      review.sentiment?.toLowerCase() !== sentiment.toLowerCase()
-    ) {
-      return false;
-    }
-    // Rating Filter
-    if (rating !== 0 && review.rating !== rating) {
-      return false;
-    }
-    // Search Term Filter
-    if (
-      searchTerm.trim() !== "" &&
-      !review.text?.toLowerCase().includes(searchTerm.toLowerCase()) &&
-      !review.author?.toLowerCase().includes(searchTerm.toLowerCase())
-    ) {
-      return false;
-    }
-    return true;
-  });
-
-  // 2. Paginate
-  const totalReviews = filteredReviews.length;
-  const totalPages = Math.ceil(totalReviews / limit);
-  const startIndex = (page - 1) * limit;
-  const endIndex = startIndex + limit;
-  const paginatedReviews = filteredReviews.slice(startIndex, endIndex);
-
-  return {
-    reviews: paginatedReviews,
-    pagination: {
-      currentPage: page,
-      totalPages: totalPages,
-      totalReviews: totalReviews,
-      limit: limit,
-    },
-  };
-};
 
 /**
  * Fetch all business locations (markers for analysis)
@@ -344,94 +141,527 @@ export const registerBusinessLocation = async (businessData) => {
 };
 
 /**
- * Load RAW reviews for a business location (scrape from Google)
- * * NOTE: This function is still using MOCK data.
- * The real backend flow is asynchronous (uses a job queue) and would require
- * changing the SentimentMap.jsx component to handle polling for job status.
- * * The real endpoints are:
- * 1. POST /api/scraper/start (to start scraping)
- * 2. POST /api/reviews/analyze-location/:locationId (to analyze)
- * 3. GET /api/reviews/location/:locationId (to fetch results)
+ * Check location scrape status
+ * GET /api/locations/:locationId
+ * 
+ * @param {string} locationId - The location ID
+ * @returns {object} Location data with scrape status
  */
-export const loadBusinessReviews = async (locationId, options = {}) => {
+const getLocationScrapeStatus = async (locationId) => {
   try {
-    console.log(
-      "🔄 (MOCK) Loading RAW reviews for location:",
-      locationId,
-      "Options:",
-      options,
-    );
-    // await delay(1000); // Shorter delay for filter changes
-    console.log("✅ (MOCK) RAW Reviews loaded!");
-
-    const allRawReviews = getMockRawReviews(locationId);
-    const { reviews, pagination } = getPaginatedAndFilteredReviews(
-      allRawReviews,
-      options,
-    );
-
-    return {
-      business: {
-        id: locationId,
-        reviews: reviews, // Paginated reviews
-        pagination: pagination, // Pagination info
-        reviewsCount: allRawReviews.length, // Total count before filtering
-        averageRating:
-          allRawReviews.reduce((sum, r) => sum + r.rating, 0) /
-          allRawReviews.length,
-        sentiment: null, // Still no sentiment
-      },
-    };
+    const response = await apiClient.get(`/locations/${locationId}`);
+    
+    if (!response.data || !response.data.success) {
+      throw new Error("Failed to get location status");
+    }
+    
+    return response.data.data;
   } catch (error) {
-    console.error("❌ Error loading reviews:", error);
+    console.error(`Error getting location status:`, error);
     throw error;
   }
 };
 
 /**
- * Analyze sentiment for a location's reviews
- * * NOTE: This function is still using MOCK data.
- * See note in `loadBusinessReviews` above.
+ * Poll scraper job status until completion
+ * 
+ * @param {string} jobId - The scraping job ID
+ * @param {function} onProgress - Callback for progress updates
+ * @param {number} maxAttempts - Maximum polling attempts (default: 120 = 2 minutes)
+ * @returns {object} Final job status
  */
-export const analyzeLocationSentiment = async (locationId, options = {}) => {
-  try {
-    console.log(
-      "🔄 (MOCK) Analyzing/Fetching sentiment for location:",
-      locationId,
-      "Options:",
-      options,
-    );
-    // await delay(1000); // Shorter delay for filter changes
-    console.log("✅ (MOCK) Sentiment analyzed/fetched!");
+const pollScrapeStatus = async (jobId, onProgress = null, maxAttempts = 120) => {
+  let attempts = 0;
+  
+  while (attempts < maxAttempts) {
+    try {
+      const status = await checkScrapeStatus(jobId);
+      
+      // Call progress callback if provided
+      if (onProgress) {
+        onProgress(status);
+      }
+      
+      console.log(`📊 Scrape progress: ${status.state} (attempt ${attempts + 1}/${maxAttempts})`);
+      
+      // Check if job is complete
+      if (status.state === "completed") {
+        console.log("✅ Scraping completed successfully!");
+        return status;
+      }
+      
+      // Check if job failed
+      if (status.state === "failed") {
+        throw new Error(status.failedReason || "Scraping job failed");
+      }
+      
+      // Wait 1 second before next poll
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      attempts++;
+      
+    } catch (error) {
+      console.error("Error polling scrape status:", error);
+      throw error;
+    }
+  }
+  
+  throw new Error("Scraping timeout: Maximum polling attempts reached");
+};
 
-    const allAnalyzedReviews = getMockAnalyzedReviews(locationId);
-    const { reviews, pagination } = getPaginatedAndFilteredReviews(
-      allAnalyzedReviews,
-      options,
-    );
-    const sentimentBlock = mockSentimentStore[locationId] || null;
+/**
+ * Load reviews for a specific business location
+ * This function handles the complete workflow:
+ * 1. Check if location needs scraping
+ * 2. If needed, trigger scraper (uses stored googleMapsUrl)
+ * 3. Poll until scraping completes
+ * 4. Load and return reviews from database
+ * 
+ * @param {string} locationId - The location ID
+ * @param {object} options - Pagination and filter options
+ * @param {number} options.page - Page number (default: 1)
+ * @param {number} options.limit - Reviews per page (default: 5)
+ * @param {string} options.sentiment - Filter by sentiment ('positive', 'negative', 'neutral', 'all')
+ * @param {string} options.sortBy - Sort field ('date', 'rating')
+ * @param {string} options.sortOrder - Sort order ('asc', 'desc')
+ * @param {function} options.onScrapeProgress - Callback for scraping progress updates
+ * @param {boolean} options.forceScrape - Force re-scrape even if already scraped
+ */
+export const loadBusinessReviews = async (locationId, options = {}) => {
+  try {
+    console.log("🔄 Loading reviews for location:", locationId);
+
+    const {
+      page = 1,
+      limit = REVIEWS_PER_PAGE,
+      sentiment = "all",
+      rating = 0,
+      searchTerm = "",
+      sortBy = "date",
+      sortOrder = "desc",
+      onScrapeProgress = null,
+      forceScrape = false,
+    } = options;
+
+    // STEP 1: Check location scrape status
+    console.log("📍 Step 1: Checking location scrape status...");
+    const location = await getLocationScrapeStatus(locationId);
+    
+    console.log("📊 Location details:", {
+      id: location._id,
+      name: location.name,
+      scrapeStatus: location.scrapeStatus,
+      hasGoogleMapsUrl: !!location.googleMapsUrl,
+      googleMapsUrl: location.googleMapsUrl ? location.googleMapsUrl.substring(0, 50) + "..." : "NOT SET",
+      lastScraped: location.scrapeConfig?.lastScraped,
+    });
+    
+    const needsScraping = forceScrape || 
+                          location.scrapeStatus === "idle" || 
+                          location.scrapeStatus === "failed" ||
+                          !location.scrapeConfig?.lastScraped;
+    
+    // STEP 2: If needs scraping, trigger scraper
+    if (needsScraping) {
+      console.log("🚀 Step 2: Location needs scraping, triggering scraper...");
+      
+      // Check if Google Maps URL is set
+      if (!location.googleMapsUrl || location.googleMapsUrl.trim() === "") {
+        const errorMsg = `❌ Cannot scrape location "${location.name}": Google Maps URL is not set. Please update this location with a valid Google Maps URL before loading reviews.`;
+        console.error(errorMsg);
+        throw new Error(errorMsg);
+      }
+      
+      // Trigger scrape (backend will use stored googleMapsUrl)
+      const scrapeResult = await triggerLocationScrape(locationId);
+      console.log(`✅ Scrape job started: ${scrapeResult.jobId}`);
+      
+      // STEP 3: Poll until scraping completes
+      console.log("⏳ Step 3: Waiting for scraping to complete...");
+      await pollScrapeStatus(scrapeResult.jobId, onScrapeProgress);
+      console.log("✅ Scraping completed!");
+    } else {
+      console.log("✅ Location already scraped, loading reviews...");
+    }
+
+    // STEP 4: Load reviews from database
+    console.log("📚 Step 4: Loading reviews from database...");
+    
+    // FIRST: Get unfiltered count for hasReviews calculation (page 1, no filters)
+    let totalReviewsInDB = 0;
+    try {
+      const countParams = new URLSearchParams({
+        page: '1',
+        limit: '1', // Just need count, not actual reviews
+        sortBy,
+        sortOrder,
+      });
+      const countResponse = await apiClient.get(`/reviews/location/${locationId}?${countParams.toString()}`);
+      if (countResponse.data?.success) {
+        totalReviewsInDB = countResponse.data.data.pagination.totalItems;
+        console.log(`📊 Total reviews in DB (unfiltered): ${totalReviewsInDB}`);
+      }
+    } catch (countError) {
+      console.log("⚠️ Could not get total count, will use filtered count");
+    }
+    
+    // Build query params with filters
+    const params = new URLSearchParams({
+      page: page.toString(),
+      limit: limit.toString(),
+      sortBy,
+      sortOrder,
+    });
+
+    // Add rating filter if specified
+    if (rating > 0) {
+      params.append("rating", rating.toString());
+      console.log(`✅ Added rating filter: ${rating}`);
+    }
+
+    // Add search term if specified
+    if (searchTerm && searchTerm.trim() !== "") {
+      params.append("search", searchTerm.trim());
+      console.log(`✅ Added search filter: "${searchTerm.trim()}"`);
+    }
+
+    console.log("📋 Final query params:", params.toString());
+
+    let reviews = [];
+    let pagination = null;
+    let reviewSource = 'raw'; // Track whether reviews are raw or analyzed
+
+    // Try to get RAW reviews first (from Review model - before sentiment analysis)
+    try {
+      console.log("🔍 Attempting to load raw reviews from Review model...");
+      const rawResponse = await apiClient.get(
+        `/reviews/location/${locationId}?${params.toString()}`
+      );
+
+      if (rawResponse.data?.success && rawResponse.data.data?.reviews?.length > 0) {
+        reviews = rawResponse.data.data.reviews;
+        pagination = rawResponse.data.data.pagination;
+        reviewSource = 'raw';
+        console.log(`✅ Loaded ${reviews.length} RAW reviews (before sentiment analysis)`);
+      }
+    } catch (rawError) {
+      // If 404 with filters applied, it means no results match - return empty, don't try analyzed
+      if (rawError.response?.status === 404 && (rating > 0 || searchTerm)) {
+        console.log("⚠️ No raw reviews match the filters");
+        reviews = [];
+        pagination = {
+          currentPage: page,
+          totalPages: 0,
+          totalItems: 0,
+          limit,
+          hasNext: false,
+          hasPrev: false,
+        };
+        reviewSource = 'raw';
+      } else {
+        console.log("⚠️ No raw reviews found, trying analyzed reviews...");
+        
+        // If raw reviews don't exist, try to get ANALYZED reviews (from ReviewSummary model)
+        // This happens when sentiment analysis has already been run
+        try {
+          // Add sentiment filter if not 'all' (only for analyzed reviews)
+          if (sentiment !== "all") {
+            params.append("sentiment", sentiment);
+          }
+
+          const analyzedResponse = await apiClient.get(
+            `/review-sentiments/location/${locationId}?${params.toString()}`
+          );
+
+          if (analyzedResponse.data?.success && analyzedResponse.data.data?.reviews?.length > 0) {
+            reviews = analyzedResponse.data.data.reviews;
+            pagination = analyzedResponse.data.data.pagination;
+            reviewSource = 'analyzed';
+            console.log(`✅ Loaded ${reviews.length} ANALYZED reviews (with sentiment)`);
+          }
+        } catch (analyzedError) {
+          // If 404 with filters, return empty results
+          if (analyzedError.response?.status === 404 && (rating > 0 || searchTerm || sentiment !== 'all')) {
+            console.log("⚠️ No analyzed reviews match the filters");
+            reviews = [];
+            pagination = {
+              currentPage: page,
+              totalPages: 0,
+              totalItems: 0,
+              limit,
+              hasNext: false,
+              hasPrev: false,
+            };
+            reviewSource = 'analyzed';
+          } else {
+            console.error("❌ Failed to load both raw and analyzed reviews:", analyzedError);
+            throw new Error("No reviews found. Please scrape reviews first.");
+          }
+        }
+      }
+    }
+
+    // Allow empty results if filters are applied (user filtered everything out)
+    if (!reviews || (reviews.length === 0 && !rating && !searchTerm && sentiment === 'all')) {
+      throw new Error("No reviews found for this location");
+    }
+
+    console.log(`✅ Loaded ${reviews.length} ${reviewSource} reviews (page ${pagination.currentPage}/${pagination.totalPages})`);
+
+    // Use the totalReviewsInDB we got earlier, or fall back to filtered count if we couldn't get it
+    if (totalReviewsInDB === 0 && pagination.totalItems > 0) {
+      totalReviewsInDB = pagination.totalItems;
+    }
+
+    // Map backend review format to frontend format
+    const mappedReviews = reviews.map((review) => ({
+      id: review._id,
+      reviewId: review.reviewId,
+      author: review.authorName || "Anonymous",
+      rating: review.rating,
+      text: review.reviewText,
+      date: review.publishedAt,
+      sentiment: review.sentiment || null,
+      sentimentScore: review.sentimentScore || null,
+      summary: review.summary || null,
+      sentimentKeywords: review.sentimentKeywords || [],
+      contextualTopics: review.contextualTopics || [],
+      isAnalyzed: reviewSource === 'analyzed', // Flag to show if sentiment analysis is available
+    }));
 
     return {
       business: {
         id: locationId,
-        reviews: reviews, // Paginated analyzed reviews
-        pagination: pagination, // Pagination info
-        sentiment: sentimentBlock,
-        averageRating: sentimentBlock?.averageRating,
-        reviewsCount: sentimentBlock?.totalReviews,
-        cacheStatus: {
-          isCached: true,
-          lastScrapedAt: new Date().toISOString(),
-          cacheExpiresAt: new Date(
-            Date.now() + 24 * 60 * 60 * 1000,
-          ).toISOString(),
-          hoursUntilExpiry: 24,
-          needsRefresh: false,
+        reviews: mappedReviews,
+        reviewsCount: totalReviewsInDB, // Use TOTAL from DB, not filtered count
+        reviewSource, // 'raw' or 'analyzed'
+        pagination: {
+          currentPage: pagination.currentPage,
+          totalPages: pagination.totalPages,
+          totalReviews: pagination.totalItems,
+          limit: pagination.limit,
+          hasNextPage: pagination.hasNext,
+          hasPrevPage: pagination.hasPrev,
         },
+        scrapeStatus: "completed",
+        lastScraped: location.scrapeConfig?.lastScraped,
       },
     };
   } catch (error) {
-    console.error("❌ Error analyzing sentiment:", error);
+    console.error(`❌ Error loading reviews for location ${locationId}:`, error);
+    
+    // Return empty state on error with error message
+    return {
+      business: {
+        id: locationId,
+        reviews: [],
+        reviewsCount: 0, // Add this for consistency
+        pagination: {
+          currentPage: 1,
+          totalPages: 0,
+          totalReviews: 0,
+          limit: REVIEWS_PER_PAGE,
+          hasNextPage: false,
+          hasPrevPage: false,
+        },
+        scrapeStatus: "failed",
+        error: error.message,
+      },
+    };
+  }
+};
+
+/**
+ * Trigger sentiment analysis for a specific location
+ * POST /api/reviews/analyze-location/:locationId
+ * 
+ * @param {string} locationId - The location ID
+ * @returns {Promise} Analysis job response
+ */
+export const analyzeLocationSentiment = async (locationId) => {
+  try {
+    console.log("🔄 Starting sentiment analysis for location:", locationId);
+
+    // Trigger the analysis job (POST endpoint)
+    const response = await apiClient.post(
+      `/reviews/analyze-location/${locationId}`
+    );
+
+    if (!response.data || !response.data.success) {
+      throw new Error("Failed to start sentiment analysis");
+    }
+
+    const data = response.data.data;
+
+    console.log(`✅ Sentiment analysis completed: ${data.analysis.newlyAnalyzed} reviews newly analyzed, ${data.analysis.alreadyAnalyzed} already analyzed`);
+
+    // Return the analysis results with sentiment data
+    return {
+      business: {
+        id: locationId,
+        name: data.location.name,
+        sentiment: {
+          positive: data.sentiment?.positive || 0,
+          neutral: data.sentiment?.neutral || 0,
+          negative: data.sentiment?.negative || 0,
+        },
+        averageRating: data.sentiment?.averageRating || 0,
+        reviewsCount: data.sentiment?.totalReviews || data.analysis.totalReviews || 0,
+        analysis: {
+          totalReviews: data.analysis.totalReviews,
+          alreadyAnalyzed: data.analysis.alreadyAnalyzed,
+          newlyAnalyzed: data.analysis.newlyAnalyzed,
+          failedAnalysis: data.analysis.failedAnalysis || 0,
+        },
+        lastScrapedAt: data.sentiment?.lastCalculated || new Date().toISOString(),
+        needsRefresh: false,
+      },
+    };
+  } catch (error) {
+    console.error(`❌ Error analyzing sentiment for location ${locationId}:`, error);
+    
+    // Return empty analysis on error
+    return {
+      business: {
+        id: locationId,
+        sentiment: {
+          positive: 0,
+          neutral: 0,
+          negative: 0,
+          positivePercentage: 0,
+          negativePercentage: 0,
+          averageRating: 0,
+          totalReviews: 0,
+        },
+        averageRating: 0,
+        reviewsCount: 0,
+        ratingDistribution: {
+          1: 0,
+          2: 0,
+          3: 0,
+          4: 0,
+          5: 0,
+        },
+        topAspects: {
+          positive: [],
+          negative: [],
+        },
+        recentTrend: {
+          direction: "stable",
+          change: 0,
+        },
+        cacheStatus: {
+          isCached: false,
+          lastScrapedAt: null,
+          needsRefresh: true,
+        },
+      },
+    };
+  }
+};
+
+/**
+ * Trigger a scraping job for a location
+ * POST /api/scraper/start
+ * 
+ * @param {string} locationId - The location ID to scrape
+ */
+export const triggerLocationScrape = async (locationId) => {
+  try {
+    console.log("🔄 Starting scrape for location:", locationId);
+
+    const response = await apiClient.post("/scraper/start", {
+      locationId,
+    });
+
+    if (!response.data || !response.data.success) {
+      throw new Error(response.data?.message || "Failed to start scraping");
+    }
+
+    console.log(`✅ Scrape job started: ${response.data.data.jobId}`);
+
+    return {
+      success: true,
+      jobId: response.data.data.jobId,
+      message: response.data.message,
+    };
+  } catch (error) {
+    console.error(`❌ Error triggering scrape for location ${locationId}:`, error);
+    
+    // Extract backend error message if available
+    const backendMessage = error.response?.data?.message || error.message;
+    const enhancedError = new Error(backendMessage);
+    enhancedError.originalError = error;
+    enhancedError.statusCode = error.response?.status;
+    
+    throw enhancedError;
+  }
+};
+
+/**
+ * Check scraping job status
+ * GET /api/scraper/status/:jobId
+ * 
+ * @param {string} jobId - The job ID
+ */
+export const checkScrapeStatus = async (jobId) => {
+  try {
+    const response = await apiClient.get(`/scraper/status/${jobId}`);
+
+    if (!response.data || !response.data.success) {
+      throw new Error("Failed to check scrape status");
+    }
+
+    return response.data.data;
+  } catch (error) {
+    console.error(`❌ Error checking scrape status for job ${jobId}:`, error);
     throw error;
   }
+};
+
+/**
+ * Delete a location
+ * DELETE /api/locations/:locationId
+ * 
+ * @param {string} locationId - The location ID to delete
+ */
+export const deleteLocation = async (locationId) => {
+  try {
+    console.log("🗑️ Deleting location:", locationId);
+
+    const response = await apiClient.delete(`/locations/${locationId}`);
+
+    if (!response.data || !response.data.success) {
+      throw new Error(response.data?.message || "Failed to delete location");
+    }
+
+    console.log("✅ Location deleted successfully");
+
+    return {
+      success: true,
+      message: response.data.message,
+    };
+  } catch (error) {
+    console.error(`❌ Error deleting location ${locationId}:`, error);
+    throw error;
+  }
+};
+
+/**
+ * Helper function to format date
+ * @param {string|Date} date 
+ */
+export const formatReviewDate = (date) => {
+  if (!date) return "Unknown date";
+  
+  const reviewDate = new Date(date);
+  const now = new Date();
+  const diffTime = Math.abs(now - reviewDate);
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays < 7) return `${diffDays} days ago`;
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
+  if (diffDays < 365) return `${Math.floor(diffDays / 30)} months ago`;
+  return `${Math.floor(diffDays / 365)} years ago`;
 };

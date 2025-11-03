@@ -2,6 +2,119 @@ import Review from '../models/Review.model.js';
 import Location from '../models/Location.model.js';
 
 const reviewController = {
+  // Get reviews for a specific location with pagination (RAW reviews before sentiment analysis)
+  getLocationReviews: async (req, res) => {
+    try {
+      const { locationId } = req.params;
+
+      // Parse query parameters
+      const page = parseInt(req.query.page) || 1;
+      const limit = parseInt(req.query.limit) || 10;
+      const sortBy = req.query.sortBy || 'publishedAt';
+      const sortOrder = req.query.sortOrder || 'desc';
+      const rating = req.query.rating ? parseInt(req.query.rating) : null;
+      const searchTerm = req.query.search ? req.query.search.trim() : null;
+
+      const skip = (page - 1) * limit;
+
+      // Verify location exists
+      const location = await Location.findById(locationId);
+      if (!location) {
+        return res.status(404).json({
+          success: false,
+          message: 'Location not found'
+        });
+      }
+
+      // Build query filter
+      const query = { locationId };
+
+      // Add rating filter if specified
+      if (rating && rating >= 1 && rating <= 5) {
+        query.rating = rating;
+      }
+
+      // Add search filter if specified (search in review text and author name)
+      if (searchTerm) {
+        query.$or = [
+          { text: { $regex: searchTerm, $options: 'i' } },
+          { 'author.name': { $regex: searchTerm, $options: 'i' } }
+        ];
+      }
+
+      // Build sort object
+      const sort = { [sortBy]: sortOrder === 'asc' ? 1 : -1 };
+
+      // Debug: Log the query being executed
+      console.log('🔍 MongoDB Query:', JSON.stringify(query));
+      console.log('📊 Sort:', JSON.stringify(sort));
+
+      // Get total count with filters
+      const totalItems = await Review.countDocuments(query);
+      console.log(`✅ Found ${totalItems} reviews matching filters`);
+
+      if (totalItems === 0) {
+        return res.status(404).json({
+          success: false,
+          message: searchTerm || rating 
+            ? 'No reviews found matching your filters.'
+            : 'No reviews found for this location. Please scrape reviews first.'
+        });
+      }
+
+      // Get paginated reviews
+      const reviews = await Review.find(query)
+        .sort(sort)
+        .skip(skip)
+        .limit(limit)
+        .select('-__v')
+        .lean();
+
+      // Calculate pagination metadata
+      const totalPages = Math.ceil(totalItems / limit);
+      const hasNext = page < totalPages;
+      const hasPrev = page > 1;
+
+      res.status(200).json({
+        success: true,
+        message: `Found ${reviews.length} reviews (page ${page}/${totalPages})`,
+        data: {
+          reviews: reviews.map(review => ({
+            _id: review._id,
+            reviewId: review.googleReviewId,
+            authorName: review.author?.name || 'Anonymous',
+            rating: review.rating,
+            reviewText: review.text || '',
+            publishedAt: review.publishedAt,
+            likes: review.likes || 0,
+            sourceUrl: review.sourceUrl,
+            // These will be null for raw reviews (before sentiment analysis)
+            sentiment: null,
+            sentimentScore: null,
+            summary: null,
+            sentimentKeywords: [],
+            contextualTopics: []
+          })),
+          pagination: {
+            currentPage: page,
+            totalPages,
+            totalItems,
+            limit,
+            hasNext,
+            hasPrev,
+          },
+        },
+      });
+    } catch (error) {
+      console.error('Error in getLocationReviews:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to get location reviews',
+        error: error.message
+      });
+    }
+  },
+
   // Get all reviews
   getAllReviews: async (req, res) => {
     try {

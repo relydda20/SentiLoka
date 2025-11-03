@@ -44,6 +44,33 @@ const locationSchema = new mongoose.Schema(
         required: true
       }
     },
+    googleMapsUrl: {
+      type: String,
+      required: false,
+      trim: true,
+      validate: {
+        validator: function(v) {
+          // Allow empty string or null
+          if (!v) return true;
+          
+          // Accept all valid Google Maps URL formats:
+          // - https://maps.google.com/?cid=...
+          // - https://www.google.com/maps/place/...
+          // - https://google.com/maps/...
+          // - https://goo.gl/maps/...
+          // - https://maps.app.goo.gl/...
+          const googleMapsPatterns = [
+            /^https?:\/\/(www\.)?maps\.google\.[a-z.]+/i,           // maps.google.com
+            /^https?:\/\/(www\.)?google\.[a-z.]+\/maps/i,           // google.com/maps
+            /^https?:\/\/goo\.gl\/maps/i,                           // goo.gl/maps (shortened)
+            /^https?:\/\/maps\.app\.goo\.gl/i,                      // maps.app.goo.gl (new short URLs)
+          ];
+          
+          return googleMapsPatterns.some(pattern => pattern.test(v));
+        },
+        message: 'Invalid Google Maps URL format. Must be a valid Google Maps link.'
+      }
+    },
     googleData: {
       rating: {
         type: Number,
@@ -125,8 +152,8 @@ const locationSchema = new mongoose.Schema(
     },
     scrapeStatus: {
       type: String,
-      enum: ['pending', 'scraping', 'completed', 'failed'],
-      default: 'pending'
+      enum: ['idle', 'pending', 'scraping', 'completed', 'failed'],
+      default: 'idle'
     },
     lastScrapeError: {
       message: String,

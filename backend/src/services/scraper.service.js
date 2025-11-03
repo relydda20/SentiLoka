@@ -19,9 +19,18 @@ export const validateGoogleMapsUrl = (url) => {
 
   // Valid patterns for Google Maps place URLs
   const patterns = [
-    /^https?:\/\/(www\.)?google\.[a-z]+\/maps\/place\/.+/i,
-    /^https?:\/\/maps\.google\.[a-z]+\/maps\?.*cid=/i,
-    /^https?:\/\/(www\.)?google\.[a-z]+\/maps\/.*@-?\d+\.?\d*,-?\d+\.?\d*,.*/i,
+    // google.com/maps/place/Name/...
+    /^https?:\/\/(www\.)?google\.[a-z.]+\/maps\/place\/.+/i,
+    // maps.google.com/maps?cid=... OR maps.google.com/?cid=...
+    /^https?:\/\/maps\.google\.[a-z.]+\/(maps)?\?.*cid=/i,
+    // google.com/?cid=... (short format)
+    /^https?:\/\/(www\.)?google\.[a-z.]+\/\?.*cid=/i,
+    // Coordinate-based URLs with @lat,lng
+    /^https?:\/\/(www\.)?google\.[a-z.]+\/maps\/.*@-?\d+\.?\d*,-?\d+\.?\d*,.*/i,
+    // maps.app.goo.gl/... (short URLs)
+    /^https?:\/\/maps\.app\.goo\.gl\/.+/i,
+    // goo.gl/maps/... (legacy short URLs)
+    /^https?:\/\/goo\.gl\/maps\/.+/i,
   ];
 
   return patterns.some((pattern) => pattern.test(url));

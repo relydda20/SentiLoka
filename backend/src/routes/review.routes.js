@@ -7,6 +7,9 @@ const router = express.Router();
 // Get all reviews
 router.get('/', reviewController.getAllReviews);
 
+// Get reviews for a specific location with pagination (RAW reviews)
+router.get('/location/:locationId', authenticate, reviewController.getLocationReviews);
+
 // Get sentiment statistics for a location
 router.get('/:locationId/stats', reviewController.getSentimentStats);
 
