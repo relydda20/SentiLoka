@@ -28,6 +28,41 @@ export const pieChartConfig = {
   },
 };
 
+export const littlePieChartConfig = {
+  chart: {
+    type: "donut",
+  },
+  labels: ["Positive", "Neutral", "Negative"],
+  colors: ["#00C853", "#FFD600", "#D50000"],
+  legend: {
+    show: false, // Hide the legend
+  },
+  plotOptions: {
+    pie: {
+      donut: {
+        size: "50%", // Makes the donut thicker by reducing the inner circle
+      },
+    },
+  },
+  dataLabels: {
+    enabled: true, // Remove percentage labels on the chart
+    style: {
+      colors: ["#DCE2BE "],
+    },
+  },
+  stroke: {
+    width: 0, // Remove borders between segments
+  },
+  tooltip: {
+    enabled: true,
+    y: {
+      formatter: function (val) {
+        return val + " reviews";
+      },
+    },
+  },
+};
+
 export const columnChartConfig = (totalReviews) => ({
   chart: {
     type: "bar",

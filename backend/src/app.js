@@ -13,8 +13,26 @@ app.use(cookieParser());
 // CORS configuration
 app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:5173',
-  credentials: true
+  credentials: true, // Allow cookies to be sent/received
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  exposedHeaders: ['set-cookie']
 }));
+
+// JSON body parser
+app.use(express.json());
+
+// Cookie parser
+app.use(cookieParser());
+
+// Request logger middleware (for debugging)
+app.use((req, res, next) => {
+  console.log(`📥 ${req.method} ${req.path}`);
+  if (req.cookies && Object.keys(req.cookies).length > 0) {
+    console.log('  🍪 Cookies:', Object.keys(req.cookies));
+  }
+  next();
+});
 
 // Health check
 app.get('/health', (req, res) => {
