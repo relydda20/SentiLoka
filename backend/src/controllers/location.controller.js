@@ -221,25 +221,80 @@ import User from '../models/User.model.js';
 // export default locationController;
 
 /**
- * Get all locations for current user
- * @route GET /api/locations
+ * Create a new location
+ * @route POST /api/locations
  * @access Private
  */
-export const getLocations = async (req, res) => {
+export const createLocation = async (req, res) => {
   try {
-    const locations = await Location.find({ userId: req.user._id })
-      .sort({ createdAt: -1 });
+    const { placeId, name, address, coordinates, googleMapsUrl } = req.body;
 
-    return res.status(200).json({
+    // Validate required fields
+    if (!placeId || !name || !address || !coordinates) {
+      return res.status(400).json({
+        success: false,
+        message: 'placeId, name, address, and coordinates are required',
+      });
+    }
+
+    // Validate coordinates
+    if (!coordinates.lat || !coordinates.lng) {
+      return res.status(400).json({
+        success: false,
+        message: 'Valid coordinates (lat, lng) are required',
+      });
+    }
+
+    // Check if location already exists for this user
+    const existingLocation = await Location.findOne({
+      userId: req.user._id,
+      placeId: placeId,
+    });
+
+    if (existingLocation) {
+      return res.status(409).json({
+        success: false,
+        message: 'Location already exists',
+        data: existingLocation,
+      });
+    }
+
+    // Create new location
+    const location = new Location({
+      userId: req.user._id,
+      placeId,
+      name,
+      address,
+      coordinates: {
+        lat: coordinates.lat,
+        lng: coordinates.lng,
+      },
+      googleData: {
+        rating: req.body.rating || 0,
+        userRatingsTotal: req.body.userRatingsTotal || 0,
+        types: req.body.types || ['establishment'],
+      },
+      scrapeConfig: {
+        autoScrape: false,
+        scrapeFrequency: 'manual',
+        maxReviews: req.body.maxReviews || 100,
+      },
+      scrapeStatus: 'pending',
+      googleMapsUrl: googleMapsUrl || null,
+    });
+
+    await location.save();
+
+    return res.status(201).json({
       success: true,
-      count: locations.length,
-      data: locations,
+      message: 'Location created successfully',
+      data: location,
     });
   } catch (error) {
-    console.error('Error getting locations:', error);
+    console.error('Error creating location:', error);
     return res.status(500).json({
       success: false,
-      message: 'Failed to get locations',
+      message: 'Failed to create location',
       error: error.message,
     });
   }
@@ -317,6 +372,34 @@ export const updateLocationStatus = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: 'Failed to update location status',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Get all locations for the current user
+ * @route GET /api/locations
+ * @access Private
+ */
+export const getLocations = async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    const locations = await Location.find({ userId })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Locations retrieved successfully',
+      data: locations,
+    });
+  } catch (error) {
+    console.error('Error fetching locations:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch locations',
       error: error.message,
     });
   }

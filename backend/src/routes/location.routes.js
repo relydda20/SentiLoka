@@ -1,6 +1,4 @@
 import express from 'express';
-import { authenticate } from '../middleware/auth.middleware.js';
-import locationController from '../controllers/location.controller.js';
 
 // const router = express.Router();
 
