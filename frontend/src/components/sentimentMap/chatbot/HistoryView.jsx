@@ -37,29 +37,34 @@ const HistoryView = ({
       {/* Session History List */}
       <div className="flex flex-col flex-1 space-y-2 p-3 overflow-y-auto">
         {sessions.length > 0 ? (
-          sessions.map((session) => (
-            <button
-              key={session.id}
-              onClick={() => onSelectSession(session.id)}
-              className="group flex justify-between items-center gap-3 hover:bg-gray-100 p-4 rounded-lg w-full text-left transition-colors"
-            >
-              <div className="flex-1 min-w-0">
-                <h3 className="font-semibold text-gray-800 truncate">
-                  {session.title}
-                </h3>
-                <p className="text-gray-500 text-xs">
-                  Last updated: {session.lastUpdated.toLocaleString()}
-                </p>
-              </div>
+          sessions.map((session) => {
+            // Use first user message as title, or "New Chat"
+            const title = session.messages[0]?.content || "New Chat";
+            return (
               <button
-                onClick={(e) => onDeleteSession(e, session.id)}
-                className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-all shrink-0"
-                title="Delete Session"
+                key={session._id}
+                onClick={() => onSelectSession(session._id)}
+                className="group flex justify-between items-center gap-3 hover:bg-gray-100 p-4 rounded-lg w-full text-left transition-colors"
               >
-                <Trash2 className="w-4 h-4" />
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-semibold text-gray-800 truncate">
+                    {title}
+                  </h3>
+                  <p className="text-gray-500 text-xs">
+                    Last updated:{" "}
+                    {new Date(session.lastActivity).toLocaleString()}
+                  </p>
+                </div>
+                <button
+                  onClick={(e) => onDeleteSession(e, session._id)}
+                  className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-all shrink-0"
+                  title="Delete Session"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
               </button>
-            </button>
-          ))
+            );
+          })
         ) : (
           <div className="m-auto text-gray-500 text-center">
             <p>No chat history.</p>
