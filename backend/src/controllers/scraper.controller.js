@@ -2,6 +2,13 @@ import { addScrapeJob, getJobStatus, getLocationJobs } from '../services/job.ser
 import { validateGoogleMapsUrl } from '../services/scraper.service.js';
 import Location from '../models/Location.model.js';
 import { scraperQueue } from '../config/queue.config.js';
+import {
+  getCachedReviewCount,
+  getScraperMetadata,
+  flushScrapedReviewsToDatabase,
+  clearScrapedReviewCache,
+  getScraperCacheStats,
+} from '../services/scraper-cache.service.js';
 
 /**
  * Start a new scraping job
@@ -18,7 +25,8 @@ export const startScrape = async (req, res) => {
       });
     }
 
-    const { locationId, url, maxReviews = 100 } = req.body;
+    // Scrape all available reviews from the location
+    const { locationId, url } = req.body;
 
     // Validate required fields
     if (!locationId || !url) {
@@ -36,13 +44,13 @@ export const startScrape = async (req, res) => {
       });
     }
 
-    // Validate maxReviews range
-    if (maxReviews < 1 || maxReviews > 800) {
-      return res.status(400).json({
-        success: false,
-        message: 'maxReviews must be between 1 and 800',
-      });
-    }
+    // Validation disabled - scrape ALL available reviews
+    // if (maxReviews < 1 || maxReviews > 800) {
+    //   return res.status(400).json({
+    //     success: false,
+    //     message: 'maxReviews must be between 1 and 800',
+    //   });
+    // }
 
     // Find location and verify ownership
     const location = await Location.findById(locationId);
@@ -75,7 +83,6 @@ export const startScrape = async (req, res) => {
     const jobResult = await addScrapeJob({
       locationId: locationId,
       url: url,
-      maxReviews: maxReviews,
       userId: req.user._id.toString(),
     });
 
@@ -456,7 +463,7 @@ export const cancelScrapeJob = async (req, res) => {
  */
 export const testScrape = async (req, res) => {
   try {
-    const { url, maxReviews = 20 } = req.body;
+    const { url } = req.body;
 
     // Validate required fields
     if (!url) {
@@ -474,20 +481,19 @@ export const testScrape = async (req, res) => {
       });
     }
 
-    // Validate maxReviews range
-    if (maxReviews < 1 || maxReviews > 800) {
-      return res.status(400).json({
-        success: false,
-        message: 'maxReviews must be between 1 and 800',
-      });
-    }
+    // Validation disabled - scrape ALL available reviews
+    // if (maxReviews < 1 || maxReviews > 800) {
+    //   return res.status(400).json({
+    //     success: false,
+    //     message: 'maxReviews must be between 1 and 800',
+    //   });
+    // }
 
     // Add job to queue with a temporary test location ID
     const testLocationId = `test-${Date.now()}`;
     const jobResult = await addScrapeJob({
       locationId: testLocationId,
       url: url,
-      maxReviews: maxReviews,
       userId: 'test-user',
     });
 
@@ -499,7 +505,6 @@ export const testScrape = async (req, res) => {
       data: {
         jobId: jobResult.jobId,
         url: url,
-        maxReviews: maxReviews,
         status: jobResult.status,
         createdAt: jobResult.createdAt,
         note: 'This is a test endpoint. Reviews will not be saved to a location.',
@@ -516,6 +521,223 @@ export const testScrape = async (req, res) => {
   }
 };
 
+/**
+ * Get scraper cache status for a location
+ * @route GET /api/scraper/cache/:locationId
+ * @access Private (requires authentication)
+ */
+export const getScraperCacheStatus = async (req, res) => {
+  try {
+    // Check authentication
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required',
+      });
+    }
+
+    const { locationId } = req.params;
+
+    // Verify location exists and user owns it
+    const location = await Location.findById(locationId);
+
+    if (!location) {
+      return res.status(404).json({
+        success: false,
+        message: 'Location not found',
+      });
+    }
+
+    // Verify ownership
+    if (location.userId.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have permission to view this location',
+      });
+    }
+
+    const userId = req.user._id.toString();
+    const cachedCount = await getCachedReviewCount(locationId, userId);
+    const metadata = await getScraperMetadata(locationId, userId);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        locationId,
+        locationName: location.name,
+        cachedReviews: cachedCount,
+        metadata: metadata || null,
+      },
+    });
+  } catch (error) {
+    console.error('Error getting scraper cache status:', error);
+
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to get scraper cache status',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Manually flush scraper cache to database
+ * @route POST /api/scraper/flush/:locationId
+ * @access Private (requires authentication)
+ */
+export const flushScraperCache = async (req, res) => {
+  try {
+    // Check authentication
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required',
+      });
+    }
+
+    const { locationId } = req.params;
+    const { batchSize = 100 } = req.body;
+
+    // Verify location exists and user owns it
+    const location = await Location.findById(locationId);
+
+    if (!location) {
+      return res.status(404).json({
+        success: false,
+        message: 'Location not found',
+      });
+    }
+
+    // Verify ownership
+    if (location.userId.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have permission to flush this location cache',
+      });
+    }
+
+    const userId = req.user._id.toString();
+    
+    // Check if there are reviews in cache
+    const cachedCount = await getCachedReviewCount(locationId, userId);
+    
+    if (cachedCount === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'No cached reviews found for this location',
+      });
+    }
+
+    console.log(`Manually flushing ${cachedCount} cached reviews for location ${locationId}`);
+
+    // Flush to database
+    const result = await flushScrapedReviewsToDatabase(locationId, userId, batchSize);
+
+    return res.status(200).json({
+      success: true,
+      message: `Successfully flushed cached reviews to database`,
+      data: result,
+    });
+  } catch (error) {
+    console.error('Error flushing scraper cache:', error);
+
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to flush scraper cache',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Clear scraper cache without saving to database
+ * @route DELETE /api/scraper/cache/:locationId
+ * @access Private (requires authentication)
+ */
+export const clearScraperCache = async (req, res) => {
+  try {
+    // Check authentication
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required',
+      });
+    }
+
+    const { locationId } = req.params;
+
+    // Verify location exists and user owns it
+    const location = await Location.findById(locationId);
+
+    if (!location) {
+      return res.status(404).json({
+        success: false,
+        message: 'Location not found',
+      });
+    }
+
+    // Verify ownership
+    if (location.userId.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have permission to clear this location cache',
+      });
+    }
+
+    const userId = req.user._id.toString();
+    const clearedCount = await clearScrapedReviewCache(locationId, userId);
+
+    return res.status(200).json({
+      success: true,
+      message: `Cleared ${clearedCount} cached reviews`,
+      data: {
+        locationId,
+        clearedReviews: clearedCount,
+      },
+    });
+  } catch (error) {
+    console.error('Error clearing scraper cache:', error);
+
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to clear scraper cache',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Get all scraper cache statistics (admin endpoint)
+ * @route GET /api/scraper/cache-stats
+ * @access Private (requires authentication)
+ */
+export const getAllScraperCacheStats = async (req, res) => {
+  try {
+    // Check authentication
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required',
+      });
+    }
+
+    const stats = await getScraperCacheStats();
+
+    return res.status(200).json({
+      success: true,
+      data: stats,
+    });
+  } catch (error) {
+    console.error('Error getting scraper cache stats:', error);
+
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to get scraper cache stats',
+      error: error.message,
+    });
+  }
+};
+
 export default {
   startScrape,
   getJobProgress,
@@ -523,4 +745,8 @@ export default {
   getLocationScrapeHistory,
   cancelScrapeJob,
   testScrape,
+  getScraperCacheStatus,
+  flushScraperCache,
+  clearScraperCache,
+  getAllScraperCacheStats,
 };

@@ -21,7 +21,7 @@ class MapsReviewsSpider(scrapy.Spider):
         'PLAYWRIGHT_BROWSER_TYPE': 'chromium',
     }
     
-    def __init__(self, url=None, urls_file=None, max_reviews=100, *args, **kwargs):
+    def __init__(self, url=None, urls_file=None, max_reviews=None, *args, **kwargs):
         super(MapsReviewsSpider, self).__init__(*args, **kwargs)
 
         # Handle single URL or file with multiple URLs
@@ -35,7 +35,8 @@ class MapsReviewsSpider(scrapy.Spider):
             except FileNotFoundError:
                 self.logger.error(f"URL file not found: {urls_file}")
 
-        self.max_reviews = int(max_reviews)
+        # No limit on reviews - scrape all available
+        self.max_reviews = None
 
         if not self.urls:
             raise ValueError("Must provide either 'url' or 'urls_file' argument")
@@ -244,12 +245,11 @@ class MapsReviewsSpider(scrapy.Spider):
 
             self.logger.info("Starting incremental scraping (scrape while loading)...")
 
-            # Scroll and scrape incrementally
+            # Scroll and scrape incrementally - no limit, get all available reviews
             async for review_data in self.scroll_and_scrape_incrementally(
                 page,
                 place_name_text,
-                place_url,
-                self.max_reviews
+                place_url
             ):
                 if review_data:
                     # Create unique key for deduplication
@@ -280,12 +280,7 @@ class MapsReviewsSpider(scrapy.Spider):
 
                     # Log progress every 10 reviews
                     if reviews_scraped % 10 == 0:
-                        self.logger.info(f"Progress: {reviews_scraped}/{self.max_reviews} reviews scraped")
-
-                    # Stop if we've reached max
-                    if reviews_scraped >= self.max_reviews:
-                        self.logger.info(f"Reached max_reviews limit ({self.max_reviews})")
-                        break
+                        self.logger.info(f"Progress: {reviews_scraped} reviews scraped")
 
             self.logger.info(f"Successfully scraped {reviews_scraped} unique reviews from {place_name_text} (skipped {duplicates_skipped} duplicates)")
         
@@ -295,9 +290,10 @@ class MapsReviewsSpider(scrapy.Spider):
         finally:
             await page.close()
     
-    async def scroll_and_scrape_incrementally(self, page, place_name, place_url, max_reviews):
+    async def scroll_and_scrape_incrementally(self, page, place_name, place_url):
         """
         Optimized: Scroll and scrape reviews incrementally with parallel processing.
+        No limit - scrapes ALL available reviews.
         - Reduced wait times (150ms scroll, 100ms expansion)
         - Smart scroll detection to avoid unnecessary scrolls
         - Parallel review extraction using asyncio.gather
@@ -314,7 +310,7 @@ class MapsReviewsSpider(scrapy.Spider):
         no_new_reviews_count = 0
         max_no_change_attempts = 3
         scroll_count = 0
-        max_scrolls = max(50, (max_reviews // 10) + 20)
+        max_scrolls = 999999  # Effectively unlimited - scroll until no more reviews
 
         # Cache the working selector after first successful use
         working_scrollable_selector = self.cached_selectors.get('scrollable_div')
@@ -379,11 +375,6 @@ class MapsReviewsSpider(scrapy.Spider):
                                 # Add internal tracking ID
                                 review_data['_review_id'] = batch[idx][1]
                                 yield review_data
-
-                        # Check if we've reached the limit
-                        if len(processed_review_ids) >= max_reviews:
-                            self.logger.info(f"Reached target of {max_reviews} reviews, stopping scroll")
-                            return
 
                 # OPTIMIZATION 5: Smart scroll detection - check if we're at bottom
                 current_scroll_height = await page.evaluate(f'''

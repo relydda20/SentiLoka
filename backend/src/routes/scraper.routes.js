@@ -6,6 +6,10 @@ import {
   getLocationScrapeHistory,
   cancelScrapeJob,
   testScrape,
+  getScraperCacheStatus,
+  flushScraperCache,
+  clearScraperCache,
+  getAllScraperCacheStats,
 } from '../controllers/scraper.controller.js';
 import { authenticate } from '../middleware/auth.middleware.js';
 import { asyncHandler } from '../middleware/validation.middleware.js';
@@ -17,9 +21,9 @@ const router = express.Router();
  * @desc Test endpoint - scrape without authentication or location
  * @access Public (for testing only)
  * @body {
- *   url: string (required - Google Maps URL),
- *   maxReviews: number (optional, default: 20, max: 800)
+ *   url: string (required - Google Maps URL)
  * }
+ * @note Scrapes ALL available reviews (no limit)
  */
 router.post('/test', asyncHandler(testScrape));
 
@@ -35,13 +39,13 @@ router.use(authenticate);
 
 /**
  * @route POST /api/scraper/start
- * @desc Start a new scraping job
+ * @desc Start a new scraping job - scrapes ALL available reviews
  * @access Private
  * @body {
  *   locationId: string (required),
- *   url: string (required - Google Maps URL),
- *   maxReviews: number (optional, default: 100, max: 800)
+ *   url: string (required - Google Maps URL)
  * }
+ * @note No review limit - will scrape all available reviews from Google Maps
  */
 router.post('/start', asyncHandler(startScrape));
 
@@ -77,5 +81,40 @@ router.get('/history/:locationId', asyncHandler(getLocationScrapeHistory));
  * @returns Confirmation of job cancellation
  */
 router.delete('/cancel/:jobId', asyncHandler(cancelScrapeJob));
+
+/**
+ * @route GET /api/scraper/cache/:locationId
+ * @desc Get scraper cache status for a location
+ * @access Private
+ * @returns Current cache status (number of cached reviews, metadata)
+ */
+router.get('/cache/:locationId', asyncHandler(getScraperCacheStatus));
+
+/**
+ * @route POST /api/scraper/flush/:locationId
+ * @desc Manually flush scraper cache to database
+ * @access Private
+ * @body {
+ *   batchSize: number (optional, default: 100)
+ * }
+ * @returns Flush result with counts (inserted, updated, failed)
+ */
+router.post('/flush/:locationId', asyncHandler(flushScraperCache));
+
+/**
+ * @route DELETE /api/scraper/cache/:locationId
+ * @desc Clear scraper cache without saving to database
+ * @access Private
+ * @returns Number of reviews cleared
+ */
+router.delete('/cache/:locationId', asyncHandler(clearScraperCache));
+
+/**
+ * @route GET /api/scraper/cache-stats
+ * @desc Get all scraper cache statistics (admin/debug)
+ * @access Private
+ * @returns Statistics about all cached reviews across all locations
+ */
+router.get('/cache-stats', asyncHandler(getAllScraperCacheStats));
 
 export default router;

@@ -164,11 +164,10 @@ FEED_EXPORT_FIELDS = [
 # CUSTOM SETTINGS
 # ============================================
 
-# Maximum reviews per place (can be overridden in spider)
-MAX_REVIEWS_PER_PLACE = 1000
-
+# Scraper Configuration - NO LIMITS
+# The scraper will collect ALL available reviews from Google Maps
 # Scroll settings for loading more reviews
-MAX_SCROLL_COUNT = 1000
+MAX_SCROLL_COUNT = 999999  # Effectively unlimited - will scroll until no more reviews
 SCROLL_DELAY = 1.5  # seconds
 
 # ============================================

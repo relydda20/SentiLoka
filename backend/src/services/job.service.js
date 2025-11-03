@@ -1,21 +1,26 @@
 import { scraperQueue } from '../config/queue.config.js';
 import { executeScraper } from './scraper.service.js';
 import { transformReviews } from '../utils/reviewTransformer.js';
-import { analyzeSentiment } from '../utils/openaiClient.js';
 import Location from '../models/Location.model.js';
-import Review from '../models/Review.model.js';
+import { invalidateLocationCache } from './redis-cache.service.js';
+import { invalidateCacheForLocation } from './chatbot-cache.service.js';
+import {
+  cacheScrapedReviews,
+  flushScrapedReviewsToDatabase,
+  getCachedReviewCount,
+  autoFlushIfNeeded,
+} from './scraper-cache.service.js';
 
 /**
  * Add a new scrape job to the queue
  * @param {Object} jobData - Job data
  * @param {string} jobData.locationId - MongoDB location ID
  * @param {string} jobData.url - Google Maps URL
- * @param {number} jobData.maxReviews - Maximum reviews to scrape
  * @param {string} jobData.userId - User ID who initiated the scrape
  * @returns {Promise<Object>} - Job object
  */
 export const addScrapeJob = async (jobData) => {
-  const { locationId, url, maxReviews = 100, userId } = jobData;
+  const { locationId, url, userId } = jobData;
 
   // Validate required fields
   if (!locationId || !url) {
@@ -29,12 +34,11 @@ export const addScrapeJob = async (jobData) => {
     });
   }
 
-  // Add job to queue
+  // Add job to queue - will scrape ALL available reviews (no limit)
   const job = await scraperQueue.add(
     {
       locationId,
       url,
-      maxReviews,
       userId,
       createdAt: new Date().toISOString(),
     },
@@ -124,10 +128,10 @@ export const getLocationJobs = async (locationId) => {
  * @param {Object} job - Bull job object
  */
 export const processScrapeJob = async (job) => {
-  const { locationId, url, maxReviews } = job.data;
+  const { locationId, url } = job.data;
 
   console.log(
-    `Processing scrape job ${job.id} for location ${locationId}`
+    `Processing scrape job ${job.id} for location ${locationId} - scraping ALL available reviews`
   );
 
   try {
@@ -153,17 +157,15 @@ export const processScrapeJob = async (job) => {
     await job.progress({
       stage: 'scraping',
       percentage: 0,
-      message: 'Starting scraper...',
+      message: 'Starting scraper - collecting all available reviews...',
     });
 
-    // Execute scraper with progress tracking
+    // Execute scraper with progress tracking - no maxReviews limit
     const scraperResult = await executeScraper({
       url,
-      maxReviews,
       onProgress: async (progressData) => {
         await job.progress({
           stage: 'scraping',
-          percentage: progressData.percentage || 0,
           reviewsScraped: progressData.reviewsScraped || 0,
           message: progressData.message,
         });
@@ -180,7 +182,7 @@ export const processScrapeJob = async (job) => {
     // Update progress
     await job.progress({
       stage: 'transforming',
-      percentage: 50,
+      percentage: 60,
       message: 'Transforming review data...',
     });
 
@@ -189,112 +191,40 @@ export const processScrapeJob = async (job) => {
 
     // Update progress
     await job.progress({
-      stage: 'analyzing',
-      percentage: 60,
-      message: `Analyzing sentiment for ${transformedReviews.length} reviews...`,
+      stage: 'caching',
+      percentage: 70,
+      message: 'Caching scraped reviews to Redis...',
     });
 
-    // Analyze sentiment for each review
-    const reviewsWithSentiment = [];
-    let processedCount = 0;
-
-    for (const review of transformedReviews) {
-      try {
-        // Analyze sentiment
-        const sentimentResult = await analyzeSentiment(review.text);
-
-        if (sentimentResult.success) {
-          reviewsWithSentiment.push({
-            ...review,
-            sentiment: sentimentResult.data.sentiment,
-            sentimentScore: sentimentResult.data.score,
-            sentimentBreakdown: {
-              positive: sentimentResult.data.confidence || 0,
-              neutral: 0,
-              negative: 0,
-            },
-            keywords: {
-              positive: sentimentResult.data.keywords || [],
-              negative: [],
-            },
-            analyzedAt: new Date(),
-          });
-        } else {
-          // Include review without sentiment if analysis fails
-          reviewsWithSentiment.push({
-            ...review,
-            sentiment: 'neutral',
-            sentimentScore: 0,
-            analyzedAt: new Date(),
-          });
-        }
-
-        processedCount++;
-        const percentage = 60 + Math.round((processedCount / transformedReviews.length) * 30);
-
-        await job.progress({
-          stage: 'analyzing',
-          percentage,
-          message: `Analyzed ${processedCount}/${transformedReviews.length} reviews`,
-        });
-      } catch (error) {
-        console.error(`Error analyzing sentiment for review:`, error);
-        // Include review without sentiment
-        reviewsWithSentiment.push({
-          ...review,
-          sentiment: 'neutral',
-          sentimentScore: 0,
-          analyzedAt: new Date(),
-        });
-      }
+    // Cache reviews to Redis first (fast operation)
+    let cachedCount = 0;
+    if (!isTestJob) {
+      cachedCount = await cacheScrapedReviews(locationId, userId, transformedReviews);
+      console.log(`✓ Cached ${cachedCount} reviews to Redis for location ${locationId}`);
+      
+      // Check if we should auto-flush (if cache is getting large)
+      await autoFlushIfNeeded(locationId, userId, 500);
     }
 
     // Update progress
     await job.progress({
-      stage: 'saving',
-      percentage: 90,
-      message: 'Saving reviews to database...',
+      stage: 'flushing',
+      percentage: 80,
+      message: 'Flushing cached reviews to database...',
     });
 
-    // Save reviews to database (skip if test job)
-    const savedReviews = [];
+    // Flush cached reviews to database in batches (efficient bulk operation)
+    let flushResult = { inserted: 0, updated: 0, failed: 0 };
     if (!isTestJob) {
-      for (const reviewData of reviewsWithSentiment) {
-        try {
-          // Check if review already exists for this user
-          const existingReview = await Review.findOne({
-            userId,
-            googleReviewId: reviewData.googleReviewId,
-          });
+      flushResult = await flushScrapedReviewsToDatabase(locationId, userId, 100);
+      console.log(`✓ Flushed reviews to database:`, flushResult);
+    }
 
-          if (existingReview) {
-            // Update existing review
-            Object.assign(existingReview, {
-              ...reviewData,
-              userId,
-              locationId,
-              scrapedAt: new Date(),
-            });
-            await existingReview.save();
-            savedReviews.push(existingReview);
-          } else {
-            // Create new review
-            const newReview = new Review({
-              ...reviewData,
-              userId,
-              locationId,
-              scrapedAt: new Date(),
-            });
-            await newReview.save();
-            savedReviews.push(newReview);
-          }
-        } catch (error) {
-          console.error('Error saving review:', error);
-        }
-      }
+    const savedReviewsCount = flushResult.inserted + flushResult.updated;
 
-      // Update location with scrape metadata
-      const location = await Location.findById(locationId);
+    // Update location with scrape metadata (skip if test job)
+    if (!isTestJob) {
+      location = await Location.findById(locationId);
       if (location) {
         location.scrapeStatus = 'completed';
         location.scrapeConfig.lastScraped = new Date();
@@ -312,9 +242,14 @@ export const processScrapeJob = async (job) => {
 
         await location.save();
 
-        // Recalculate sentiment
-        await location.calculateSentiment();
-        await location.addSentimentHistory();
+        // Invalidate old caches (they're now stale)
+        await invalidateCacheForLocation(userId.toString(), locationId);
+        await invalidateLocationCache(locationId, userId.toString());
+        console.log(`🗑️ Invalidated old caches for location ${locationId}`);
+
+        // Note: Reviews will be cached on-demand when frontend fetches them
+        // Sentiment calculation will be done after batch analysis
+        // via POST /api/reviews/analyze-location/:locationId endpoint
       }
     } else {
       console.log('Test job: Skipping database save for reviews');
@@ -324,18 +259,22 @@ export const processScrapeJob = async (job) => {
     await job.progress({
       stage: 'completed',
       percentage: 100,
-      message: `Successfully processed ${savedReviews.length} reviews`,
+      message: `Successfully saved ${savedReviewsCount} reviews via Redis cache. Use batch analysis endpoint to analyze sentiment.`,
     });
 
     console.log(
-      `Job ${job.id} completed successfully. Saved ${savedReviews.length} reviews.`
+      `Job ${job.id} completed successfully. Cached and saved ${savedReviewsCount} reviews (sentiment analysis pending).`
     );
 
     return {
       success: true,
       reviewsScraped: rawReviews.length,
-      reviewsSaved: savedReviews.length,
+      reviewsCached: cachedCount,
+      reviewsSaved: savedReviewsCount,
+      insertedNew: flushResult.inserted,
+      updatedExisting: flushResult.updated,
       locationId,
+      message: 'Reviews cached and saved successfully via Redis. Run batch sentiment analysis via POST /api/reviews/analyze-location/:locationId',
     };
   } catch (error) {
     console.error(`Error processing job ${job.id}:`, error);

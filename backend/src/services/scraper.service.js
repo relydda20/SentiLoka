@@ -108,13 +108,11 @@ const cleanupTempFile = async (filePath) => {
  * Execute the Python Google Maps scraper
  * @param {Object} options - Scraper options
  * @param {string} options.url - Google Maps place URL to scrape
- * @param {number} options.maxReviews - Maximum number of reviews to scrape (default: 100)
  * @param {Function} options.onProgress - Progress callback function
  * @returns {Promise<Object>} - Scraper results
  */
 export const executeScraper = async ({
   url,
-  maxReviews = 100,
   onProgress = null,
 }) => {
   // Validate URL
@@ -139,11 +137,10 @@ export const executeScraper = async ({
     .catch(() => 'python3'); // Fallback to system Python
 
   return new Promise((resolve, reject) => {
-    // Use Scrapy command with the spider name
+    // Use Scrapy command with the spider name - scrape ALL available reviews (no limit)
     const args = [
       '-m', 'scrapy', 'crawl', 'maps_reviews',
       '-a', `url=${url}`,
-      '-a', `max_reviews=${maxReviews}`,
       '-O', outputFile,
     ];
 
@@ -170,19 +167,17 @@ export const executeScraper = async ({
       lines.forEach((line) => {
         console.log(`[Scraper] ${line}`);
 
-        // Parse progress updates
-        const progressMatch = line.match(/Progress: (\d+)\/(\d+) reviews/i);
+        // Parse progress updates - match both limited and unlimited formats
+        // Format 1: "Progress: 50 reviews scraped" (unlimited)
+        // Format 2: "Progress: 50/100 reviews scraped" (with limit)
+        const progressMatch = line.match(/Progress: (\d+)(?:\/\d+)? reviews/i);
         if (progressMatch && onProgress) {
           reviewsScraped = parseInt(progressMatch[1]);
-          const total = parseInt(progressMatch[2]);
-          const percentage = Math.round((reviewsScraped / total) * 100);
 
           onProgress({
             type: 'progress',
             reviewsScraped,
-            totalReviews: total,
-            percentage,
-            message: `Scraped ${reviewsScraped} of ${total} reviews (${percentage}%)`,
+            message: `Scraped ${reviewsScraped} reviews...`,
           });
         }
 
@@ -232,7 +227,6 @@ export const executeScraper = async ({
             reviewsScraped: scraperOutput.reviews?.length || 0,
             scrapedAt: new Date().toISOString(),
             url,
-            maxReviews,
           },
         });
       } catch (error) {

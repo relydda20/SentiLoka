@@ -8,6 +8,12 @@ const locationSchema = new mongoose.Schema(
       required: [true, 'User ID is required'],
       index: true
     },
+    slug: {
+      type: String,
+      lowercase: true,
+      trim: true,
+      index: true
+    },
     placeId: {
       type: String,
       required: [true, 'Place ID is required'],
@@ -190,11 +196,15 @@ locationSchema.methods.regenerateSlug = async function () {
 };
 
 locationSchema.methods.calculateSentiment = async function () {
-  const Review = mongoose.model('Review');
-  
-  const reviews = await Review.find({ locationId: this._id, isActive: true });
-  
-  if (reviews.length === 0) {
+  const ReviewSummary = mongoose.model('ReviewSummary');
+
+  // Get sentiment data from ReviewSummary model (analyzed reviews)
+  const summaries = await ReviewSummary.find({
+    locationId: this._id,
+    sentiment: { $ne: 'error' }
+  });
+
+  if (summaries.length === 0) {
     this.overallSentiment = {
       positive: 0,
       neutral: 0,
@@ -206,12 +216,12 @@ locationSchema.methods.calculateSentiment = async function () {
     return this.overallSentiment;
   }
 
-  const totalReviews = reviews.length;
-  const positiveCount = reviews.filter(r => r.sentiment === 'positive').length;
-  const negativeCount = reviews.filter(r => r.sentiment === 'negative').length;
-  const neutralCount = reviews.filter(r => r.sentiment === 'neutral').length;
-  
-  const totalRating = reviews.reduce((sum, r) => sum + (r.rating || 0), 0);
+  const totalReviews = summaries.length;
+  const positiveCount = summaries.filter(r => r.sentiment === 'positive').length;
+  const negativeCount = summaries.filter(r => r.sentiment === 'negative').length;
+  const neutralCount = summaries.filter(r => r.sentiment === 'neutral').length;
+
+  const totalRating = summaries.reduce((sum, r) => sum + (r.rating || 0), 0);
   const averageRating = totalRating / totalReviews;
 
   this.overallSentiment = {

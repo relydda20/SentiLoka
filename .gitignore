@@ -5,6 +5,7 @@ node_modules
 **/.env
 
 **/python_env
+**/python_env_backup_old
 
 # Python
 __pycache__/
@@ -25,3 +26,5 @@ backend/temp/
 
 # Redis dump
 dump.rdb
+.DS_Store
+**/.DS_Store

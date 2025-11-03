@@ -28,7 +28,8 @@ import chatbotRoutes from './routes/chatbot.routes.js';
 import scraperRoutes from './routes/scraper.routes.js';
 import locationRoutes from './routes/location.routes.js';
 app.use('/api/sentiment', sentimentRoutes);
-app.use('/api/reviews', reviewSentimentRoutes);
+app.use('/api/review-sentiments', reviewSentimentRoutes);
+app.use('/api/reviews', reviewSentimentRoutes); // Using reviewSentimentRoutes for /api/reviews
 app.use('/api/chatbot', chatbotRoutes);
 app.use('/api/scraper', scraperRoutes);
 app.use('/api/locations', locationRoutes);
