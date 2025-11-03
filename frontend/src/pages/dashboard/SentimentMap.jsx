@@ -248,18 +248,21 @@ const SentimentMap = () => {
       }
       
       // Always update the selectedLocation state with current results (filtered or not)
-      if (selectedLocation?.id === locationId) {
-        console.log("📝 Updating selectedLocation with reviews:", {
-          isFiltered: !isInitialLoad,
-          reviewsLength: data.business.reviews?.length,
-          pagination: data.business.pagination,
-        });
-        setSelectedLocation((prev) => {
+      // Use callback form to get the latest state value
+      setSelectedLocation((prev) => {
+        // Only update if this is the currently selected location
+        if (prev?.id === locationId) {
+          console.log("📝 Updating selectedLocation with reviews:", {
+            isFiltered: !isInitialLoad,
+            reviewsLength: data.business.reviews?.length,
+            pagination: data.business.pagination,
+          });
           const updated = { ...prev, ...data.business };
           console.log("📝 Updated selectedLocation reviews count:", updated.reviews?.length);
           return updated;
-        });
-      }
+        }
+        return prev; // Return unchanged if different location
+      });
     } catch (error) {
       console.error("Error fetching review data:", error);
       setError("Failed to fetch reviews. Please try again.");
@@ -277,16 +280,9 @@ const SentimentMap = () => {
     const latestLocation = locations.find(loc => loc.id === location.id) || location;
     
     console.log(`📍 Opening location: ${latestLocation.businessName}`);
-    console.log(`   Reviews in latestLocation:`, latestLocation.reviews?.length || 0);
-    console.log(`   Reviews count in latestLocation:`, latestLocation.reviewsCount || 0);
-    console.log(`   Full latestLocation object:`, JSON.stringify({
-      id: latestLocation.id,
-      businessName: latestLocation.businessName,
-      reviewsCount: latestLocation.reviewsCount,
-      hasReviews: !!latestLocation.reviews,
-      reviewsLength: latestLocation.reviews?.length,
-      hasPagination: !!latestLocation.pagination,
-    }, null, 2));
+    console.log(`   Reviews in memory:`, latestLocation.reviews?.length || 0);
+    console.log(`   Reviews count in DB:`, latestLocation.reviewsCount || 0);
+    console.log(`   Scrape status:`, latestLocation.scrapeStatus);
     
     setSelectedLocation(latestLocation);
     setSidebarOpen(true);
@@ -297,8 +293,15 @@ const SentimentMap = () => {
       map.setZoom(16);
     }
 
-    // *** REMOVED: Don't automatically fetch - we already have the data in latestLocation ***
-    // Reviews are already in latestLocation from the locations array
+    // Auto-fetch reviews if location has scraped reviews in DB but they're not loaded in memory
+    // This handles page refreshes and ensures reviews are always available
+    const hasScrapedReviews = latestLocation.reviewsCount > 0;
+    const reviewsNotLoaded = !latestLocation.reviews || latestLocation.reviews.length === 0;
+    
+    if (hasScrapedReviews && reviewsNotLoaded) {
+      console.log('📥 Auto-fetching reviews for location (has', latestLocation.reviewsCount, 'reviews in DB)...');
+      await fetchReviewData(latestLocation.id, { page: 1, ...defaultFilters });
+    }
   };
 
   const handleSpiderfiedMarkerClick = async (location) => {
@@ -310,8 +313,13 @@ const SentimentMap = () => {
     setSelectedLocation(latestLocation);
     setSidebarOpen(true);
     
-    if (latestLocation.reviews?.length > 0 || latestLocation.sentiment) {
-      fetchReviewData(latestLocation.id, { page: 1, ...defaultFilters });
+    // Auto-fetch reviews if location has scraped reviews in DB but they're not loaded
+    const hasScrapedReviews = latestLocation.reviewsCount > 0;
+    const reviewsNotLoaded = !latestLocation.reviews || latestLocation.reviews.length === 0;
+    
+    if (hasScrapedReviews && reviewsNotLoaded) {
+      console.log('📥 Auto-fetching reviews for spiderfied marker...');
+      await fetchReviewData(latestLocation.id, { page: 1, ...defaultFilters });
     }
   };
 

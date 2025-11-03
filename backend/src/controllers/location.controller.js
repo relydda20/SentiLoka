@@ -390,10 +390,24 @@ export const getLocations = async (req, res) => {
       .sort({ createdAt: -1 })
       .lean();
 
+    // Enhance each location with the actual scraped review count from Review collection
+    const locationsWithReviewCount = await Promise.all(
+      locations.map(async (location) => {
+        const scrapedReviewCount = await Review.countDocuments({ 
+          locationId: location._id 
+        });
+        
+        return {
+          ...location,
+          scrapedReviewCount, // Add the actual count of scraped reviews
+        };
+      })
+    );
+
     return res.status(200).json({
       success: true,
       message: 'Locations retrieved successfully',
-      data: locations,
+      data: locationsWithReviewCount,
     });
   } catch (error) {
     console.error('Error fetching locations:', error);

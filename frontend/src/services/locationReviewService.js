@@ -31,7 +31,8 @@ export const fetchBusinessLocations = async () => {
       phoneNumber: loc.phoneNumber, // Assuming phoneNumber is available, add if not
       category: loc.googleData?.types?.[0] || "establishment",
       status: loc.status,
-      reviewsCount: loc.googleData?.userRatingsTotal || 0,
+      scrapeStatus: loc.scrapeStatus, // Add scrapeStatus from backend
+      reviewsCount: loc.scrapedReviewCount || 0, // Use actual scraped reviews count from DB
       averageRating: loc.googleData?.rating || 0,
       // Map overallSentiment from backend to frontend's sentiment object
       sentiment: loc.overallSentiment
