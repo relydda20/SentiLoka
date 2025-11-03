@@ -1,0 +1,206 @@
+/* Dialogflow Custom Styles for SentiLoka */
+
+df-messenger {
+  z-index: 999;
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  display: none; /* Hidden by default */
+
+  /* SentiLoka Theme Colors */
+  --df-messenger-font-color: #2f4b4e;
+  --df-messenger-font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, sans-serif;
+  --df-messenger-chat-background: #faf6e9;
+  --df-messenger-chat-background-color: #faf6e9;
+  --df-messenger-message-user-background: #2f4b4e;
+  --df-messenger-message-user-font-color: #faf6e9;
+  --df-messenger-message-bot-background: #ffffff;
+  --df-messenger-message-bot-font-color: #2f4b4e;
+  --df-messenger-message-bot-border: 1px solid #e5e7eb;
+  --df-messenger-input-box-background: #ffffff;
+  --df-messenger-input-font-color: #2f4b4e;
+  --df-messenger-input-placeholder-font-color: #9ca3af;
+  --df-messenger-send-icon: #2f4b4e;
+  --df-messenger-send-icon-color-hover: #1a2d2f;
+  --df-messenger-button-titlebar-color: #2f4b4e;
+  --df-messenger-button-titlebar-font-color: #faf6e9;
+  --df-messenger-chat-bubble-background: #2f4b4e;
+  --df-messenger-chat-bubble-icon-color: #faf6e9;
+  --df-messenger-minimized-chat-close-icon-color: #faf6e9;
+  --df-messenger-titlebar-padding: 18px 24px;
+  --df-messenger-message-border-radius: 16px;
+  --df-messenger-message-padding: 14px 18px;
+  --df-messenger-input-box-padding: 14px 20px;
+  --df-messenger-input-border-radius: 28px;
+  --df-messenger-chat-border-radius: 20px;
+  --df-messenger-font-size: 14px;
+  --df-messenger-titlebar-font-size: 18px;
+  --df-messenger-message-spacing: 12px;
+  --df-messenger-message-stack-spacing: 8px;
+}
+
+/* Show only on landing page */
+df-messenger.show-on-landing {
+  display: block;
+}
+
+/* Mobile responsiveness - stays on right like desktop */
+@media (max-width: 640px) {
+  df-messenger {
+    bottom: 12px;
+    right: 12px;
+    --df-messenger-chat-window-height: calc(100vh - 100px);
+    --df-messenger-chat-window-width: calc(100vw - 24px);
+    --df-messenger-titlebar-font-size: 16px;
+    --df-messenger-font-size: 14px;
+  }
+
+  df-messenger::part(chat-bubble) {
+    width: 56px;
+    height: 56px;
+  }
+}
+
+/* Tablet */
+@media (min-width: 641px) and (max-width: 1024px) {
+  df-messenger {
+    bottom: 20px;
+    right: 20px;
+    --df-messenger-chat-window-height: 520px;
+    --df-messenger-chat-window-width: 400px;
+  }
+}
+
+/* Desktop */
+@media (min-width: 1025px) {
+  df-messenger {
+    bottom: 24px;
+    right: 24px;
+    --df-messenger-chat-window-height: 640px;
+    --df-messenger-chat-window-width: 440px;
+  }
+}
+
+/* Large desktop */
+@media (min-width: 1440px) {
+  df-messenger {
+    bottom: 32px;
+    right: 32px;
+  }
+}
+
+/* Chat Window Styling */
+df-messenger::part(chat-window) {
+  box-shadow:
+    0 20px 60px rgba(47, 75, 78, 0.12),
+    0 8px 24px rgba(47, 75, 78, 0.08),
+    0 2px 8px rgba(47, 75, 78, 0.04);
+  border-radius: 20px;
+  overflow: hidden;
+  border: 1px solid rgba(204, 213, 174, 0.2);
+}
+
+/* Chat Bubble Styling */
+df-messenger::part(chat-bubble) {
+  box-shadow:
+    0 8px 24px rgba(47, 75, 78, 0.2),
+    0 4px 12px rgba(47, 75, 78, 0.1);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 2px solid rgba(204, 213, 174, 0.3);
+}
+
+df-messenger::part(chat-bubble):hover {
+  transform: scale(1.08) translateY(-2px);
+  box-shadow:
+    0 12px 32px rgba(47, 75, 78, 0.25),
+    0 6px 16px rgba(47, 75, 78, 0.15);
+  border-color: rgba(204, 213, 174, 0.5);
+}
+
+df-messenger::part(chat-bubble):active {
+  transform: scale(1.02);
+}
+
+/* Title Bar */
+df-messenger::part(titlebar) {
+  background: linear-gradient(135deg, #2f4b4e 0%, #3a5c5f 100%) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Input Box */
+df-messenger::part(input-box) {
+  border: 2px solid #e5e7eb;
+  transition: border-color 0.2s ease;
+}
+
+df-messenger::part(input-box):focus-within {
+  border-color: #ccd5ae;
+  box-shadow: 0 0 0 3px rgba(204, 213, 174, 0.1);
+}
+
+/* Custom Scrollbar */
+df-messenger::part(message-list) {
+  scrollbar-width: thin;
+  scrollbar-color: #ccd5ae #faf6e9;
+}
+
+df-messenger::part(message-list)::-webkit-scrollbar {
+  width: 8px;
+}
+
+df-messenger::part(message-list)::-webkit-scrollbar-track {
+  background: #faf6e9;
+  border-radius: 4px;
+}
+
+df-messenger::part(message-list)::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #ccd5ae 0%, #b8c499 100%);
+  border-radius: 4px;
+  border: 2px solid #faf6e9;
+}
+
+df-messenger::part(message-list)::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #b8c499 0%, #a4b085 100%);
+}
+
+/* Scroll to Bottom Button - SentiLoka Colors */
+df-messenger::part(scroll-button) {
+  background-color: #2f4b4e !important;
+  background: #2f4b4e !important;
+  color: #faf6e9 !important;
+  fill: #faf6e9 !important;
+  box-shadow: 0 4px 12px rgba(47, 75, 78, 0.3) !important;
+  border: 2px solid rgba(204, 213, 174, 0.3) !important;
+}
+
+df-messenger::part(scroll-button):hover {
+  background-color: #3a5c5f !important;
+  background: #3a5c5f !important;
+  box-shadow: 0 6px 16px rgba(47, 75, 78, 0.4) !important;
+  border-color: rgba(204, 213, 174, 0.5) !important;
+  transform: scale(1.05);
+}
+
+df-messenger::part(scroll-button):active {
+  background-color: #1a2d2f !important;
+  background: #1a2d2f !important;
+  transform: scale(0.95);
+}
+
+/* Fade In Animation */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+df-messenger.show-on-landing {
+  animation: fadeInUp 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}

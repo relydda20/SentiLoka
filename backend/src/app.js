@@ -1,7 +1,8 @@
 // src/app.js
-const express = require('express');
-const cors = require('cors');
-const cookieParser = require('cookie-parser');
+import express from 'express';
+import cors from 'cors';
+import cookieParser from 'cookie-parser';
+
 const app = express();
 
 // Middleware
@@ -20,10 +21,24 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// API routes (will be added later)
-// app.use('/api/auth', require('./routes/auth.routes'));
-// app.use('/api/businesses', require('./routes/business.routes'));
-// app.use('/api/ai', require('./routes/ai.routes'));
+// API routes
+import sentimentRoutes from './routes/sentiment.routes.js';
+import reviewSentimentRoutes from './routes/reviewSentiment.routes.js';
+import chatbotRoutes from './routes/chatbot.routes.js';
+app.use('/api/sentiment', sentimentRoutes);
+app.use('/api/reviews', reviewSentimentRoutes);
+app.use('/api/chatbot', chatbotRoutes);
+
+// Other routes (will be added later)
+// import authRoutes from './routes/auth.routes.js';
+// import businessRoutes from './routes/business.routes.js';
+// app.use('/api/auth', authRoutes);
+import authRoutes from './routes/auth.routes.js';
+// import businessRoutes from './routes/business.routes.js';
+// import aiRoutes from './routes/ai.routes.js';
+
+app.use('/api/auth', authRoutes);
+// app.use('/api/businesses', businessRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -33,4 +48,4 @@ app.use((err, req, res, next) => {
   });
 });
 
-module.exports = app;
+export default app;
