@@ -13,8 +13,12 @@ export const logout = () => {
 };
 
 export const refreshToken = () => {
-  // The interceptor in apiClient will handle this, but
-  // we need a way to check auth on app load.
-  // This endpoint expects the httpOnly refresh token cookie.
+  // This endpoint expects the httpOnly refresh token cookie
+  // and returns user data along with setting new tokens in cookies
   return apiClient.post('/auth/refresh-token');
+};
+
+export const getCurrentUser = () => {
+  // Get current user profile (requires valid access token in cookie)
+  return apiClient.get('/auth/me');
 };

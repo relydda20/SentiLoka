@@ -4,19 +4,29 @@ import User from '../models/User.model.js';
 /**
  * Middleware to authenticate requests using JWT access token
  * Verifies the token and attaches user data to req.user
+ * 
+ * Token is extracted from:
+ * 1. HTTP-only cookie (primary method) - More secure against XSS
+ * 2. Authorization header (fallback for API clients/testing)
  */
 export const authenticate = async (req, res, next) => {
   try {
     // Extract token from Authorization header or cookies
     let token = null;
 
-    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
-      token = req.headers.authorization.substring(7);
-    } else if (req.cookies && req.cookies.accessToken) {
+    // Priority 1: Check HTTP-only cookie (most secure)
+    if (req.cookies && req.cookies.accessToken) {
       token = req.cookies.accessToken;
+      console.log('🔐 Token found in HTTP-only cookie');
+    }
+    // Priority 2: Check Authorization header (fallback)
+    else if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
+      token = req.headers.authorization.substring(7);
+      console.log('🔐 Token found in Authorization header');
     }
 
     if (!token) {
+      console.log('❌ No access token found in cookies or headers');
       return res.status(401).json({
         success: false,
         message: 'Access denied. No token provided.'

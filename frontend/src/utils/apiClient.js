@@ -31,13 +31,14 @@ apiClient.interceptors.response.use(
   },
   async (error) => {
     const originalRequest = error.config;
-    const { status } = error.response;
+    const { status } = error.response || {};
 
     // Check if the error is 401 (Unauthorized) and it's not a retry request
     if (status === 401 && !originalRequest._retry) {
-      // If it's the refresh token endpoint that failed, log out
+      // If it's the refresh token endpoint that failed, don't dispatch logout
+      // This is expected when user is not logged in (e.g., on initial page load)
       if (originalRequest.url === '/auth/refresh-token') {
-        store.dispatch(logoutUser()); // Dispatch logout
+        console.log('🔄 No refresh token found - user not logged in');
         return Promise.reject(error);
       }
 

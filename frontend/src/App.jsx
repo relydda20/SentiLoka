@@ -10,14 +10,18 @@ function App() {
   const authLoading = useSelector((state) => state.auth.loading);
 
   useEffect(() => {
-    dispatch(checkAuth());
+    // Silently check if user has valid session (via refresh token cookie)
+    dispatch(checkAuth()).catch(() => {
+      // Ignore errors - user simply isn't logged in
+      console.log('ℹ️ No active session found');
+    });
   }, [dispatch]);
 
   // Show a loading screen while checking auth status
   if (authLoading === 'pending') {
     return (
       <div className="flex justify-center items-center h-screen">
-      <div className="border-4 border-blue-500 border-t-transparent border-solid rounded-full w-16 h-16 animate-spin"></div>
+        <div className="border-4 border-blue-500 border-t-transparent border-solid rounded-full w-16 h-16 animate-spin"></div>
       </div>
     );
   }
