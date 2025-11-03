@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect, useCallback } from "react"; // Added useCallback
 import {
   MessageSquare,
   Search,
@@ -11,6 +11,7 @@ import {
   X,
   Loader2,
 } from "lucide-react";
+import { debounce } from "lodash"; // Import debounce from lodash
 import ReviewCard from "./ReviewCard";
 
 const ReviewList = ({
@@ -23,11 +24,33 @@ const ReviewList = ({
   reviewFilters,
   onFilterOrPageChange,
 }) => {
-  // Handlers to update state in parent
+  // Local state for the search input to manage debouncing
+  const [localSearchTerm, setLocalSearchTerm] = useState(
+    reviewFilters.searchTerm,
+  );
+
+  // NEW: Create a debounced function that calls the prop
+  // This function is memoized and will only be recreated if onFilterOrPageChange changes
+  const debouncedFilterChange = useCallback(
+    debounce((searchTerm) => {
+      onFilterOrPageChange({ searchTerm: searchTerm, page: 1 });
+    }, 500), // 500ms debounce
+    [onFilterOrPageChange],
+  );
+
+  // MODIFIED: This handler now updates local state AND calls the debounced function
   const handleSearchChange = (e) => {
-    onFilterOrPageChange({ searchTerm: e.target.value, page: 1 });
+    const newSearchTerm = e.target.value;
+    setLocalSearchTerm(newSearchTerm);
+    debouncedFilterChange(newSearchTerm);
   };
 
+  // NEW: Sync local state if parent filters change (e.g., "Clear Filters")
+  useEffect(() => {
+    setLocalSearchTerm(reviewFilters.searchTerm);
+  }, [reviewFilters.searchTerm]);
+
+  // --- Other handlers remain unchanged ---
   const handleSentimentChange = (sentiment) => {
     onFilterOrPageChange({ sentiment: sentiment, page: 1 });
   };
@@ -80,13 +103,13 @@ const ReviewList = ({
       {/* Case 3: Reviews UI (shown if hasReviews is true and not initial load) */}
       {hasReviews && !loadingReviews && (
         <>
-          {/* Search Bar */}
+          {/* Search Bar - MODIFIED */}
           <div className="relative mb-4">
             <input
               type="text"
               placeholder="Search reviews by text or author..."
-              value={reviewFilters.searchTerm}
-              onChange={handleSearchChange}
+              value={localSearchTerm} // Use local state
+              onChange={handleSearchChange} // Use modified handler
               className="bg-[#FAF6E9] py-2 pr-4 pl-10 border border-[#CED7B0] focus:border-[#4B7069] rounded-lg focus:outline-none focus:ring-[#4B7069] focus:ring-1 w-full text-sm"
             />
             <Search className="top-1/2 left-3 absolute w-4 h-4 text-[#42676B] -translate-y-1/2" />
