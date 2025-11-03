@@ -1,0 +1,28 @@
+[
+  {
+    "name": "John Doe",
+    "email": "john.doe@example.com",
+    "password": "password123",
+    "image": "https://i.pravatar.cc/150?img=1",
+    "description": "Business owner of multiple coffee shops in Jakarta",
+    "subscription": {
+      "plan": "premium",
+      "startDate": "2024-01-01T00:00:00.000Z",
+      "endDate": "2025-01-01T00:00:00.000Z",
+      "isActive": true
+    }
+  },
+  {
+    "name": "Jane Smith",
+    "email": "jane.smith@example.com",
+    "password": "password123",
+    "image": "https://i.pravatar.cc/150?img=5",
+    "description": "Restaurant manager focusing on customer satisfaction",
+    "subscription": {
+      "plan": "basic",
+      "startDate": "2024-06-01T00:00:00.000Z",
+      "endDate": "2025-06-01T00:00:00.000Z",
+      "isActive": true
+    }
+  }
+]

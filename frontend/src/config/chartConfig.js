@@ -130,14 +130,81 @@ export const lineChartConfig = {
     zoom: { type: "x", enabled: true, autoScaleYaxis: true },
     toolbar: { autoSelected: "zoom" },
   },
-  stroke: { width: 2, curve: "smooth" },
-  markers: { size: 0 },
-  yaxis: { title: { text: "Review Count" } },
-  xaxis: { type: "datetime" },
+  stroke: { width: 3, curve: "smooth" },
+  markers: { 
+    size: 5,
+    hover: {
+      size: 7
+    }
+  },
+  yaxis: { 
+    title: { text: "Cumulative Review Count" },
+    labels: {
+      formatter: function(val) {
+        return Math.floor(val);
+      }
+    }
+  },
+  xaxis: { 
+    type: "datetime",
+    labels: {
+      datetimeUTC: false,
+      format: 'dd MMM'
+    }
+  },
   tooltip: {
     shared: true,
     intersect: false,
-    y: { formatter: (val) => val.toFixed(0) },
+    x: {
+      format: 'dd MMM yyyy'
+    },
+    y: { 
+      formatter: (val) => val ? val.toFixed(0) + ' reviews' : '0 reviews'
+    },
+    custom: function({ series, seriesIndex, dataPointIndex, w }) {
+      const date = new Date(w.globals.seriesX[seriesIndex][dataPointIndex]);
+      const formattedDate = date.toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'short', 
+        day: 'numeric' 
+      });
+      
+      let tooltipContent = `<div class="apexcharts-tooltip-title" style="font-family: Helvetica, Arial, sans-serif; font-size: 12px;">${formattedDate}</div>`;
+      
+      // Show all three sentiment types with cumulative counts
+      const labels = ['Positive Reviews', 'Neutral Reviews', 'Negative Reviews'];
+      const colors = ['#00C853', '#FFD600', '#D50000'];
+      
+      labels.forEach((label, idx) => {
+        const value = series[idx] && series[idx][dataPointIndex] !== undefined 
+          ? series[idx][dataPointIndex] 
+          : 0;
+        
+        tooltipContent += `
+          <div class="apexcharts-tooltip-series-group" style="order: ${idx + 1}; display: flex; align-items: center; padding: 3px 10px;">
+            <span class="apexcharts-tooltip-marker" style="background-color: ${colors[idx]}; width: 12px; height: 12px; border-radius: 50%; margin-right: 8px;"></span>
+            <div class="apexcharts-tooltip-text" style="font-family: Helvetica, Arial, sans-serif; font-size: 12px;">
+              <div class="apexcharts-tooltip-y-group">
+                <span class="apexcharts-tooltip-text-y-label">${label}: </span>
+                <span class="apexcharts-tooltip-text-y-value" style="font-weight: bold;">${value} total</span>
+              </div>
+            </div>
+          </div>
+        `;
+      });
+      
+      return `<div class="apexcharts-tooltip-custom">${tooltipContent}</div>`;
+    }
   },
   colors: ["#00C853", "#FFD600", "#D50000"],
+  legend: {
+    show: true,
+    position: 'top',
+    horizontalAlign: 'center',
+    markers: {
+      width: 12,
+      height: 12,
+      radius: 6
+    }
+  }
 };

@@ -26,6 +26,11 @@ const reviewSchema = new mongoose.Schema(
         trim: true
       },
     },
+    slug: {
+      type: String,
+      lowercase: true,
+      trim: true
+    },
     rating: {
       type: Number,
       required: [true, 'Rating is required'],
