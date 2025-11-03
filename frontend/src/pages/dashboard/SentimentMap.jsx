@@ -34,6 +34,7 @@ import {
   fetchBusinessLocations,
   registerBusinessLocation,
   loadBusinessReviews,
+  fetchExistingReviews,
   analyzeLocationSentiment,
 } from "../../services/locationReviewService";
 
@@ -221,7 +222,7 @@ const SentimentMap = () => {
     }
   };
 
-  // *** HELPER to fetch reviews based on current state ***
+  // *** HELPER to fetch EXISTING reviews (NO scraping) for filters/pagination/marker clicks ***
   const fetchReviewData = async (locationId, options) => {
     setIsFetchingReviews(true);
     setError(null);
@@ -229,8 +230,8 @@ const SentimentMap = () => {
     console.log("🔍 fetchReviewData called with options:", options);
 
     try {
-      // Always use loadBusinessReviews to fetch reviews (handles both raw and analyzed)
-      const data = await loadBusinessReviews(locationId, options);
+      // Use fetchExistingReviews - ONLY fetches from DB, does NOT trigger scraping
+      const data = await fetchExistingReviews(locationId, options);
 
       // IMPORTANT: Only update locations array if this is an INITIAL load (no filters/pagination)
       // Filtered/paginated results should ONLY update selectedLocation, not the locations array

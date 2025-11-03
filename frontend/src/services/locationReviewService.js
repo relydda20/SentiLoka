@@ -34,23 +34,13 @@ export const fetchBusinessLocations = async () => {
       scrapeStatus: loc.scrapeStatus, // Add scrapeStatus from backend
       reviewsCount: loc.scrapedReviewCount || 0, // Use actual scraped reviews count from DB
       averageRating: loc.googleData?.rating || 0,
-      // Map overallSentiment from backend to frontend's sentiment object
-      sentiment: loc.overallSentiment
-        ? {
-            positive: loc.overallSentiment.positive, // Note: backend stores as percentage
-            neutral: loc.overallSentiment.neutral,
-            negative: loc.overallSentiment.negative,
-            positivePercentage: loc.overallSentiment.positive,
-            negativePercentage: loc.overallSentiment.negative,
-            averageRating: loc.overallSentiment.averageRating,
-            totalReviews: loc.overallSentiment.totalReviews,
-          }
-        : null,
+      // Don't include overallSentiment on initial load
+      // Sentiment data will be loaded when user fetches/analyzes reviews
+      sentiment: null,
       reviews: [], // Start with no reviews, they will be fetched on click
       pagination: { currentPage: 0, totalPages: 0, totalReviews: 0 },
       cacheStatus: {
-        // Mock cache status, or adapt if backend provides it
-        isCached: loc.overallSentiment?.lastCalculated,
+        isCached: false, // Will be set when reviews are fetched
         lastScrapedAt: loc.scrapeConfig?.lastScraped,
         cacheExpiresAt: null,
         hoursUntilExpiry: 0,
@@ -207,6 +197,230 @@ const pollScrapeStatus = async (jobId, onProgress = null, maxAttempts = 120) => 
   }
   
   throw new Error("Scraping timeout: Maximum polling attempts reached");
+};
+
+/**
+ * Fetch existing reviews from database WITHOUT triggering a scrape
+ * Use this for: page refreshes, marker clicks, pagination, filtering
+ * 
+ * @param {string} locationId - The location ID
+ * @param {object} options - Pagination and filter options
+ */
+export const fetchExistingReviews = async (locationId, options = {}) => {
+  try {
+    console.log("📥 Fetching existing reviews (no scraping) for location:", locationId);
+
+    const {
+      page = 1,
+      limit = REVIEWS_PER_PAGE,
+      sentiment = "all",
+      rating = 0,
+      searchTerm = "",
+      sortBy = "date",
+      sortOrder = "desc",
+    } = options;
+
+    // Get location info
+    const location = await getLocationScrapeStatus(locationId);
+
+    // FIRST: Get unfiltered count for hasReviews calculation
+    let totalReviewsInDB = 0;
+    try {
+      const countParams = new URLSearchParams({
+        page: '1',
+        limit: '1',
+        sortBy,
+        sortOrder,
+      });
+      const countResponse = await apiClient.get(`/reviews/location/${locationId}?${countParams.toString()}`);
+      if (countResponse.data?.success) {
+        totalReviewsInDB = countResponse.data.data.pagination.totalItems;
+        console.log(`📊 Total reviews in DB (unfiltered): ${totalReviewsInDB}`);
+      }
+    } catch (countError) {
+      console.log("⚠️ Could not get total count");
+    }
+    
+    // Build query params with filters
+    const params = new URLSearchParams({
+      page: page.toString(),
+      limit: limit.toString(),
+      sortBy,
+      sortOrder,
+    });
+
+    if (rating > 0) {
+      params.append("rating", rating.toString());
+    }
+
+    if (searchTerm && searchTerm.trim() !== "") {
+      params.append("search", searchTerm.trim());
+    }
+
+    let reviews = [];
+    let pagination = null;
+    let reviewSource = 'raw';
+
+    // Try ANALYZED reviews first (ReviewSummary model) - prioritize analyzed data
+    try {
+      console.log("🔍 Attempting to load analyzed reviews from ReviewSummary model...");
+      const analyzedParams = new URLSearchParams(params);
+      if (sentiment !== 'all') {
+        analyzedParams.append("sentiment", sentiment);
+      }
+      
+      const analyzedResponse = await apiClient.get(
+        `/review-sentiments/location/${locationId}?${analyzedParams.toString()}`
+      );
+      
+      if (analyzedResponse.data?.success && analyzedResponse.data.data?.reviews?.length > 0) {
+        reviews = analyzedResponse.data.data.reviews || [];
+        pagination = analyzedResponse.data.data.pagination;
+        reviewSource = 'analyzed';
+        console.log(`✅ Fetched ${reviews.length} ANALYZED reviews (with sentiment)`);
+      }
+    } catch (analyzedError) {
+      // If 404 or no analyzed reviews, try raw reviews as fallback
+      if (analyzedError.response?.status === 404 || !reviews.length) {
+        console.log("⚠️ No analyzed reviews found, trying raw reviews...");
+        
+        try {
+          const rawResponse = await apiClient.get(
+            `/reviews/location/${locationId}?${params.toString()}`
+          );
+
+          if (rawResponse.data?.success) {
+            reviews = rawResponse.data.data.reviews || [];
+            pagination = rawResponse.data.data.pagination;
+            reviewSource = 'raw';
+            console.log(`✅ Fetched ${reviews.length} RAW reviews (before sentiment analysis)`);
+          }
+        } catch (rawError) {
+          // If 404 with filters, no matches found
+          if (rawError.response?.status === 404 && (rating > 0 || searchTerm)) {
+            console.log("⚠️ No raw reviews match the filters");
+            reviews = [];
+            pagination = {
+              currentPage: page,
+              totalPages: 0,
+              totalItems: 0,
+              limit,
+              hasNext: false,
+              hasPrev: false,
+            };
+            reviewSource = 'raw';
+          } else if (rawError.response?.status === 404) {
+            console.log("⚠️ No raw reviews found either");
+            reviews = [];
+            pagination = {
+              currentPage: page,
+              totalPages: 0,
+              totalItems: 0,
+              limit,
+              hasNext: false,
+              hasPrev: false,
+            };
+          }
+        }
+      }
+    }
+
+    // Map reviews to frontend format
+    const mappedReviews = reviews.map((review) => ({
+      id: review._id,
+      reviewId: review.reviewId,
+      // Handle different field structures between Review and ReviewSummary models
+      author: review.author?.name || review.author || "Anonymous", // Review has author.name, ReviewSummary has author string
+      rating: review.rating,
+      text: review.text || "", // Both models use 'text' field
+      date: review.publishedAt,
+      sentiment: review.sentiment || null,
+      sentimentScore: review.sentimentScore || null,
+      summary: review.summary || null,
+      sentimentKeywords: review.sentimentKeywords || [],
+      contextualTopics: review.contextualTopics || [],
+      isAnalyzed: reviewSource === 'analyzed',
+    }));
+
+    // Calculate OVERALL sentiment summary from ALL analyzed reviews (not just current page)
+    let sentimentSummary = null;
+    if (reviewSource === 'analyzed') {
+      try {
+        console.log('📊 Fetching overall sentiment statistics for all reviews...');
+        // Fetch sentiment counts for ALL reviews (no pagination)
+        const allSentimentsResponse = await apiClient.get(
+          `/review-sentiments/location/${locationId}?page=1&limit=999999` // Large limit to get all
+        );
+        
+        if (allSentimentsResponse.data?.success) {
+          const allReviews = allSentimentsResponse.data.data.reviews || [];
+          const totalAnalyzed = allReviews.length;
+          
+          if (totalAnalyzed > 0) {
+            const positiveCount = allReviews.filter(r => r.sentiment === 'positive').length;
+            const negativeCount = allReviews.filter(r => r.sentiment === 'negative').length;
+            const neutralCount = allReviews.filter(r => r.sentiment === 'neutral').length;
+            const avgRating = allReviews.reduce((sum, r) => sum + r.rating, 0) / totalAnalyzed;
+
+            sentimentSummary = {
+              positive: positiveCount,
+              neutral: neutralCount,
+              negative: negativeCount,
+              positivePercentage: (positiveCount / totalAnalyzed) * 100,
+              negativePercentage: (negativeCount / totalAnalyzed) * 100,
+              averageRating: avgRating,
+              totalReviews: totalAnalyzed,
+            };
+            console.log('📊 Calculated overall sentiment summary from', totalAnalyzed, 'reviews:', sentimentSummary);
+          }
+        }
+      } catch (sentimentError) {
+        console.warn('⚠️ Could not fetch overall sentiment statistics:', sentimentError.message);
+        // Fall back to page-only calculation if overall fetch fails
+        const totalAnalyzed = mappedReviews.length;
+        if (totalAnalyzed > 0) {
+          const positiveCount = mappedReviews.filter(r => r.sentiment === 'positive').length;
+          const negativeCount = mappedReviews.filter(r => r.sentiment === 'negative').length;
+          const neutralCount = mappedReviews.filter(r => r.sentiment === 'neutral').length;
+          const avgRating = mappedReviews.reduce((sum, r) => sum + r.rating, 0) / totalAnalyzed;
+
+          sentimentSummary = {
+            positive: positiveCount,
+            neutral: neutralCount,
+            negative: negativeCount,
+            positivePercentage: (positiveCount / totalAnalyzed) * 100,
+            negativePercentage: (negativeCount / totalAnalyzed) * 100,
+            averageRating: avgRating,
+            totalReviews: totalAnalyzed,
+          };
+          console.log('📊 Using page-only sentiment (fallback):', sentimentSummary);
+        }
+      }
+    }
+
+    return {
+      business: {
+        id: locationId,
+        reviews: mappedReviews,
+        reviewsCount: totalReviewsInDB || pagination.totalItems,
+        reviewSource,
+        sentiment: sentimentSummary, // Add sentiment summary
+        pagination: {
+          currentPage: pagination.currentPage,
+          totalPages: pagination.totalPages,
+          totalReviews: pagination.totalItems,
+          limit: pagination.limit,
+          hasNextPage: pagination.hasNext,
+          hasPrevPage: pagination.hasPrev,
+        },
+        scrapeStatus: location.scrapeStatus,
+        lastScraped: location.scrapeConfig?.lastScraped,
+      },
+    };
+  } catch (error) {
+    console.error("❌ Error fetching existing reviews:", error);
+    throw error;
+  }
 };
 
 /**
@@ -484,7 +698,7 @@ export const analyzeLocationSentiment = async (locationId) => {
 
     // Trigger the analysis job (POST endpoint)
     const response = await apiClient.post(
-      `/reviews/analyze-location/${locationId}`
+      `/review-sentiments/analyze-location/${locationId}`
     );
 
     if (!response.data || !response.data.success) {
@@ -504,6 +718,10 @@ export const analyzeLocationSentiment = async (locationId) => {
           positive: data.sentiment?.positive || 0,
           neutral: data.sentiment?.neutral || 0,
           negative: data.sentiment?.negative || 0,
+          positivePercentage: data.sentiment?.positive || 0, // Backend stores as percentage
+          negativePercentage: data.sentiment?.negative || 0,
+          averageRating: data.sentiment?.averageRating || 0,
+          totalReviews: data.sentiment?.totalReviews || 0,
         },
         averageRating: data.sentiment?.averageRating || 0,
         reviewsCount: data.sentiment?.totalReviews || data.analysis.totalReviews || 0,
