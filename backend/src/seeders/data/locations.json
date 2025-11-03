@@ -1,0 +1,68 @@
+[
+  {
+    "placeId": "ChIJc8Q9g0_5aS4RkOFOXGDCFHc",
+    "name": "Kopi Kenangan Sudirman",
+    "address": "Jl. Jenderal Sudirman No.1, Jakarta Pusat, DKI Jakarta 10270",
+    "coordinates": {
+      "lat": -6.2087634,
+      "lng": 106.8228516
+    },
+    "googleData": {
+      "rating": 4.5,
+      "userRatingsTotal": 1250,
+      "types": ["cafe", "restaurant", "food"]
+    },
+    "scrapeConfig": {
+      "autoScrape": true,
+      "scrapeFrequency": "weekly",
+      "maxReviews": 200
+    },
+    "status": "active",
+    "tags": ["coffee", "cafe", "jakarta"],
+    "notes": "Popular coffee chain location in business district"
+  },
+  {
+    "placeId": "ChIJc8Q9g0_5aS4RkOFOXGDCFH8",
+    "name": "The Harvest Patissier & Chocolatier",
+    "address": "Jl. Fatmawati No.77, Jakarta Selatan, DKI Jakarta 12150",
+    "coordinates": {
+      "lat": -6.2614927,
+      "lng": 106.7977036
+    },
+    "googleData": {
+      "rating": 4.7,
+      "userRatingsTotal": 890,
+      "types": ["bakery", "cafe", "food"]
+    },
+    "scrapeConfig": {
+      "autoScrape": true,
+      "scrapeFrequency": "daily",
+      "maxReviews": 300
+    },
+    "status": "active",
+    "tags": ["bakery", "dessert", "jakarta"],
+    "notes": "Premium patisserie and chocolate shop"
+  },
+  {
+    "placeId": "ChIJc8Q9g0_5aS4RkOFOXGDCFH9",
+    "name": "Hotel Grand Indonesia",
+    "address": "Jl. MH Thamrin No.1, Jakarta Pusat, DKI Jakarta 10310",
+    "coordinates": {
+      "lat": -6.1951084,
+      "lng": 106.8230416
+    },
+    "googleData": {
+      "rating": 4.6,
+      "userRatingsTotal": 3450,
+      "types": ["lodging", "hotel"]
+    },
+    "scrapeConfig": {
+      "autoScrape": true,
+      "scrapeFrequency": "daily",
+      "maxReviews": 500
+    },
+    "status": "active",
+    "tags": ["hotel", "luxury", "jakarta"],
+    "notes": "5-star hotel in central Jakarta"
+  }
+]

@@ -39,10 +39,17 @@ app.use('/api/locations', locationRoutes);
 // import businessRoutes from './routes/business.routes.js';
 // app.use('/api/auth', authRoutes);
 import authRoutes from './routes/auth.routes.js';
+import locationRoutes from './routes/location.routes.js';
+import reviewRoutes from './routes/review.routes.js';
+import dashboardRoutes from './routes/dashboard.routes.js';
 // import businessRoutes from './routes/business.routes.js';
 // import aiRoutes from './routes/ai.routes.js';
 
 app.use('/api/auth', authRoutes);
+app.use('/api/locations', locationRoutes);
+app.use('/api/reviews', reviewRoutes);
+app.use('/api/dashboard', dashboardRoutes);
+// app.use('/api/ai', aiRoutes);
 // app.use('/api/businesses', businessRoutes);
 
 // Error handling middleware
