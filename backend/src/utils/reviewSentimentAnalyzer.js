@@ -17,8 +17,20 @@ export const analyzeReviewSentiment = async (review) => {
     const { author, rating, description } = review;
     const text = description?.en || description || "";
 
+    // Handle rating-only reviews (no text)
     if (!text || text.trim().length === 0) {
-      throw new Error("Review text is empty");
+      return {
+        author,
+        rating: parseFloat(rating),
+        text: "",
+        sentiment: rating >= 4 ? "positive" : rating <= 2 ? "negative" : "neutral",
+        sentiment_score: (rating - 3) / 2, // Maps 1-5 to -1 to 1
+        confidence: 0.6, // Lower confidence for rating-only
+        sentiment_keywords: [],
+        contextual_topics: ["rating-only"],
+        summary: `Rating-only review: ${rating}/5 stars (no text provided)`,
+        processed_at: new Date().toISOString(),
+      };
     }
 
     const response = await openaiClient.chat.completions.create({
