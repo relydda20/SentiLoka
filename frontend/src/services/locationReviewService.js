@@ -3,16 +3,14 @@
  */
 import apiClient from "../utils/apiClient";
 
+// NEW: Removed mock data imports like 'delay' and 'mockBusinessLocations'
+
 const REVIEWS_PER_PAGE = 5;
 
-/**
- * Simulate network delay
- */
-const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
 // --- MOCK DATA HELPERS ---
+// Kept for the functions that are not yet integrated
+// (loadBusinessReviews, analyzeLocationSentiment)
 
-// This data is moved here from the service functions to be reusable
 const mockRawReviewsStore = {
   /* locationId: [reviews] */
 };
@@ -160,6 +158,7 @@ const getMockAnalyzedReviews = (locationId) => {
 };
 
 // --- SIMULATED BACKEND FILTERING ---
+// Kept for mock functions
 const getPaginatedAndFilteredReviews = (allReviews, options = {}) => {
   const {
     page = 1,
@@ -213,82 +212,157 @@ const getPaginatedAndFilteredReviews = (allReviews, options = {}) => {
 
 /**
  * Fetch all business locations (markers for analysis)
+ * NEW: Integrated with GET /api/locations
  */
 export const fetchBusinessLocations = async () => {
   try {
-    console.log("🔄 Loading business locations...");
-    await delay(800);
-    console.log("✅ Business locations loaded!");
-    const { mockBusinessLocations } = await import(
-      "../mocks/businessLocationsMock.js"
+    console.log("🔄 Loading business locations from API...");
+
+    // Call the backend endpoint
+    const response = await apiClient.get("/locations");
+
+    // The backend controller returns { success, count, data: [...] }
+    const locationsFromApi = response.data.data || [];
+
+    // Map backend data to the format the frontend (SentimentMap.jsx) expects
+    const mappedBusinesses = locationsFromApi.map((loc) => ({
+      id: loc._id,
+      businessName: loc.name,
+      placeId: loc.placeId,
+      address: loc.address,
+      coordinates: loc.coordinates,
+      phoneNumber: loc.phoneNumber, // Assuming phoneNumber is available, add if not
+      category: loc.googleData?.types?.[0] || "establishment",
+      status: loc.status,
+      reviewsCount: loc.googleData?.userRatingsTotal || 0,
+      averageRating: loc.googleData?.rating || 0,
+      // Map overallSentiment from backend to frontend's sentiment object
+      sentiment: loc.overallSentiment
+        ? {
+            positive: loc.overallSentiment.positive, // Note: backend stores as percentage
+            neutral: loc.overallSentiment.neutral,
+            negative: loc.overallSentiment.negative,
+            positivePercentage: loc.overallSentiment.positive,
+            negativePercentage: loc.overallSentiment.negative,
+            averageRating: loc.overallSentiment.averageRating,
+            totalReviews: loc.overallSentiment.totalReviews,
+          }
+        : null,
+      reviews: [], // Start with no reviews, they will be fetched on click
+      pagination: { currentPage: 0, totalPages: 0, totalReviews: 0 },
+      cacheStatus: {
+        // Mock cache status, or adapt if backend provides it
+        isCached: loc.overallSentiment?.lastCalculated,
+        lastScrapedAt: loc.scrapeConfig?.lastScraped,
+        cacheExpiresAt: null,
+        hoursUntilExpiry: 0,
+        needsRefresh: loc.scrapeStatus !== "completed",
+      },
+      createdAt: loc.createdAt,
+      updatedAt: loc.updatedAt,
+    }));
+
+    console.log(
+      `✅ ${mappedBusinesses.length} Business locations loaded from API!`,
     );
+
     return {
-      businesses: mockBusinessLocations,
+      businesses: mappedBusinesses,
       pagination: {
         currentPage: 1,
         totalPages: 1,
-        totalBusinesses: mockBusinessLocations.length,
+        totalBusinesses: mappedBusinesses.length,
         businessesPerPage: 50,
       },
     };
   } catch (error) {
     console.error("❌ Error fetching business locations:", error);
+    // Throw the error so react-query can handle it
     throw error;
   }
 };
 
 /**
  * Register a new business location
+ * NEW: Integrated with POST /api/locations
  */
 export const registerBusinessLocation = async (businessData) => {
   try {
-    console.log("🔄 Registering business location...");
-    await delay(1000);
-    console.log("✅ Business location registered!");
-    const newBusiness = {
-      id: Date.now().toString(),
-      businessName: businessData.businessName,
+    console.log("🔄 Registering business location via API...");
+
+    // Call the backend endpoint
+    // The backend controller `createLocation` expects:
+    // { placeId, name, address, coordinates, googleMapsUrl, rating, userRatingsTotal, types }
+    const response = await apiClient.post("/locations", {
       placeId: businessData.placeId,
+      name: businessData.businessName,
       address: businessData.address,
       coordinates: businessData.coordinates,
-      phoneNumber: businessData.phoneNumber || "+62123456789",
-      category: businessData.category || "establishment",
-      status: "active",
-      reviewsCount: 0,
-      averageRating: businessData.rating || 0,
-      sentiment: null,
-      reviews: [], // Start with no reviews
-      pagination: { currentPage: 0, totalPages: 0, totalReviews: 0 }, // Add pagination stub
-      cacheStatus: {
-        isCached: false,
-        lastScrapedAt: null,
-        cacheExpiresAt: null,
-        hoursUntilExpiry: 0,
-        needsRefresh: true,
+      googleMapsUrl: businessData.googleMapsUrl,
+      rating: businessData.rating,
+      userRatingsTotal: businessData.totalReviews,
+      types: businessData.businessTypes,
+    });
+
+    // Backend returns { success, message, data: location }
+    const newBusiness = response.data.data;
+
+    console.log("✅ Business location registered!", newBusiness);
+
+    // Map the backend response to the format frontend expects { business: ... }
+    return {
+      business: {
+        id: newBusiness._id,
+        businessName: newBusiness.name,
+        placeId: newBusiness.placeId,
+        address: newBusiness.address,
+        coordinates: newBusiness.coordinates,
+        phoneNumber: newBusiness.phoneNumber,
+        category: newBusiness.googleData?.types?.[0] || "establishment",
+        status: newBusiness.status,
+        reviewsCount: newBusiness.googleData?.userRatingsTotal || 0,
+        averageRating: newBusiness.googleData?.rating || 0,
+        sentiment: null, // New locations have no sentiment yet
+        reviews: [],
+        pagination: { currentPage: 0, totalPages: 0, totalReviews: 0 },
+        cacheStatus: {
+          isCached: false,
+          lastScrapedAt: null,
+          cacheExpiresAt: null,
+          hoursUntilExpiry: 0,
+          needsRefresh: true,
+        },
+        createdAt: newBusiness.createdAt,
+        updatedAt: newBusiness.updatedAt,
       },
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
     };
-    return { business: newBusiness };
   } catch (error) {
     console.error("❌ Error registering business location:", error);
+    // Throw error so react-query/component can handle it
     throw error;
   }
 };
 
 /**
  * Load RAW reviews for a business location (scrape from Google)
+ * * NOTE: This function is still using MOCK data.
+ * The real backend flow is asynchronous (uses a job queue) and would require
+ * changing the SentimentMap.jsx component to handle polling for job status.
+ * * The real endpoints are:
+ * 1. POST /api/scraper/start (to start scraping)
+ * 2. POST /api/reviews/analyze-location/:locationId (to analyze)
+ * 3. GET /api/reviews/location/:locationId (to fetch results)
  */
 export const loadBusinessReviews = async (locationId, options = {}) => {
   try {
     console.log(
-      "🔄 Loading RAW reviews for location:",
+      "🔄 (MOCK) Loading RAW reviews for location:",
       locationId,
       "Options:",
       options,
     );
-    await delay(1000); // Shorter delay for filter changes
-    console.log("✅ (Mock) RAW Reviews loaded!");
+    // await delay(1000); // Shorter delay for filter changes
+    console.log("✅ (MOCK) RAW Reviews loaded!");
 
     const allRawReviews = getMockRawReviews(locationId);
     const { reviews, pagination } = getPaginatedAndFilteredReviews(
@@ -316,17 +390,19 @@ export const loadBusinessReviews = async (locationId, options = {}) => {
 
 /**
  * Analyze sentiment for a location's reviews
+ * * NOTE: This function is still using MOCK data.
+ * See note in `loadBusinessReviews` above.
  */
 export const analyzeLocationSentiment = async (locationId, options = {}) => {
   try {
     console.log(
-      "🔄 Analyzing/Fetching sentiment for location:",
+      "🔄 (MOCK) Analyzing/Fetching sentiment for location:",
       locationId,
       "Options:",
       options,
     );
-    await delay(1000); // Shorter delay for filter changes
-    console.log("✅ (Mock) Sentiment analyzed/fetched!");
+    // await delay(1000); // Shorter delay for filter changes
+    console.log("✅ (MOCK) Sentiment analyzed/fetched!");
 
     const allAnalyzedReviews = getMockAnalyzedReviews(locationId);
     const { reviews, pagination } = getPaginatedAndFilteredReviews(
