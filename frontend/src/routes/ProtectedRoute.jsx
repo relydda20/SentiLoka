@@ -1,20 +1,11 @@
-import { Navigate } from "react-router-dom";
+import React from 'react';
+import { useSelector } from 'react-redux';
+import { Navigate, Outlet } from 'react-router-dom';
 
-// Simple auth check - replace with your actual auth logic
-const useAuth = () => {
-  // Check localStorage, context, or your auth state management
-  const token = localStorage.getItem("authToken");
-  return !!token;
-};
+const ProtectedRoute = ({children}) => {
+  const { isAuthenticated } = useSelector((state) => state.auth);
 
-const ProtectedRoute = ({ children }) => {
-  const isAuthenticated = useAuth();
-
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
-
-  return children;
+  return isAuthenticated ? children : <Navigate to="/login" replace />;
 };
 
 export default ProtectedRoute;

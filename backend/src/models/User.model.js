@@ -43,9 +43,27 @@ const userSchema = new mongoose.Schema(
     },
     password: {
       type: String,
-      required: [true, 'Password is required'],
+      required: function() {
+        // Password only required if using email/password auth
+        return this.authProviders.includes('local');
+      },
       minlength: [8, 'Password must be at least 8 characters'],
       select: false
+    },
+    authProviders: {
+      type: [String],
+      enum: ['local', 'google', 'facebook', 'apple'],
+      default: ['local'],
+      required: true
+    },
+    googleId: {
+      type: String,
+      sparse: true,  // Allows null but unique if exists
+      index: true
+    },
+    emailVerified: {
+      type: Boolean,
+      default: false
     },
     subscription: {
       plan: {

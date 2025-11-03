@@ -4,4 +4,27 @@ node_modules
 
 **/.env
 
-backend/.env
+**/python_env
+**/python_env_backup_old
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Scrapy
+.scrapy/
+
+# Temp scraper outputs
+backend/temp_scraper_outputs/
+backend/temp/
+
+# Redis dump
+dump.rdb
+.DS_Store
+**/.DS_Store
