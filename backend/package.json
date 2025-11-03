@@ -40,7 +40,7 @@
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.19.2",
     "react-wordcloud": "^1.2.7",
-    "tippy.js": "^6.3.7"
+    "tippy.js": "^6.3.7",
     "openai": "^6.7.0",
     "redux": "^5.0.1",
     "uuid": "^13.0.0"
