@@ -16,9 +16,11 @@ import LocationsPanel from "../../components/sentimentMap/LocationsPanel";
 import SearchLocation from "../../components/sentimentMap/SearchLocation";
 import MapLegend from "../../components/sentimentMap/MapLegend";
 import AnalyticsPanel from "../../components/sentimentMap/AnalyticsPanel";
+import ChatbotFab from "../../components/sentimentMap/chatbot/ChatbotFab";
 
 // Sidebar Components
 import ReviewSidebar from "../../components/sentimentMap/sidebar/ReviewSidebar.jsx";
+import ChatbotSidebar from "../../components/sentimentMap/chatbot/ChatbotSidebar";
 
 // Modal Components
 import GenerateReplyModal from "../../components/sentimentMap/modal/GenerateReplyModal.jsx";
@@ -81,6 +83,7 @@ const SentimentMap = () => {
   // Modal states
   const [isReplyModalOpen, setIsReplyModalOpen] = useState(false);
   const [selectedReview, setSelectedReview] = useState(null);
+  const [isChatbotOpen, setIsChatbotOpen] = useState(false);
 
   const omsRef = useRef(null);
 
@@ -524,7 +527,6 @@ const SentimentMap = () => {
           </motion.div>
         )}
       </AnimatePresence>
-
       {/* Search Bar - Top Left */}
       <SearchLocation
         onAutocompleteLoad={onAutocompleteLoad}
@@ -534,7 +536,6 @@ const SentimentMap = () => {
         onAddLocation={handleAddLocationToAnalysis}
         loading={loading}
       />
-
       {/* Connected Locations Panel */}
       <div className="top-56 left-4 z-10 absolute">
         <LocationsPanel
@@ -543,7 +544,6 @@ const SentimentMap = () => {
           title="Analysis Locations"
         />
       </div>
-
       {/* Google Map */}
       <GoogleMap
         mapContainerStyle={mapContainerStyle}
@@ -579,37 +579,37 @@ const SentimentMap = () => {
             <SelectedMarker position={selectedPlace.coordinates} />
           )}
       </GoogleMap>
-
       {/* Sidebar */}
-      <AnimatePresence>
-        <ReviewSidebar
-          isOpen={sidebarOpen}
-          selectedLocation={selectedLocation}
-          loadingReviews={loadingReviews} // For initial load button
-          onClose={() => setSidebarOpen(false)}
-          onLoadReviews={handleInitialLoadReviews} // Use initial loader
-          onGenerateReply={handleGenerateReply}
-          getSentimentIcon={getSentimentIcon}
-          loadingSentiment={loadingSentiment} // For initial analyze button
-          onAnalyzeSentiment={handleInitialAnalyzeSentiment} // Use initial analyzer
-          // *** NEW PROPS for filtering/pagination ***
-          reviewFilters={reviewFilters}
-          reviewPage={reviewPage}
-          onFilterOrPageChange={handleFilterOrPageChange}
-          isFetchingReviews={isFetchingReviews} // General loading state
-        />
-      </AnimatePresence>
-
+      <ReviewSidebar
+        isOpen={sidebarOpen}
+        selectedLocation={selectedLocation}
+        loadingReviews={loadingReviews} // For initial load button
+        onClose={() => setSidebarOpen(false)}
+        onLoadReviews={handleInitialLoadReviews} // Use initial loader
+        onGenerateReply={handleGenerateReply}
+        getSentimentIcon={getSentimentIcon}
+        loadingSentiment={loadingSentiment} // For initial analyze button
+        onAnalyzeSentiment={handleInitialAnalyzeSentiment} // Use initial analyzer
+        // *** NEW PROPS for filtering/pagination ***
+        reviewFilters={reviewFilters}
+        reviewPage={reviewPage}
+        onFilterOrPageChange={handleFilterOrPageChange}
+        isFetchingReviews={isFetchingReviews} // General loading state
+      />
+      {/* Chatbot Sidebar */}
+      <ChatbotSidebar
+        isOpen={isChatbotOpen}
+        onClose={() => setIsChatbotOpen(false)}
+      />
       {/* Reply Generator Modal */}
       <GenerateReplyModal
         isOpen={isReplyModalOpen}
         onClose={handleCloseReplyModal}
         review={selectedReview}
       />
-
       {/* Overlay when sidebar is open */}
       <AnimatePresence>
-        {sidebarOpen && (
+        {(sidebarOpen || isChatbotOpen) && ( // <-- Check for either state
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -617,6 +617,7 @@ const SentimentMap = () => {
             className="z-40 fixed inset-0 bg-[#2F4B4E]/20 backdrop-blur-sm"
             onClick={() => {
               setSidebarOpen(false);
+              setIsChatbotOpen(false); // <-- Add this to close the chatbot
               if (omsRef.current) {
                 omsRef.current.unspiderfy();
               }
@@ -624,7 +625,6 @@ const SentimentMap = () => {
           />
         )}
       </AnimatePresence>
-
       {/* Analytics Panel - Bottom Left */}
       <div className="bottom-6 left-6 z-10 absolute">
         <AnalyticsPanel
@@ -633,11 +633,10 @@ const SentimentMap = () => {
           onTogglePOI={togglePOI}
         />
       </div>
-
+      {/* Senti AI Chatbot - Bottom Right Above legend */}
+      <ChatbotFab onClick={() => setIsChatbotOpen(true)} />{" "}
       {/* Legend - Bottom Right */}
-      <div className="right-6 bottom-6 z-10 absolute">
-        <MapLegend />
-      </div>
+      <MapLegend className="right-6 bottom-6 z-9 absolute bg-white/10 backdrop-blur-xs p-4 rounded-lg" />
     </div>
   );
 };
