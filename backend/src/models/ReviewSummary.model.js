@@ -5,9 +5,27 @@ const reviewSummarySchema = new mongoose.Schema(
     // Review identification
     reviewId: {
       type: String,
-      unique: true,
       sparse: true, // Allows multiple null values but enforces uniqueness for non-null
       index: true,
+    },
+
+    // User and Location association
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+      index: true
+    },
+    locationId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Location',
+      required: true,
+      index: true
+    },
+    placeId: {
+      type: String,
+      required: true,
+      index: true
     },
 
     // Original review data
@@ -31,6 +49,7 @@ const reviewSummarySchema = new mongoose.Schema(
       type: String,
       enum: ["positive", "negative", "neutral", "error"],
       required: true,
+      index: true,
     },
     sentimentScore: {
       type: Number,
@@ -44,6 +63,7 @@ const reviewSummarySchema = new mongoose.Schema(
     },
 
     // Keywords and topics
+    // These are keywords that influenced the sentiment (contextual to the sentiment)
     sentimentKeywords: [String],
     contextualTopics: [String],
 
@@ -84,35 +104,45 @@ const reviewSummarySchema = new mongoose.Schema(
 // Indexes for efficient querying
 reviewSummarySchema.index({ processedAt: -1 });
 reviewSummarySchema.index({ createdAt: -1 });
+reviewSummarySchema.index({ userId: 1, locationId: 1 });
+reviewSummarySchema.index({ userId: 1, sentiment: 1 });
+reviewSummarySchema.index({ locationId: 1, sentiment: 1 });
+// Unique compound index to prevent duplicate analyses
+reviewSummarySchema.index({ userId: 1, locationId: 1, reviewId: 1 }, { unique: true, sparse: true });
 
-// Static method to get all summaries for a company
-reviewSummarySchema.statics.getSummariesByCompany = function (
-  company,
-  limit = 100
+// Static method to get all summaries for a location
+reviewSummarySchema.statics.getSummariesByLocation = function (
+  locationId,
+  limit = null
 ) {
-  return this.find({ company, sentiment: { $ne: "error" } })
+  const query = this.find({ locationId, sentiment: { $ne: "error" } })
     .sort({ processedAt: -1 })
-    .limit(limit)
-    .select("summary sentiment sentimentScore author rating processedAt");
+    .select("summary sentiment sentimentScore author rating sentimentKeywords contextualTopics processedAt");
+
+  // Only apply limit if specified
+  return limit ? query.limit(limit) : query;
 };
 
-// Static method to get recent summaries
-reviewSummarySchema.statics.getRecentSummaries = function (limit = 50) {
-  return this.find({ sentiment: { $ne: "error" } })
+// Static method to get recent summaries for a user
+reviewSummarySchema.statics.getRecentSummaries = function (userId, limit = 50) {
+  return this.find({ userId, sentiment: { $ne: "error" } })
     .sort({ processedAt: -1 })
     .limit(limit)
-    .select("summary sentiment sentimentScore author rating company processedAt");
+    .select("summary sentiment sentimentScore author rating locationId processedAt");
 };
 
-// Static method to get summaries by sentiment
+// Static method to get summaries by sentiment for a location
 reviewSummarySchema.statics.getSummariesBySentiment = function (
+  locationId,
   sentiment,
-  limit = 100
+  limit = null
 ) {
-  return this.find({ sentiment })
+  const query = this.find({ locationId, sentiment })
     .sort({ processedAt: -1 })
-    .limit(limit)
-    .select("summary sentimentScore author rating company processedAt");
+    .select("summary sentimentScore author rating sentimentKeywords contextualTopics processedAt");
+
+  // Only apply limit if specified
+  return limit ? query.limit(limit) : query;
 };
 
 // Instance method to format for chatbot
@@ -126,7 +156,7 @@ reviewSummarySchema.methods.formatForChatbot = function () {
     summary: this.summary,
     keywords: this.sentimentKeywords,
     topics: this.contextualTopics,
-    company: this.company,
+    locationId: this.locationId,
     processedAt: this.processedAt,
   };
 };

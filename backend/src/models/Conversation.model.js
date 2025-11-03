@@ -13,6 +13,26 @@ const conversationSchema = new mongoose.Schema(
       ref: "User",
       default: null, // Optional: for authenticated users
     },
+    // ✅ NEW: Locations attached to this conversation
+    attachedLocationIds: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Location",
+      required: false,
+    }],
+    // ✅ NEW: Quick access to location metadata (cached for performance)
+    locationMetadata: [{
+      locationId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Location",
+      },
+      name: String,
+      reviewCount: Number,
+      analyzedReviewCount: Number,
+      attachedAt: {
+        type: Date,
+        default: Date.now,
+      },
+    }],
     messages: [
       {
         role: {
@@ -43,6 +63,11 @@ const conversationSchema = new mongoose.Schema(
         totalReviews: Number,
         averageRating: Number,
       },
+      // ✅ NEW: Track which locations were analyzed
+      locationsAnalyzed: [{
+        locationId: mongoose.Schema.Types.ObjectId,
+        locationName: String,
+      }],
     },
   },
   {
@@ -52,6 +77,9 @@ const conversationSchema = new mongoose.Schema(
 
 // Index for efficient queries
 conversationSchema.index({ sessionId: 1, lastActivity: -1 });
+// ✅ NEW: Index for querying conversations by user and attached locations
+conversationSchema.index({ userId: 1, attachedLocationIds: 1 });
+conversationSchema.index({ userId: 1, lastActivity: -1 });
 
 // Auto-delete conversations older than 30 days
 conversationSchema.index({ lastActivity: 1 }, { expireAfterSeconds: 30 * 24 * 60 * 60 });
