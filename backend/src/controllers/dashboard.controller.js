@@ -375,38 +375,66 @@ const dashboardController = {
       if (endDate) matchStage.publishedAt.$lte = new Date(endDate);
     }
 
-    const trends = await Review.aggregate([
-      { $match: matchStage },
-      {
-        $group: {
-          _id: {
-            year: { $year: '$publishedAt' },
-            month: { $month: '$publishedAt' },
-            sentiment: '$sentiment'
-          },
-          count: { $sum: 1 }
-        }
-      },
-      { $sort: { '_id.year': 1, '_id.month': 1 } }
-    ]);
+    // Get all reviews sorted by date
+    const reviews = await Review.find(matchStage)
+      .sort({ publishedAt: 1 })
+      .select('publishedAt sentiment');
 
-    // Group by sentiment
+    // Group by date and sentiment, then calculate cumulative counts
+    const dailyData = {};
+    const cumulativeCounts = {
+      positive: 0,
+      neutral: 0,
+      negative: 0
+    };
+
+    reviews.forEach(review => {
+      const date = new Date(review.publishedAt);
+      const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+      
+      if (!dailyData[dateKey]) {
+        dailyData[dateKey] = {
+          positive: 0,
+          neutral: 0,
+          negative: 0
+        };
+      }
+
+      const sentiment = review.sentiment;
+      if (sentiment && ['positive', 'neutral', 'negative'].includes(sentiment)) {
+        dailyData[dateKey][sentiment]++;
+      }
+    });
+
+    // Convert to cumulative arrays
     const result = {
       positive: [],
       neutral: [],
       negative: []
     };
 
-    trends.forEach(item => {
-      const date = `${item._id.year}-${String(item._id.month).padStart(2, '0')}-01`;
-      const sentiment = item._id.sentiment;
+    // Sort dates and build cumulative data
+    const sortedDates = Object.keys(dailyData).sort();
+    
+    sortedDates.forEach(date => {
+      // Add daily counts to cumulative totals
+      cumulativeCounts.positive += dailyData[date].positive;
+      cumulativeCounts.neutral += dailyData[date].neutral;
+      cumulativeCounts.negative += dailyData[date].negative;
 
-      if (sentiment && result[sentiment]) {
-        result[sentiment].push({
-          date,
-          count: item.count
-        });
-      }
+      // Push cumulative values for each sentiment
+      result.positive.push({
+        date,
+        count: cumulativeCounts.positive
+      });
+      result.neutral.push({
+        date,
+        count: cumulativeCounts.neutral
+      });
+      result.negative.push({
+        date,
+        count: cumulativeCounts.negative
+      });
     });
 
     return result;

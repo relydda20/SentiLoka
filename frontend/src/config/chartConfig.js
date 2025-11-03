@@ -103,7 +103,7 @@ export const lineChartConfig = {
     }
   },
   yaxis: { 
-    title: { text: "Review Count" },
+    title: { text: "Cumulative Review Count" },
     labels: {
       formatter: function(val) {
         return Math.floor(val);
@@ -136,7 +136,7 @@ export const lineChartConfig = {
       
       let tooltipContent = `<div class="apexcharts-tooltip-title" style="font-family: Helvetica, Arial, sans-serif; font-size: 12px;">${formattedDate}</div>`;
       
-      // Show all three sentiment types
+      // Show all three sentiment types with cumulative counts
       const labels = ['Positive Reviews', 'Neutral Reviews', 'Negative Reviews'];
       const colors = ['#00C853', '#FFD600', '#D50000'];
       
@@ -151,7 +151,7 @@ export const lineChartConfig = {
             <div class="apexcharts-tooltip-text" style="font-family: Helvetica, Arial, sans-serif; font-size: 12px;">
               <div class="apexcharts-tooltip-y-group">
                 <span class="apexcharts-tooltip-text-y-label">${label}: </span>
-                <span class="apexcharts-tooltip-text-y-value" style="font-weight: bold;">${value}</span>
+                <span class="apexcharts-tooltip-text-y-value" style="font-weight: bold;">${value} total</span>
               </div>
             </div>
           </div>
