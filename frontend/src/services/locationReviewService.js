@@ -262,6 +262,7 @@ export const fetchExistingReviews = async (locationId, options = {}) => {
     let reviewSource = 'raw';
 
     // Try ANALYZED reviews first (ReviewSummary model) - prioritize analyzed data
+    let hasAnalyzedReviews = false;
     try {
       console.log("🔍 Attempting to load analyzed reviews from ReviewSummary model...");
       const analyzedParams = new URLSearchParams(params);
@@ -277,50 +278,54 @@ export const fetchExistingReviews = async (locationId, options = {}) => {
         reviews = analyzedResponse.data.data.reviews || [];
         pagination = analyzedResponse.data.data.pagination;
         reviewSource = 'analyzed';
+        hasAnalyzedReviews = true;
         console.log(`✅ Fetched ${reviews.length} ANALYZED reviews (with sentiment)`);
       }
     } catch (analyzedError) {
-      // If 404 or no analyzed reviews, try raw reviews as fallback
-      if (analyzedError.response?.status === 404 || !reviews.length) {
-        console.log("⚠️ No analyzed reviews found, trying raw reviews...");
-        
-        try {
-          const rawResponse = await apiClient.get(
-            `/reviews/location/${locationId}?${params.toString()}`
-          );
+      console.log("⚠️ Error fetching analyzed reviews:", analyzedError.response?.status);
+    }
 
-          if (rawResponse.data?.success) {
-            reviews = rawResponse.data.data.reviews || [];
-            pagination = rawResponse.data.data.pagination;
-            reviewSource = 'raw';
-            console.log(`✅ Fetched ${reviews.length} RAW reviews (before sentiment analysis)`);
-          }
-        } catch (rawError) {
-          // If 404 with filters, no matches found
-          if (rawError.response?.status === 404 && (rating > 0 || searchTerm)) {
-            console.log("⚠️ No raw reviews match the filters");
-            reviews = [];
-            pagination = {
-              currentPage: page,
-              totalPages: 0,
-              totalItems: 0,
-              limit,
-              hasNext: false,
-              hasPrev: false,
-            };
-            reviewSource = 'raw';
-          } else if (rawError.response?.status === 404) {
-            console.log("⚠️ No raw reviews found either");
-            reviews = [];
-            pagination = {
-              currentPage: page,
-              totalPages: 0,
-              totalItems: 0,
-              limit,
-              hasNext: false,
-              hasPrev: false,
-            };
-          }
+    // If no analyzed reviews found (either 404 or empty result), fallback to raw reviews
+    if (!hasAnalyzedReviews) {
+      console.log("⚠️ No analyzed reviews found, trying raw reviews...");
+      
+      try {
+        const rawResponse = await apiClient.get(
+          `/reviews/location/${locationId}?${params.toString()}`
+        );
+
+        if (rawResponse.data?.success) {
+          reviews = rawResponse.data.data.reviews || [];
+          pagination = rawResponse.data.data.pagination;
+          reviewSource = 'raw';
+          console.log(`✅ Fetched ${reviews.length} RAW reviews (before sentiment analysis)`);
+          console.log("📊 Raw reviews pagination:", JSON.stringify(pagination, null, 2));
+        }
+      } catch (rawError) {
+        // If 404 with filters, no matches found
+        if (rawError.response?.status === 404 && (rating > 0 || searchTerm)) {
+          console.log("⚠️ No raw reviews match the filters");
+          reviews = [];
+          pagination = {
+            currentPage: page,
+            totalPages: 0,
+            totalItems: 0,
+            limit,
+            hasNext: false,
+            hasPrev: false,
+          };
+          reviewSource = 'raw';
+        } else if (rawError.response?.status === 404) {
+          console.log("⚠️ No raw reviews found either");
+          reviews = [];
+          pagination = {
+            currentPage: page,
+            totalPages: 0,
+            totalItems: 0,
+            limit,
+            hasNext: false,
+            hasPrev: false,
+          };
         }
       }
     }
@@ -330,9 +335,10 @@ export const fetchExistingReviews = async (locationId, options = {}) => {
       id: review._id,
       reviewId: review.reviewId,
       // Handle different field structures between Review and ReviewSummary models
-      author: review.author?.name || review.author || "Anonymous", // Review has author.name, ReviewSummary has author string
+      // Review controller returns 'authorName', ReviewSummary has 'author' string
+      author: review.authorName || review.author || "Anonymous",
       rating: review.rating,
-      text: review.text || "", // Both models use 'text' field
+      text: review.text || review.reviewText || "", // Try both field names
       date: review.publishedAt,
       sentiment: review.sentiment || null,
       sentimentScore: review.sentimentScore || null,
@@ -398,21 +404,32 @@ export const fetchExistingReviews = async (locationId, options = {}) => {
       }
     }
 
+    const finalPagination = pagination ? {
+      currentPage: pagination.currentPage || page,
+      totalPages: pagination.totalPages || 0,
+      totalReviews: pagination.totalItems || 0,
+      limit: pagination.limit || limit,
+      hasNextPage: pagination.hasNext !== undefined ? pagination.hasNext : false,
+      hasPrevPage: pagination.hasPrev !== undefined ? pagination.hasPrev : false,
+    } : {
+      currentPage: page,
+      totalPages: 0,
+      totalReviews: 0,
+      limit,
+      hasNextPage: false,
+      hasPrevPage: false,
+    };
+
+    console.log("🔄 Final pagination being returned:", JSON.stringify(finalPagination, null, 2));
+
     return {
       business: {
         id: locationId,
         reviews: mappedReviews,
-        reviewsCount: totalReviewsInDB || pagination.totalItems,
+        reviewsCount: totalReviewsInDB || pagination?.totalItems || 0,
         reviewSource,
         sentiment: sentimentSummary, // Add sentiment summary
-        pagination: {
-          currentPage: pagination.currentPage,
-          totalPages: pagination.totalPages,
-          totalReviews: pagination.totalItems,
-          limit: pagination.limit,
-          hasNextPage: pagination.hasNext,
-          hasPrevPage: pagination.hasPrev,
-        },
+        pagination: finalPagination,
         scrapeStatus: location.scrapeStatus,
         lastScraped: location.scrapeConfig?.lastScraped,
       },
