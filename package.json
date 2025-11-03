@@ -37,6 +37,7 @@
     "backend"
   ],
   "dependencies": {
-    "lucide-react": "^0.548.0"
+    "lucide-react": "^0.548.0",
+    "redux": "^5.0.1"
   }
 }

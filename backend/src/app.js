@@ -22,13 +22,28 @@ app.get('/health', (req, res) => {
 });
 
 // API routes
+import sentimentRoutes from './routes/sentiment.routes.js';
+import reviewSentimentRoutes from './routes/reviewSentiment.routes.js';
+import chatbotRoutes from './routes/chatbot.routes.js';
+import scraperRoutes from './routes/scraper.routes.js';
+import locationRoutes from './routes/location.routes.js';
+app.use('/api/sentiment', sentimentRoutes);
+app.use('/api/review-sentiments', reviewSentimentRoutes);
+app.use('/api/reviews', reviewSentimentRoutes); // Using reviewSentimentRoutes for /api/reviews
+app.use('/api/chatbot', chatbotRoutes);
+app.use('/api/scraper', scraperRoutes);
+app.use('/api/locations', locationRoutes);
+
+// Other routes (will be added later)
+// import authRoutes from './routes/auth.routes.js';
+// import businessRoutes from './routes/business.routes.js';
+// app.use('/api/auth', authRoutes);
 import authRoutes from './routes/auth.routes.js';
 // import businessRoutes from './routes/business.routes.js';
 // import aiRoutes from './routes/ai.routes.js';
 
 app.use('/api/auth', authRoutes);
 // app.use('/api/businesses', businessRoutes);
-// app.use('/api/ai', aiRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
