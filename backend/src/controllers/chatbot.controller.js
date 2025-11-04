@@ -1129,12 +1129,12 @@ export const getAllConversations = async (req, res) => {
       });
     }
 
-    // Only get user's own conversations
+    // Only get user's own conversations - include messages for history display
     const conversations = await Conversation.find({ userId })
       .sort({ lastActivity: -1 })
       .limit(parseInt(limit))
       .skip(parseInt(skip))
-      .select("sessionId lastActivity metadata createdAt locationMetadata");
+      .select("sessionId messages lastActivity metadata createdAt locationMetadata attachedLocationIds");
 
     const total = await Conversation.countDocuments({ userId });
 

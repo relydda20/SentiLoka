@@ -1,5 +1,5 @@
 import React from "react";
-import { X, Bot, Plus, Trash2 } from "lucide-react";
+import { X, Bot, Plus, Trash2, Loader2, AlertCircle } from "lucide-react";
 
 const HistoryView = ({
   sessions,
@@ -7,6 +7,8 @@ const HistoryView = ({
   onSelectSession,
   onDeleteSession,
   onClose,
+  loading = false,
+  error = null,
 }) => {
   return (
     <>
@@ -36,27 +38,47 @@ const HistoryView = ({
 
       {/* Session History List */}
       <div className="flex flex-col flex-1 space-y-2 p-3 overflow-y-auto">
-        {sessions.length > 0 ? (
+        {/* Error Message */}
+        {error && (
+          <div className="flex items-center gap-2 bg-red-50 mx-3 px-3 py-2 border border-red-200 rounded-lg text-red-700 text-sm">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
+
+        {/* Loading State */}
+        {loading ? (
+          <div className="flex flex-col justify-center items-center gap-3 m-auto text-gray-500">
+            <Loader2 className="w-8 h-8 animate-spin" />
+            <p>Loading conversations...</p>
+          </div>
+        ) : Array.isArray(sessions) && sessions.length > 0 ? (
           sessions.map((session) => {
-            // Use first user message as title, or "New Chat"
-            const title = session.messages[0]?.content || "New Chat";
+            // Safely get first user message as title
+            const messages = Array.isArray(session.messages) ? session.messages : [];
+            const firstMessage = messages.find(m => m.role === 'user');
+            const title = firstMessage?.content?.substring(0, 60) || "New Chat";
+            const displayTitle = title.length > 60 ? title + "..." : title;
+            
             return (
               <button
-                key={session._id}
-                onClick={() => onSelectSession(session._id)}
+                key={session.sessionId || session._id}
+                onClick={() => onSelectSession(session.sessionId)}
                 className="group flex justify-between items-center gap-3 hover:bg-gray-100 p-4 rounded-lg w-full text-left transition-colors"
               >
                 <div className="flex-1 min-w-0">
                   <h3 className="font-semibold text-gray-800 truncate">
-                    {title}
+                    {displayTitle}
                   </h3>
                   <p className="text-gray-500 text-xs">
                     Last updated:{" "}
-                    {new Date(session.lastActivity).toLocaleString()}
+                    {session.lastActivity 
+                      ? new Date(session.lastActivity).toLocaleString()
+                      : "Unknown"}
                   </p>
                 </div>
                 <button
-                  onClick={(e) => onDeleteSession(e, session._id)}
+                  onClick={(e) => onDeleteSession(e, session.sessionId)}
                   className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-all shrink-0"
                   title="Delete Session"
                 >

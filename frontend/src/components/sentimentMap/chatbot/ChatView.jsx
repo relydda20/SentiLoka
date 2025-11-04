@@ -59,6 +59,7 @@ const ChatView = ({
   session, 
   onBack, 
   onClose,
+  onSessionCreated,
   // Location attachment props
   availableLocations = [],
   selectedLocationIds = [],
@@ -81,7 +82,7 @@ const ChatView = ({
   useEffect(() => {
     if (session) {
       setMessages(session.messages || []);
-      setCurrentSessionId(session._id);
+      setCurrentSessionId(session.sessionId);
     } else {
       setMessages([]);
       setCurrentSessionId(null);
@@ -145,6 +146,11 @@ const ChatView = ({
       // Update session ID if it's a new conversation
       if (!currentSessionId && response.sessionId) {
         setCurrentSessionId(response.sessionId);
+        
+        // Notify parent that a new session was created
+        if (onSessionCreated) {
+          onSessionCreated();
+        }
       }
 
       // Add assistant response
