@@ -1,5 +1,6 @@
 import Location from '../models/Location.model.js';
 import Review from '../models/Review.model.js';
+import ReviewSummary from '../models/ReviewSummary.model.js';
 import User from '../models/User.model.js';
 
 // const locationController = {
@@ -386,20 +387,28 @@ export const getLocations = async (req, res) => {
   try {
     const userId = req.user._id;
 
+    // Fetch locations with sentiment data
     const locations = await Location.find({ userId })
+      .select('name placeId address coordinates phoneNumber googleData googleMapsUrl status scrapeStatus scrapeConfig overallSentiment tags notes createdAt updatedAt')
       .sort({ createdAt: -1 })
       .lean();
 
-    // Enhance each location with the actual scraped review count from Review collection
+    // Enhance each location with the actual scraped and analyzed review counts
     const locationsWithReviewCount = await Promise.all(
       locations.map(async (location) => {
         const scrapedReviewCount = await Review.countDocuments({ 
           locationId: location._id 
         });
         
+        const analyzedReviewCount = await ReviewSummary.countDocuments({
+          locationId: location._id,
+          sentiment: { $ne: 'error' }
+        });
+        
         return {
           ...location,
           scrapedReviewCount, // Add the actual count of scraped reviews
+          analyzedReviewCount, // Add the count of analyzed reviews
         };
       })
     );

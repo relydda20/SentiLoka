@@ -22,36 +22,61 @@ export const fetchBusinessLocations = async () => {
     const locationsFromApi = response.data.data || [];
 
     // Map backend data to the format the frontend (SentimentMap.jsx) expects
-    const mappedBusinesses = locationsFromApi.map((loc) => ({
-      id: loc._id,
-      businessName: loc.name,
-      placeId: loc.placeId,
-      address: loc.address,
-      coordinates: loc.coordinates,
-      phoneNumber: loc.phoneNumber, // Assuming phoneNumber is available, add if not
-      category: loc.googleData?.types?.[0] || "establishment",
-      status: loc.status,
-      scrapeStatus: loc.scrapeStatus, // Add scrapeStatus from backend
-      reviewsCount: loc.scrapedReviewCount || 0, // Use actual scraped reviews count from DB
-      averageRating: loc.googleData?.rating || 0,
-      // Don't include overallSentiment on initial load
-      // Sentiment data will be loaded when user fetches/analyzes reviews
-      sentiment: null,
-      reviews: [], // Start with no reviews, they will be fetched on click
-      pagination: { currentPage: 0, totalPages: 0, totalReviews: 0 },
-      cacheStatus: {
-        isCached: false, // Will be set when reviews are fetched
-        lastScrapedAt: loc.scrapeConfig?.lastScraped,
-        cacheExpiresAt: null,
-        hoursUntilExpiry: 0,
-        needsRefresh: loc.scrapeStatus !== "completed",
-      },
-      createdAt: loc.createdAt,
-      updatedAt: loc.updatedAt,
-    }));
+        const mappedBusinesses = locationsFromApi.map((loc) => {
+      // Map sentiment from database (pre-calculated)
+      let sentimentData = null;
+      if (loc.overallSentiment && loc.overallSentiment.totalReviews > 0) {
+        const totalReviews = loc.overallSentiment.totalReviews;
+        const positivePercentage = loc.overallSentiment.positive || 0;
+        const neutralPercentage = loc.overallSentiment.neutral || 0;
+        const negativePercentage = loc.overallSentiment.negative || 0;
+        
+        sentimentData = {
+          // Counts for display
+          positive: Math.round((positivePercentage / 100) * totalReviews),
+          neutral: Math.round((neutralPercentage / 100) * totalReviews),
+          negative: Math.round((negativePercentage / 100) * totalReviews),
+          // Percentages for marker colors
+          positivePercentage: positivePercentage,
+          negativePercentage: negativePercentage,
+          // Additional metrics
+          averageRating: loc.overallSentiment.averageRating || 0,
+          totalReviews: totalReviews,
+          lastCalculated: loc.overallSentiment.lastCalculated,
+        };
+      }
+      
+      return {
+        id: loc._id,
+        businessName: loc.name,
+        placeId: loc.placeId,
+        address: loc.address,
+        coordinates: loc.coordinates,
+        phoneNumber: loc.phoneNumber,
+        category: loc.googleData?.types?.[0] || "establishment",
+        status: loc.status,
+        scrapeStatus: loc.scrapeStatus,
+        reviewsCount: loc.scrapedReviewCount || 0,
+        analyzedReviewCount: loc.analyzedReviewCount || 0,
+        averageRating: loc.googleData?.rating || 0,
+        sentiment: sentimentData, // Use pre-calculated sentiment from database
+        reviews: [],
+        pagination: { currentPage: 0, totalPages: 0, totalReviews: 0 },
+        cacheStatus: {
+          isCached: false,
+          lastScrapedAt: loc.scrapeConfig?.lastScraped,
+          cacheExpiresAt: null,
+          hoursUntilExpiry: 0,
+          needsRefresh: loc.scrapeStatus !== "completed",
+        },
+        createdAt: loc.createdAt,
+        updatedAt: loc.updatedAt,
+      };
+    });
 
+    const locationsWithSentiment = mappedBusinesses.filter(b => b.sentiment).length;
     console.log(
-      `✅ ${mappedBusinesses.length} Business locations loaded from API!`,
+      `✅ ${mappedBusinesses.length} Business locations loaded from API! (${locationsWithSentiment} with sentiment data)`,
     );
 
     return {
@@ -348,9 +373,30 @@ export const fetchExistingReviews = async (locationId, options = {}) => {
       isAnalyzed: reviewSource === 'analyzed',
     }));
 
-    // Calculate OVERALL sentiment summary from ALL analyzed reviews (not just current page)
+    // Calculate OVERALL sentiment summary
+    // Priority 1: Use pre-calculated sentiment from location.overallSentiment (FASTEST)
+    // Priority 2: Calculate from analyzed reviews (fallback if location not updated)
     let sentimentSummary = null;
-    if (reviewSource === 'analyzed') {
+    
+    if (location.overallSentiment && location.overallSentiment.totalReviews > 0) {
+      // ✅ Use pre-calculated sentiment from database (best performance)
+      const totalReviews = location.overallSentiment.totalReviews;
+      const positivePercentage = location.overallSentiment.positive || 0;
+      const neutralPercentage = location.overallSentiment.neutral || 0;
+      const negativePercentage = location.overallSentiment.negative || 0;
+      
+      sentimentSummary = {
+        positive: Math.round((positivePercentage / 100) * totalReviews),
+        neutral: Math.round((neutralPercentage / 100) * totalReviews),
+        negative: Math.round((negativePercentage / 100) * totalReviews),
+        positivePercentage: positivePercentage,
+        negativePercentage: negativePercentage,
+        averageRating: location.overallSentiment.averageRating || 0,
+        totalReviews: totalReviews,
+      };
+      console.log('📊 Using pre-calculated sentiment from location:', sentimentSummary);
+    } else if (reviewSource === 'analyzed') {
+      // Fallback: Calculate from analyzed reviews if location sentiment not available
       try {
         console.log('📊 Fetching overall sentiment statistics for all reviews...');
         // Fetch sentiment counts for ALL reviews (no pagination)
@@ -726,22 +772,32 @@ export const analyzeLocationSentiment = async (locationId) => {
 
     console.log(`✅ Sentiment analysis completed: ${data.analysis.newlyAnalyzed} reviews newly analyzed, ${data.analysis.alreadyAnalyzed} already analyzed`);
 
-    // Return the analysis results with sentiment data
+    // Convert percentage-based sentiment to counts for display
+    const totalReviews = data.sentiment?.totalReviews || 0;
+    const positivePercentage = data.sentiment?.positive || 0;
+    const neutralPercentage = data.sentiment?.neutral || 0;
+    const negativePercentage = data.sentiment?.negative || 0;
+
+    // Return the analysis results with sentiment data properly formatted
     return {
       business: {
         id: locationId,
         name: data.location.name,
         sentiment: {
-          positive: data.sentiment?.positive || 0,
-          neutral: data.sentiment?.neutral || 0,
-          negative: data.sentiment?.negative || 0,
-          positivePercentage: data.sentiment?.positive || 0, // Backend stores as percentage
-          negativePercentage: data.sentiment?.negative || 0,
+          // Counts for display (converted from percentages)
+          positive: Math.round((positivePercentage / 100) * totalReviews),
+          neutral: Math.round((neutralPercentage / 100) * totalReviews),
+          negative: Math.round((negativePercentage / 100) * totalReviews),
+          // Percentages for marker colors
+          positivePercentage: positivePercentage,
+          negativePercentage: negativePercentage,
+          // Additional metrics
           averageRating: data.sentiment?.averageRating || 0,
-          totalReviews: data.sentiment?.totalReviews || 0,
+          totalReviews: totalReviews,
+          lastCalculated: data.sentiment?.lastCalculated,
         },
         averageRating: data.sentiment?.averageRating || 0,
-        reviewsCount: data.sentiment?.totalReviews || data.analysis.totalReviews || 0,
+        reviewsCount: totalReviews,
         analysis: {
           totalReviews: data.analysis.totalReviews,
           alreadyAnalyzed: data.analysis.alreadyAnalyzed,
