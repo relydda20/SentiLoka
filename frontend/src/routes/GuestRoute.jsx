@@ -1,21 +1,12 @@
-import { Navigate } from "react-router-dom";
 
-// Check if user is authenticated
-const useAuth = () => {
-  const token = localStorage.getItem("authToken");
-  return !!token;
-};
+import React from 'react';
+import { useSelector } from 'react-redux';
+import { Navigate, Outlet } from 'react-router-dom';
 
-const GuestRoute = ({ children }) => {
-  const isAuthenticated = useAuth();
+const GuestRoute = ({children}) => {
+  const { isAuthenticated } = useSelector((state) => state.auth);
 
-  // If authenticated, redirect to dashboard
-  if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />;
-  }
-
-  // If not authenticated, show the page (login/register)
-  return children;
+  return isAuthenticated ? <Navigate to="/dashboard" replace /> : children;
 };
 
 export default GuestRoute;

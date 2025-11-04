@@ -4,6 +4,23 @@ import {
 } from "../utils/reviewSentimentAnalyzer.js";
 import { CONFIG } from "../config/sentiment-analysis-config.js";
 import ReviewSummary from "../models/ReviewSummary.model.js";
+import Review from "../models/Review.model.js";
+import Location from "../models/Location.model.js";
+import { invalidateCacheForLocation } from "../services/chatbot-cache.service.js";
+import {
+  getCachedLocationReviews,
+  cacheLocationReviews,
+  getCachedLocationSentiments,
+  cacheLocationSentiments,
+  invalidateLocationCache,
+} from "../services/redis-cache.service.js";
+import {
+  getUnanalyzedReviews,
+  transformReviewsForAnalysis,
+  analyzeReviews,
+  saveAnalysisResults,
+  getAnalysisStatistics,
+} from "../services/review-analysis.service.js";
 
 /**
  * Analyze sentiment of a single review
@@ -28,12 +45,7 @@ export const analyzeSingleReview = async (req, res) => {
       });
     }
 
-    if (!review.description) {
-      return res.status(400).json({
-        success: false,
-        error: "Review must include 'description' field",
-      });
-    }
+    // Description is optional - rating-only reviews are allowed
 
     const result = await analyzeReviewSentiment(review);
 
@@ -359,6 +371,376 @@ export const filterReviewsBySentiment = async (req, res) => {
     return res.status(500).json({
       success: false,
       error: "Failed to filter reviews",
+      details: error.message,
+    });
+  }
+};
+
+/**
+ * Analyze sentiment for all reviews of a specific location (batch processing)
+ * ⭐ OPTIMIZED: Only analyzes NEW reviews that haven't been analyzed yet
+ * This is called AFTER scraping is complete
+ * @route POST /api/reviews/analyze-location/:locationId
+ */
+export const analyzeLocationReviews = async (req, res) => {
+  try {
+    const { locationId } = req.params;
+    const userId = req.user._id;
+
+    // Verify the location belongs to the user
+    const location = await Location.findOne({ _id: locationId, userId });
+
+    if (!location) {
+      return res.status(404).json({
+        success: false,
+        error: "Location not found or you don't have access to it",
+      });
+    }
+
+    console.log(`\n🔍 Checking reviews for location: ${location.name}`);
+
+    // Get unanalyzed reviews using the service
+    const { allReviews, unanalyzedReviews, analyzedCount } =
+      await getUnanalyzedReviews(locationId, userId.toString());
+
+    if (allReviews.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "No reviews found for this location. Please scrape reviews first.",
+      });
+    }
+
+    // If no new reviews to analyze, return early
+    if (unanalyzedReviews.length === 0) {
+      console.log(
+        `✅ All ${allReviews.length} reviews have already been analyzed!`
+      );
+
+      // Get current statistics
+      const stats = await getAnalysisStatistics(locationId, userId.toString());
+
+      return res.status(200).json({
+        success: true,
+        message: `All reviews for ${location.name} have already been analyzed`,
+        data: {
+          location: {
+            id: location._id,
+            name: location.name,
+            placeId: location.placeId,
+          },
+          analysis: {
+            totalReviews: allReviews.length,
+            alreadyAnalyzed: analyzedCount,
+            newlyAnalyzed: 0,
+            skipped: 0,
+          },
+          statistics: stats,
+          sentiment: {
+            positive: location.overallSentiment?.positive || 0,
+            neutral: location.overallSentiment?.neutral || 0,
+            negative: location.overallSentiment?.negative || 0,
+            averageRating: location.overallSentiment?.averageRating || 0,
+            totalReviews: location.overallSentiment?.totalReviews || 0,
+            lastCalculated: location.overallSentiment?.lastCalculated,
+          },
+        },
+      });
+    }
+
+    console.log(
+      `📊 Found ${unanalyzedReviews.length} new reviews to analyze (${allReviews.length} total, ${analyzedCount} already analyzed)`
+    );
+
+    // Transform unanalyzed reviews for sentiment analysis
+    const reviewsToAnalyze = transformReviewsForAnalysis(unanalyzedReviews);
+
+    // Analyze only the NEW reviews
+    const result = await analyzeReviews(
+      reviewsToAnalyze,
+      CONFIG.BATCH_SIZE,
+      CONFIG.CONCURRENT_BATCHES
+    );
+
+    // Save the analysis results
+    const saveStats = await saveAnalysisResults(
+      result.results,
+      reviewsToAnalyze,
+      locationId,
+      userId.toString(),
+      location.placeId
+    );
+
+    // Recalculate location sentiment statistics
+    await location.calculateSentiment();
+
+    // Invalidate caches since new reviews were analyzed
+    await invalidateCacheForLocation(userId.toString(), locationId);
+    console.log(`🗑️ Invalidated chatbot cache for location ${locationId}`);
+
+    await invalidateLocationCache(locationId, userId.toString());
+    console.log(`🗑️ Invalidated review cache for location ${locationId}`);
+
+    // Get updated statistics
+    const finalStats = await getAnalysisStatistics(
+      locationId,
+      userId.toString()
+    );
+
+    console.log(
+      `✅ Analysis complete! Analyzed ${saveStats.inserted} new reviews, updated ${saveStats.updated}, failed ${saveStats.failed}`
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: `Successfully analyzed ${saveStats.inserted + saveStats.updated} reviews for ${location.name}`,
+      data: {
+        location: {
+          id: location._id,
+          name: location.name,
+          placeId: location.placeId,
+        },
+        analysis: {
+          totalReviews: allReviews.length,
+          alreadyAnalyzed: analyzedCount,
+          newlyAnalyzed: saveStats.inserted + saveStats.updated,
+          failedAnalysis: saveStats.failed,
+        },
+        statistics: {
+          ...result.statistics,
+          coverage: finalStats,
+        },
+        sentiment: {
+          positive: location.overallSentiment?.positive || 0,
+          neutral: location.overallSentiment?.neutral || 0,
+          negative: location.overallSentiment?.negative || 0,
+          averageRating: location.overallSentiment?.averageRating || 0,
+          totalReviews: location.overallSentiment?.totalReviews || 0,
+          lastCalculated: location.overallSentiment?.lastCalculated,
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Error in analyzeLocationReviews:", error);
+
+    return res.status(500).json({
+      success: false,
+      error: "Failed to analyze location reviews",
+      details: error.message,
+    });
+  }
+};
+
+/**
+ * Get analysis statistics for a location
+ * ⭐ Check coverage before running expensive analysis operation
+ * This is FAST - only counts documents, no API calls
+ * @route GET /api/reviews/analysis-stats/:locationId
+ */
+export const getLocationAnalysisStats = async (req, res) => {
+  try {
+    const { locationId } = req.params;
+    const userId = req.user._id;
+
+    // Verify the location belongs to the user
+    const location = await Location.findOne({ _id: locationId, userId });
+
+    if (!location) {
+      return res.status(404).json({
+        success: false,
+        error: "Location not found or you don't have access to it",
+      });
+    }
+
+    // Get analysis statistics
+    const stats = await getAnalysisStatistics(locationId, userId.toString());
+
+    // Determine if analysis is needed
+    const needsAnalysis = stats.unanalyzedReviews > 0;
+    const isFullyAnalyzed = stats.analysisPercentage === 100;
+
+    return res.status(200).json({
+      success: true,
+      message: isFullyAnalyzed
+        ? `All reviews for ${location.name} have been analyzed`
+        : `${stats.unanalyzedReviews} reviews need analysis for ${location.name}`,
+      data: {
+        location: {
+          id: location._id,
+          name: location.name,
+          placeId: location.placeId,
+        },
+        statistics: stats,
+        recommendations: {
+          needsAnalysis,
+          isFullyAnalyzed,
+          message: needsAnalysis
+            ? `Run POST /api/reviews/analyze-location/${locationId} to analyze ${stats.unanalyzedReviews} new reviews`
+            : "All reviews are analyzed. No action needed.",
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Error in getLocationAnalysisStats:", error);
+
+    return res.status(500).json({
+      success: false,
+      error: "Failed to get analysis statistics",
+      details: error.message,
+    });
+  }
+};
+
+/**
+ * Recalculate sentiment statistics for a location from existing ReviewSummary data
+ * This is FAST - only queries existing summaries, doesn't re-analyze with OpenAI
+ * @route POST /api/reviews/recalculate-sentiment/:locationId
+ */
+export const recalculateSentimentStatistics = async (req, res) => {
+  try {
+    const { locationId } = req.params;
+    const userId = req.user._id;
+
+    // Verify the location belongs to the user
+    const location = await Location.findOne({ _id: locationId, userId });
+
+    if (!location) {
+      return res.status(404).json({
+        success: false,
+        error: "Location not found or you don't have access to it",
+      });
+    }
+
+    console.log(`Recalculating sentiment statistics for location: ${location.name}`);
+
+    // Check if there are any summaries
+    const summaryCount = await ReviewSummary.countDocuments({
+      locationId,
+      userId,
+      sentiment: { $ne: 'error' }
+    });
+
+    if (summaryCount === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "No sentiment summaries found for this location. Please analyze reviews first using POST /api/reviews/analyze-location/:locationId",
+      });
+    }
+
+    // Recalculate sentiment statistics from existing summaries
+    const sentimentData = await location.calculateSentiment();
+
+    console.log(`✓ Recalculated sentiment statistics for ${location.name}`);
+    console.log(`  - Total Reviews: ${sentimentData.totalReviews}`);
+    console.log(`  - Average Rating: ${sentimentData.averageRating}`);
+    console.log(`  - Positive: ${sentimentData.positive}%`);
+    console.log(`  - Neutral: ${sentimentData.neutral}%`);
+    console.log(`  - Negative: ${sentimentData.negative}%`);
+
+    return res.status(200).json({
+      success: true,
+      message: `Successfully recalculated sentiment statistics for ${location.name}`,
+      data: {
+        location: {
+          id: location._id,
+          name: location.name,
+          placeId: location.placeId,
+        },
+        sentiment: {
+          positive: sentimentData.positive,
+          neutral: sentimentData.neutral,
+          negative: sentimentData.negative,
+          averageRating: sentimentData.averageRating,
+          totalReviews: sentimentData.totalReviews,
+          lastCalculated: sentimentData.lastCalculated,
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Error in recalculateSentimentStatistics:", error);
+
+    return res.status(500).json({
+      success: false,
+      error: "Failed to recalculate sentiment statistics",
+      details: error.message,
+    });
+  }
+};
+
+/**
+ * Get all sentiment analysis results for a specific location
+ * @route GET /api/reviews/location/:locationId
+ */
+export const getLocationSentiments = async (req, res) => {
+  try {
+    const { locationId } = req.params;
+    const userId = req.user._id;
+
+    // Check cache first
+    const cached = await getCachedLocationSentiments(locationId, userId.toString());
+    if (cached) {
+      console.log(`✓ Cache hit for location sentiments: ${locationId}`);
+      return res.status(200).json({
+        success: true,
+        message: `Found ${cached.summaries.length} sentiment analysis results for ${cached.location.name}`,
+        data: cached,
+        cached: true,
+      });
+    }
+
+    // Verify the location belongs to the user
+    const location = await Location.findOne({ _id: locationId, userId });
+
+    if (!location) {
+      return res.status(404).json({
+        success: false,
+        error: "Location not found or you don't have access to it",
+      });
+    }
+
+    // Get all sentiment summaries for this location
+    const summaries = await ReviewSummary.getSummariesByLocation(locationId);
+
+    if (summaries.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "No sentiment analysis found for this location. Please analyze reviews first.",
+      });
+    }
+
+    // Prepare response data
+    const responseData = {
+      location: {
+        id: location._id,
+        name: location.name,
+        placeId: location.placeId,
+      },
+      summaries: summaries,
+      sentiment: {
+        positive: location.overallSentiment?.positive || 0,
+        neutral: location.overallSentiment?.neutral || 0,
+        negative: location.overallSentiment?.negative || 0,
+        averageRating: location.overallSentiment?.averageRating || 0,
+        totalReviews: location.overallSentiment?.totalReviews || 0,
+        lastCalculated: location.overallSentiment?.lastCalculated,
+      },
+    };
+
+    // Cache the response
+    await cacheLocationSentiments(locationId, userId.toString(), responseData);
+    console.log(`✓ Cached location sentiments for: ${locationId}`);
+
+    return res.status(200).json({
+      success: true,
+      message: `Found ${summaries.length} sentiment analysis results for ${location.name}`,
+      data: responseData,
+      cached: false,
+    });
+  } catch (error) {
+    console.error("Error in getLocationSentiments:", error);
+
+    return res.status(500).json({
+      success: false,
+      error: "Failed to get location sentiments",
       details: error.message,
     });
   }

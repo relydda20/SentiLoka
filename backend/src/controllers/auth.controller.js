@@ -44,10 +44,15 @@ export const register = async (req, res) => {
     const accessToken = generateAccessToken({ userId: user._id, email: user.email });
     const refreshToken = generateRefreshToken({ userId: user._id });
 
-    // Set refresh token in HTTP-only cookie
-    res.cookie('refreshToken', refreshToken, jwtConfig.cookieOptions);
+    // Set both tokens in HTTP-only cookies
+    res.cookie('accessToken', accessToken, jwtConfig.accessTokenCookieOptions);
+    res.cookie('refreshToken', refreshToken, jwtConfig.refreshTokenCookieOptions);
 
-    // Return user data and access token
+    console.log('✅ User registered successfully:', user.email);
+    console.log('🔐 Access token set in HTTP-only cookie (15m expiry)');
+    console.log('🔐 Refresh token set in HTTP-only cookie (7d expiry)');
+
+    // Return user data only (tokens are in cookies)
     res.status(201).json({
       success: true,
       message: 'User registered successfully.',
@@ -60,8 +65,7 @@ export const register = async (req, res) => {
           image: user.image,
           description: user.description,
           subscription: user.subscription
-        },
-        accessToken
+        }
       }
     });
   } catch (error) {
@@ -129,10 +133,15 @@ export const login = async (req, res) => {
     const accessToken = generateAccessToken({ userId: user._id, email: user.email });
     const refreshToken = generateRefreshToken({ userId: user._id });
 
-    // Set refresh token in HTTP-only cookie
-    res.cookie('refreshToken', refreshToken, jwtConfig.cookieOptions);
+    // Set both tokens in HTTP-only cookies
+    res.cookie('accessToken', accessToken, jwtConfig.accessTokenCookieOptions);
+    res.cookie('refreshToken', refreshToken, jwtConfig.refreshTokenCookieOptions);
 
-    // Return user data and access token
+    console.log('✅ User logged in successfully:', user.email);
+    console.log('🔐 Access token set in HTTP-only cookie (15m expiry)');
+    console.log('🔐 Refresh token set in HTTP-only cookie (7d expiry)');
+
+    // Return user data only (tokens are in cookies)
     res.status(200).json({
       success: true,
       message: 'Login successful.',
@@ -146,8 +155,7 @@ export const login = async (req, res) => {
           description: user.description,
           subscription: user.subscription,
           lastLogin: user.lastLogin
-        },
-        accessToken
+        }
       }
     });
   } catch (error) {
@@ -166,9 +174,13 @@ export const login = async (req, res) => {
  */
 export const logout = async (req, res) => {
   try {
-    // Clear refresh token cookie
+    // Clear both access and refresh token cookies
+    res.clearCookie('accessToken', {
+      ...jwtConfig.accessTokenCookieOptions,
+      maxAge: 0
+    });
     res.clearCookie('refreshToken', {
-      ...jwtConfig.cookieOptions,
+      ...jwtConfig.refreshTokenCookieOptions,
       maxAge: 0
     });
 
@@ -225,15 +237,27 @@ export const refreshToken = async (req, res) => {
     // Generate new access token
     const newAccessToken = generateAccessToken({ userId: user._id, email: user.email });
 
-    // Optionally generate new refresh token (rotation)
+    // Generate new refresh token (rotation for added security)
     const newRefreshToken = generateRefreshToken({ userId: user._id });
-    res.cookie('refreshToken', newRefreshToken, jwtConfig.cookieOptions);
+    
+    // Set both new tokens in HTTP-only cookies
+    res.cookie('accessToken', newAccessToken, jwtConfig.accessTokenCookieOptions);
+    res.cookie('refreshToken', newRefreshToken, jwtConfig.refreshTokenCookieOptions);
 
     res.status(200).json({
       success: true,
       message: 'Token refreshed successfully.',
       data: {
-        accessToken: newAccessToken
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          slug: user.slug,
+          image: user.image,
+          description: user.description,
+          subscription: user.subscription,
+          lastLogin: user.lastLogin
+        }
       }
     });
   } catch (error) {

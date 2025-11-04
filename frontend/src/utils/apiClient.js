@@ -1,65 +1,82 @@
-import axios from "axios";
-
-const apiUrl = import.meta.env.BACKEND_BASE_URL || "http://localhost:5000";
+// frontend/src/utils/apiClient.js
+import axios from 'axios';
+import { store } from '../store/store'; // Import store directly
+import { logoutUser } from '../store/auth/authSlice'; // Import logout action
 
 const apiClient = axios.create({
-  baseURL: apiUrl, // adjust to your backend
-  withCredentials: true, // send HttpOnly cookies
+  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api',
+  withCredentials: true, // This is essential for sending httpOnly cookies
 });
 
-// --- Refresh logic ---
+// Flag to prevent multiple concurrent refresh requests
 let isRefreshing = false;
-let refreshSubscribers = [];
+let failedQueue = [];
 
-const onRefreshed = () => {
-  refreshSubscribers.forEach((cb) => cb());
-  refreshSubscribers = [];
+const processQueue = (error, token = null) => {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve(token);
+    }
+  });
+  failedQueue = [];
 };
 
+// Response interceptor
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Any status code that lie within the range of 2xx cause this function to trigger
+    return response;
+  },
   async (error) => {
     const originalRequest = error.config;
-    // Do not attempt token refresh for auth endpoints (login/register/refresh)
-    // so that auth-related errors (e.g. wrong password) surface to callers.
-    const authEndpoints = [
-      "/auth/login",
-      "/auth/register",
-      "/auth/refresh-token",
-    ];
-    if (
-      originalRequest &&
-      authEndpoints.some((ep) => originalRequest.url?.includes(ep))
-    ) {
-      return Promise.reject(error);
-    }
+    const { status } = error.response || {};
 
-    // If 401 and not already retried, try refresh
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // Check if the error is 401 (Unauthorized) and it's not a retry request
+    if (status === 401 && !originalRequest._retry) {
+      // If it's the refresh token endpoint that failed, don't dispatch logout
+      // This is expected when user is not logged in (e.g., on initial page load)
+      if (originalRequest.url === '/auth/refresh-token') {
+        console.log('🔄 No refresh token found - user not logged in');
+        return Promise.reject(error);
+      }
+
       if (isRefreshing) {
-        // Queue requests until refresh is done
-        return new Promise((resolve) => {
-          refreshSubscribers.push(() => resolve(apiClient(originalRequest)));
-        });
+        // If already refreshing, add this request to the queue
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        })
+          .then(() => apiClient(originalRequest))
+          .catch((err) => Promise.reject(err));
       }
 
       originalRequest._retry = true;
       isRefreshing = true;
 
       try {
-        // Call backend refresh endpoint (sets new cookies)
-        await apiClient.post("/auth/refresh-token");
-        isRefreshing = false;
-        onRefreshed();
-        return apiClient(originalRequest); // retry original request
+        // Call the refresh token endpoint
+        await apiClient.post('/auth/refresh-token');
+
+        // Backend should have set a new access token cookie
+        // Process the queue with success
+        processQueue(null);
+
+        // Retry the original request
+        return apiClient(originalRequest);
       } catch (refreshError) {
-        isRefreshing = false;
+        // If refresh fails, process queue with error and log out
+        processQueue(refreshError);
+        store.dispatch(logoutUser()); // Dispatch logout
         return Promise.reject(refreshError);
+      } finally {
+        isRefreshing = false;
       }
     }
 
+    // For other errors, just reject
     return Promise.reject(error);
-  },
+  }
 );
 
 export default apiClient;

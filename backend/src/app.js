@@ -5,16 +5,30 @@ import cookieParser from 'cookie-parser';
 
 const app = express();
 
-// Middleware
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use(cookieParser());
-
-// CORS configuration
+// CORS configuration (must be before other middleware)
 app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:5173',
-  credentials: true
+  credentials: true, // Allow cookies to be sent/received
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  exposedHeaders: ['set-cookie']
 }));
+
+// Body parser middleware
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Cookie parser middleware
+app.use(cookieParser());
+
+// Request logger middleware (for debugging)
+app.use((req, res, next) => {
+  console.log(`📥 ${req.method} ${req.path}`);
+  if (req.cookies && Object.keys(req.cookies).length > 0) {
+    console.log('  🍪 Cookies:', Object.keys(req.cookies));
+  }
+  next();
+});
 
 // Health check
 app.get('/health', (req, res) => {
@@ -22,23 +36,22 @@ app.get('/health', (req, res) => {
 });
 
 // API routes
+import authRoutes from './routes/auth.routes.js';
 import sentimentRoutes from './routes/sentiment.routes.js';
 import reviewSentimentRoutes from './routes/reviewSentiment.routes.js';
 import chatbotRoutes from './routes/chatbot.routes.js';
-app.use('/api/sentiment', sentimentRoutes);
-app.use('/api/reviews', reviewSentimentRoutes);
-app.use('/api/chatbot', chatbotRoutes);
+import scraperRoutes from './routes/scraper.routes.js';
+import locationRoutes from './routes/location.routes.js';
+import dashboardRoutes from './routes/dashboard.routes.js';
 
-// Other routes (will be added later)
-// import authRoutes from './routes/auth.routes.js';
-// import businessRoutes from './routes/business.routes.js';
-// app.use('/api/auth', authRoutes);
-import authRoutes from './routes/auth.routes.js';
-// import businessRoutes from './routes/business.routes.js';
-// import aiRoutes from './routes/ai.routes.js';
-
+// Register routes
 app.use('/api/auth', authRoutes);
-// app.use('/api/businesses', businessRoutes);
+app.use('/api/sentiment', sentimentRoutes);
+app.use('/api/review-sentiments', reviewSentimentRoutes);
+app.use('/api/chatbot', chatbotRoutes);
+app.use('/api/scraper', scraperRoutes);
+app.use('/api/locations', locationRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
