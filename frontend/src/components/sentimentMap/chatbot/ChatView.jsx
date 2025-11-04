@@ -9,25 +9,37 @@ import { sendChatMessage } from "../../../services/chatbotService";
 
 /**
  * A component to render a single chat bubble.
- * Now supports Markdown for assistant messages.
+ * Supports Markdown for assistant messages with proper text wrapping.
  */
 const MessageBubble = ({ message }) => {
   const isUser = message.role === "user";
 
   const bubbleBaseStyles =
-    "max-w-[85%] px-4 py-3 rounded-lg shadow-md text-sm";
+    "max-w-[85%] px-4 py-3 rounded-lg shadow-md text-sm break-words";
 
-  // User bubble: remains plain text with whitespace preserved
+  // User bubble: plain text with proper wrapping
   const userStyles =
-    "bg-[#42676B] text-white rounded-br-none whitespace-pre-wrap";
+    "bg-[#42676B] text-white rounded-br-none whitespace-pre-wrap break-words overflow-wrap-anywhere";
 
-  // Assistant bubble: styles for markdown content
+  // Assistant bubble: enhanced markdown styles with proper text wrapping
   const assistantStyles = `
     bg-gray-100 text-gray-800 rounded-bl-none
-    [&>p]:my-0 [&>p:not(:last-child)]:mb-2
-    [&>ol]:my-2 [&>ol]:list-decimal [&>ol]:list-inside
-    [&>ul]:my-2 [&>ul]:list-disc [&>ul]:list-inside
-    [&>strong]:font-semibold
+    [&>*]:break-words
+    [&>p]:my-0 [&>p:not(:last-child)]:mb-3
+    [&>ol]:my-3 [&>ol]:ml-4 [&>ol]:list-decimal [&>ol]:list-outside
+    [&>ul]:my-3 [&>ul]:ml-4 [&>ul]:list-disc [&>ul]:list-outside
+    [&>ol>li]:mb-1 [&>ol>li]:pl-1
+    [&>ul>li]:mb-1 [&>ul>li]:pl-1
+    [&>strong]:font-semibold [&>strong]:text-gray-900
+    [&>em]:italic
+    [&>code]:bg-gray-200 [&>code]:px-1.5 [&>code]:py-0.5 [&>code]:rounded [&>code]:text-xs [&>code]:font-mono
+    [&>pre]:bg-gray-200 [&>pre]:p-3 [&>pre]:rounded [&>pre]:overflow-x-auto [&>pre]:my-2
+    [&>pre>code]:bg-transparent [&>pre>code]:p-0
+    [&>h1]:text-lg [&>h1]:font-bold [&>h1]:mt-3 [&>h1]:mb-2
+    [&>h2]:text-base [&>h2]:font-bold [&>h2]:mt-3 [&>h2]:mb-2
+    [&>h3]:text-sm [&>h3]:font-semibold [&>h3]:mt-2 [&>h3]:mb-1
+    [&>blockquote]:border-l-4 [&>blockquote]:border-gray-300 [&>blockquote]:pl-3 [&>blockquote]:italic [&>blockquote]:my-2
+    [&>a]:text-[#42676B] [&>a]:underline [&>a]:hover:text-[#2F4B4E]
   `;
 
   return (
@@ -39,10 +51,12 @@ const MessageBubble = ({ message }) => {
         `}
       >
         {isUser ? (
-          // Render user content as plain text
-          message.content
+          // Render user content as plain text with proper wrapping
+          <div className="whitespace-pre-wrap break-words">
+            {message.content}
+          </div>
         ) : (
-          // Render assistant content as Markdown
+          // Render assistant content as Markdown with proper wrapping
           <ReactMarkdown remarkPlugins={[remarkGfm]}>
             {message.content}
           </ReactMarkdown>
