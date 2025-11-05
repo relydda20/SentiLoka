@@ -7,6 +7,13 @@ const router = express.Router();
 // Get all reviews
 router.get('/', reviewController.getAllReviews);
 
+// Specific routes MUST come before parameterized routes to avoid route collision
+// Generate AI reply for a review
+router.post('/generate-reply', reviewController.generateAIReply);
+
+// Regenerate AI reply for a review
+router.post('/regenerate-reply', reviewController.regenerateAIReply);
+
 // Get sentiment statistics for a location
 router.get('/:locationId/stats', reviewController.getSentimentStats);
 

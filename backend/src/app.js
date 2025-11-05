@@ -43,6 +43,7 @@ import chatbotRoutes from './routes/chatbot.routes.js';
 import scraperRoutes from './routes/scraper.routes.js';
 import locationRoutes from './routes/location.routes.js';
 import dashboardRoutes from './routes/dashboard.routes.js';
+import reviewRoutes from './routes/review.routes.js';
 
 // Register routes
 app.use('/api/auth', authRoutes);
@@ -52,6 +53,7 @@ app.use('/api/chatbot', chatbotRoutes);
 app.use('/api/scraper', scraperRoutes);
 app.use('/api/locations', locationRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/reviews', reviewRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

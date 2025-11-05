@@ -41,7 +41,7 @@ The response must follow this exact JSON structure:
 - "score": numerical sentiment strength from -1 (very negative) to 1 (very positive).
 - "confidence": confidence level of the analysis between 0 and 1.
 - "keywords": list of the most influential words or phrases.
-- "summary": a short explanation written **only in Bahasa Indonesia**. Never use English for this field.
+- "summary": a short explanation written to summarize the sentiment.
 - Do not include any text outside of the JSON object.`,
         },
         {
@@ -104,7 +104,7 @@ The response must follow this exact JSON structure:
 - "score": sentiment polarity value between -1 (very negative) and 1 (very positive).
 - "confidence": level of certainty in the classification, from 0 to 1.
 - "keywords": list of the most relevant or influential words in the sentiment.
-- "summary": concise explanation of the sentiment written **only in Bahasa Indonesia**. Never use English for this field.
+- "summary": concise explanation of the sentiment findings.
 - Never include any output or characters outside the JSON object.`,
         },
         {

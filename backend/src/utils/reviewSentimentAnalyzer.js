@@ -54,7 +54,7 @@ Where:
 - confidence: how confident the analysis is (0-1)
 - sentiment_keywords: important words/phrases that influenced the sentiment (5-10 keywords)
 - contextual_topics: main topics/themes discussed in the review (3-5 topics like "service quality", "pricing", "cleanliness")
-- summary: a brief explanation of the sentiment and main points, explained in Bahasa Indonesia only.`,
+- summary: a brief explanation of the sentiment and main points.`,
         },
         {
           role: "user",
