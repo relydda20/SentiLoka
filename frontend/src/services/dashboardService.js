@@ -1,15 +1,35 @@
 import apiClient from "../utils/apiClient";
+import { store } from "../store/store";
 
-// Hardcoded userId for testing/development - matches the actual user in MongoDB
-const HARDCODED_USER_ID = "6908769c3a6ec4b0e9a421ee";
+/**
+ * Get the current logged-in user's ID from Redux store
+ */
+const getUserId = () => {
+  const state = store.getState();
+  const user = state.auth.user;
+  
+  // Backend returns 'id' field, not '_id'
+  const userId = user?.id || user?._id;
+  
+  if (!userId) {
+    console.error('❌ No user ID found. User might not be logged in.');
+    console.log('🔍 Auth state:', state.auth);
+    console.log('🔍 User object:', user);
+    throw new Error('User not authenticated');
+  }
+  
+  console.log('👤 Using userId:', userId);
+  return userId;
+};
 
 /**
  * Fetch all dashboard analytics data
  */
 export const fetchDashboardAnalytics = async () => {
   try {
-    console.log('📊 Fetching analytics for userId:', HARDCODED_USER_ID);
-    const response = await apiClient.get(`/dashboard/${HARDCODED_USER_ID}/analytics`);
+    const userId = getUserId();
+    console.log('📊 Fetching analytics for userId:', userId);
+    const response = await apiClient.get(`/dashboard/${userId}/analytics`);
     return response.data;
   } catch (error) {
     console.error("Error fetching dashboard analytics:", error);
@@ -22,8 +42,9 @@ export const fetchDashboardAnalytics = async () => {
  */
 export const fetchDashboardStats = async () => {
   try {
-    console.log("🔄 Loading stats for userId:", HARDCODED_USER_ID);
-    const response = await apiClient.get(`/dashboard/${HARDCODED_USER_ID}/stats`);
+    const userId = getUserId();
+    console.log("🔄 Loading stats for userId:", userId);
+    const response = await apiClient.get(`/dashboard/${userId}/stats`);
     console.log("✅ Stats loaded!");
     return response.data;
   } catch (error) {
@@ -37,8 +58,9 @@ export const fetchDashboardStats = async () => {
  */
 export const fetchSentimentDistribution = async () => {
   try {
-    console.log("🔄 Loading sentiment distribution for userId:", HARDCODED_USER_ID);
-    const response = await apiClient.get(`/dashboard/${HARDCODED_USER_ID}/sentiment-distribution`);
+    const userId = getUserId();
+    console.log("🔄 Loading sentiment distribution for userId:", userId);
+    const response = await apiClient.get(`/dashboard/${userId}/sentiment-distribution`);
     console.log("✅ Sentiment distribution loaded!");
     return response.data;
   } catch (error) {
@@ -52,8 +74,9 @@ export const fetchSentimentDistribution = async () => {
  */
 export const fetchRatingDistribution = async () => {
   try {
-    console.log("🔄 Loading rating distribution for userId:", HARDCODED_USER_ID);
-    const response = await apiClient.get(`/dashboard/${HARDCODED_USER_ID}/rating-distribution`);
+    const userId = getUserId();
+    console.log("🔄 Loading rating distribution for userId:", userId);
+    const response = await apiClient.get(`/dashboard/${userId}/rating-distribution`);
     console.log("✅ Rating distribution loaded!");
     return response.data;
   } catch (error) {
@@ -67,13 +90,14 @@ export const fetchRatingDistribution = async () => {
  */
 export const fetchSentimentTrends = async (startDate, endDate) => {
   try {
-    console.log("🔄 Loading sentiment trends for userId:", HARDCODED_USER_ID);
+    const userId = getUserId();
+    console.log("🔄 Loading sentiment trends for userId:", userId);
     
     const params = {};
     if (startDate) params.startDate = startDate;
     if (endDate) params.endDate = endDate;
     
-    const response = await apiClient.get(`/dashboard/${HARDCODED_USER_ID}/sentiment-trends`, { params });
+    const response = await apiClient.get(`/dashboard/${userId}/sentiment-trends`, { params });
     console.log("✅ Sentiment trends loaded!");
     return response.data;
   } catch (error) {
@@ -87,8 +111,9 @@ export const fetchSentimentTrends = async (startDate, endDate) => {
  */
 export const fetchWordCloudData = async () => {
   try {
-    console.log("🔄 Loading word cloud data for userId:", HARDCODED_USER_ID);
-    const response = await apiClient.get(`/dashboard/${HARDCODED_USER_ID}/word-cloud`);
+    const userId = getUserId();
+    console.log("🔄 Loading word cloud data for userId:", userId);
+    const response = await apiClient.get(`/dashboard/${userId}/word-cloud`);
     console.log("✅ Word cloud data loaded!");
 
     
