@@ -4,6 +4,9 @@ import dashboardController from '../controllers/dashboard.controller.js';
 
 const router = express.Router();
 
+// All routes require authentication
+// router.use(authenticate);
+
 // Get all dashboard analytics (combined endpoint)
 router.get('/:userId/analytics', dashboardController.getDashboardAnalytics);
 

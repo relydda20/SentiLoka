@@ -37,14 +37,9 @@
     "backend"
   ],
   "dependencies": {
-<<<<<<< HEAD
     "apexcharts": "^5.3.5",
     "lucide-react": "^0.548.0",
     "react-apexcharts": "^1.8.0",
     "react-hook-form": "^7.66.0"
-=======
-    "lucide-react": "^0.548.0",
-    "redux": "^5.0.1"
->>>>>>> a4a110073330a4c3126454176ba4b02aa0c39a5b
   }
 }

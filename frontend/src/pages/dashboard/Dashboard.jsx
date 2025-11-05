@@ -112,15 +112,15 @@ const Dashboard = () => {
           title: "Total Review",
           value: stats.totalReviews.toLocaleString(),
           icon: bubbleIcon,
-          footnote: `+${stats.totalReviewsChange}% from last month`,
-          footnoteClassName: "text-emerald-600",
+          footnote: `${stats.totalReviewsChange >= 0 ? '+' : ''}${stats.totalReviewsChange}% from last month`,
+          footnoteClassName: stats.totalReviewsChange >= 0 ? "text-emerald-600" : "text-red-600",
         },
         {
           title: "Average Rating",
           value: stats.averageRating.toString(),
           icon: starIcon,
-          footnote: `+${stats.averageRatingChange}% from last month`,
-          footnoteClassName: "text-emerald-600",
+          footnote: `${stats.averageRatingChange >= 0 ? '+' : ''}${stats.averageRatingChange}% from last month`,
+          footnoteClassName: stats.averageRatingChange >= 0 ? "text-emerald-600" : "text-red-600",
         },
         {
           title: "Positive Reviews",
@@ -309,7 +309,7 @@ const Dashboard = () => {
               />
             ) : (
               <ReactApexChart
-                options={columnChartConfig(stats?.totalReviews || 10024)}
+                options={columnChartConfig(ratingDistribution || [])}
                 series={columnChartSeries}
                 type="bar"
                 height={300}
