@@ -1,33 +1,35 @@
 import apiClient from "../utils/apiClient";
-
-// Default userId for testing (before authentication is implemented)
-const DEFAULT_USER_ID = "69081cb0e7a17424481a156f";
+import { store } from "../store/store";
 
 /**
- * Helper function to ensure userId is a string
+ * Get the current logged-in user's ID from Redux store
  */
-const getUserId = (userId) => {
-  // If userId is undefined or null, use default
-  if (!userId) return DEFAULT_USER_ID;
+const getUserId = () => {
+  const state = store.getState();
+  const user = state.auth.user;
   
-  // If userId is an object, extract the id property or use default
-  if (typeof userId === 'object') {
-    console.warn('⚠️ userId should be a string, received object:', userId);
-    return userId.id || userId._id || DEFAULT_USER_ID;
+  // Backend returns 'id' field, not '_id'
+  const userId = user?.id || user?._id;
+  
+  if (!userId) {
+    console.error('❌ No user ID found. User might not be logged in.');
+    console.log('🔍 Auth state:', state.auth);
+    console.log('🔍 User object:', user);
+    throw new Error('User not authenticated');
   }
   
-  // Return the string userId
-  return String(userId);
+  console.log('👤 Using userId:', userId);
+  return userId;
 };
 
 /**
  * Fetch all dashboard analytics data
  */
-export const fetchDashboardAnalytics = async (userId) => {
+export const fetchDashboardAnalytics = async () => {
   try {
-    const validUserId = getUserId(userId);
-    console.log('📊 Fetching analytics for userId:', validUserId);
-    const response = await apiClient.get(`/api/dashboard/${validUserId}/analytics`);
+    const userId = getUserId();
+    console.log('📊 Fetching analytics for userId:', userId);
+    const response = await apiClient.get(`/dashboard/${userId}/analytics`);
     return response.data;
   } catch (error) {
     console.error("Error fetching dashboard analytics:", error);
@@ -38,11 +40,11 @@ export const fetchDashboardAnalytics = async (userId) => {
 /**
  * Fetch only stats data
  */
-export const fetchDashboardStats = async (userId) => {
+export const fetchDashboardStats = async () => {
   try {
-    const validUserId = getUserId(userId);
-    console.log("🔄 Loading stats for userId:", validUserId);
-    const response = await apiClient.get(`/api/dashboard/${validUserId}/stats`);
+    const userId = getUserId();
+    console.log("🔄 Loading stats for userId:", userId);
+    const response = await apiClient.get(`/dashboard/${userId}/stats`);
     console.log("✅ Stats loaded!");
     return response.data;
   } catch (error) {
@@ -54,11 +56,11 @@ export const fetchDashboardStats = async (userId) => {
 /**
  * Fetch sentiment distribution data
  */
-export const fetchSentimentDistribution = async (userId) => {
+export const fetchSentimentDistribution = async () => {
   try {
-    const validUserId = getUserId(userId);
-    console.log("🔄 Loading sentiment distribution for userId:", validUserId);
-    const response = await apiClient.get(`/api/dashboard/${validUserId}/sentiment-distribution`);
+    const userId = getUserId();
+    console.log("🔄 Loading sentiment distribution for userId:", userId);
+    const response = await apiClient.get(`/dashboard/${userId}/sentiment-distribution`);
     console.log("✅ Sentiment distribution loaded!");
     return response.data;
   } catch (error) {
@@ -70,11 +72,11 @@ export const fetchSentimentDistribution = async (userId) => {
 /**
  * Fetch rating distribution data
  */
-export const fetchRatingDistribution = async (userId) => {
+export const fetchRatingDistribution = async () => {
   try {
-    const validUserId = getUserId(userId);
-    console.log("🔄 Loading rating distribution for userId:", validUserId);
-    const response = await apiClient.get(`/api/dashboard/${validUserId}/rating-distribution`);
+    const userId = getUserId();
+    console.log("🔄 Loading rating distribution for userId:", userId);
+    const response = await apiClient.get(`/dashboard/${userId}/rating-distribution`);
     console.log("✅ Rating distribution loaded!");
     return response.data;
   } catch (error) {
@@ -86,16 +88,16 @@ export const fetchRatingDistribution = async (userId) => {
 /**
  * Fetch sentiment trends data
  */
-export const fetchSentimentTrends = async (userId, startDate, endDate) => {
+export const fetchSentimentTrends = async (startDate, endDate) => {
   try {
-    const validUserId = getUserId(userId);
-    console.log("🔄 Loading sentiment trends for userId:", validUserId);
+    const userId = getUserId();
+    console.log("🔄 Loading sentiment trends for userId:", userId);
     
     const params = {};
     if (startDate) params.startDate = startDate;
     if (endDate) params.endDate = endDate;
     
-    const response = await apiClient.get(`/api/dashboard/${validUserId}/sentiment-trends`, { params });
+    const response = await apiClient.get(`/dashboard/${userId}/sentiment-trends`, { params });
     console.log("✅ Sentiment trends loaded!");
     return response.data;
   } catch (error) {
@@ -107,11 +109,11 @@ export const fetchSentimentTrends = async (userId, startDate, endDate) => {
 /**
  * Fetch word cloud data
  */
-export const fetchWordCloudData = async (userId) => {
+export const fetchWordCloudData = async () => {
   try {
-    const validUserId = getUserId(userId);
-    console.log("🔄 Loading word cloud data for userId:", validUserId);
-    const response = await apiClient.get(`/api/dashboard/${validUserId}/word-cloud`);
+    const userId = getUserId();
+    console.log("🔄 Loading word cloud data for userId:", userId);
+    const response = await apiClient.get(`/dashboard/${userId}/word-cloud`);
     console.log("✅ Word cloud data loaded!");
 
     

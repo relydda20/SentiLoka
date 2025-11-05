@@ -43,6 +43,10 @@ const reviewSummarySchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    publishedAt: {
+      type: Date,
+      index: true,
+    },
 
     // Sentiment analysis results
     sentiment: {
@@ -103,10 +107,12 @@ const reviewSummarySchema = new mongoose.Schema(
 
 // Indexes for efficient querying
 reviewSummarySchema.index({ processedAt: -1 });
+reviewSummarySchema.index({ publishedAt: -1 });
 reviewSummarySchema.index({ createdAt: -1 });
 reviewSummarySchema.index({ userId: 1, locationId: 1 });
 reviewSummarySchema.index({ userId: 1, sentiment: 1 });
 reviewSummarySchema.index({ locationId: 1, sentiment: 1 });
+reviewSummarySchema.index({ locationId: 1, publishedAt: -1 }); // For trends queries
 // Unique compound index to prevent duplicate analyses
 reviewSummarySchema.index({ userId: 1, locationId: 1, reviewId: 1 }, { unique: true, sparse: true });
 

@@ -63,7 +63,7 @@ export const littlePieChartConfig = {
   },
 };
 
-export const columnChartConfig = (totalReviews) => ({
+export const columnChartConfig = (ratingData) => ({
   chart: {
     type: "bar",
     height: 350,
@@ -78,8 +78,9 @@ export const columnChartConfig = (totalReviews) => ({
   },
   dataLabels: {
     enabled: true,
-    formatter: function (val) {
-      const percentage = ((val / totalReviews) * 100).toFixed(1);
+    formatter: function (val, opts) {
+      const dataIndex = opts.dataPointIndex;
+      const percentage = ratingData[dataIndex]?.percentage || 0;
       return val + " (" + percentage + "%)";
     },
     offsetY: -20,
@@ -115,8 +116,9 @@ export const columnChartConfig = (totalReviews) => ({
   colors: ["#2196F3"],
   tooltip: {
     y: {
-      formatter: function (val) {
-        const percentage = ((val / totalReviews) * 100).toFixed(1);
+      formatter: function (val, opts) {
+        const dataIndex = opts.dataPointIndex;
+        const percentage = ratingData[dataIndex]?.percentage || 0;
         return val + " reviews (" + percentage + "%)";
       },
     },

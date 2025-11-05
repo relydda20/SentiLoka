@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSelector } from "react-redux";
 import StatCard from "../../components/cards/StatCard";
 import ReactApexChart from "react-apexcharts";
 import bubbleIcon from "../../assets/icons/bubblechat-icon.png";
@@ -25,6 +26,21 @@ import WordCloudComponent from "../../components/charts/WordCloudComponent";
 
 const Dashboard = () => {
   const queryClient = useQueryClient();
+  
+  // Get current user ID from Redux store
+  const userId = useSelector((state) => state.auth.user?.id || state.auth.user?._id);
+
+  // Invalidate all queries when userId changes (e.g., after login/logout)
+  useEffect(() => {
+    if (userId) {
+      console.log('👤 User changed, invalidating all dashboard queries for userId:', userId);
+      queryClient.invalidateQueries(["dashboardStats"]);
+      queryClient.invalidateQueries(["sentimentDistribution"]);
+      queryClient.invalidateQueries(["ratingDistribution"]);
+      queryClient.invalidateQueries(["sentimentTrends"]);
+      queryClient.invalidateQueries(["wordCloudData"]);
+    }
+  }, [userId, queryClient]);
 
   // --- Fetch Dashboard Data with React Query ---
   const {
@@ -32,8 +48,9 @@ const Dashboard = () => {
     isLoading: loadingStats,
     error: statsError,
   } = useQuery({
-    queryKey: ["dashboardStats"],
+    queryKey: ["dashboardStats", userId],
     queryFn: fetchDashboardStats,
+    enabled: !!userId, // Only fetch if userId exists
     staleTime: 5 * 60 * 1000,
     cacheTime: 10 * 60 * 1000,
   });
@@ -43,8 +60,9 @@ const Dashboard = () => {
     isLoading: loadingSentiment,
     error: sentimentError,
   } = useQuery({
-    queryKey: ["sentimentDistribution"],
+    queryKey: ["sentimentDistribution", userId],
     queryFn: fetchSentimentDistribution,
+    enabled: !!userId,
     staleTime: 5 * 60 * 1000,
     cacheTime: 10 * 60 * 1000,
   });
@@ -54,8 +72,9 @@ const Dashboard = () => {
     isLoading: loadingRating,
     error: ratingError,
   } = useQuery({
-    queryKey: ["ratingDistribution"],
+    queryKey: ["ratingDistribution", userId],
     queryFn: fetchRatingDistribution,
+    enabled: !!userId,
     staleTime: 5 * 60 * 1000,
     cacheTime: 10 * 60 * 1000,
   });
@@ -65,8 +84,9 @@ const Dashboard = () => {
     isLoading: loadingTrends,
     error: trendsError,
   } = useQuery({
-    queryKey: ["sentimentTrends"],
+    queryKey: ["sentimentTrends", userId],
     queryFn: fetchSentimentTrends,
+    enabled: !!userId,
     staleTime: 5 * 60 * 1000,
     cacheTime: 10 * 60 * 1000,
   });
@@ -78,7 +98,7 @@ const Dashboard = () => {
     error: wordCloudError,
     refetch: refetchWordCloud,
   } = useQuery({
-    queryKey: ["wordCloudData"],
+    queryKey: ["wordCloudData", userId],
     queryFn: fetchWordCloudData,
     enabled: false, // Don't fetch automatically
     staleTime: 10 * 60 * 1000, // Cache for 10 minutes
@@ -87,15 +107,15 @@ const Dashboard = () => {
 
   // Manual refresh function
   const refreshAllData = () => {
-    queryClient.invalidateQueries(["dashboardStats"]);
-    queryClient.invalidateQueries(["sentimentDistribution"]);
-    queryClient.invalidateQueries(["ratingDistribution"]);
-    queryClient.invalidateQueries(["sentimentTrends"]);
+    queryClient.invalidateQueries(["dashboardStats", userId]);
+    queryClient.invalidateQueries(["sentimentDistribution", userId]);
+    queryClient.invalidateQueries(["ratingDistribution", userId]);
+    queryClient.invalidateQueries(["sentimentTrends", userId]);
   };
 
   // Retry individual sections
   const retrySection = (queryKey) => {
-    queryClient.invalidateQueries([queryKey]);
+    queryClient.invalidateQueries([queryKey, userId]);
   };
 
   // Handle word cloud loading
@@ -112,15 +132,15 @@ const Dashboard = () => {
           title: "Total Review",
           value: stats.totalReviews.toLocaleString(),
           icon: bubbleIcon,
-          footnote: `+${stats.totalReviewsChange}% from last month`,
-          footnoteClassName: "text-emerald-600",
+          footnote: `${stats.totalReviewsChange >= 0 ? '+' : ''}${stats.totalReviewsChange}% from last month`,
+          footnoteClassName: stats.totalReviewsChange >= 0 ? "text-emerald-600" : "text-red-600",
         },
         {
           title: "Average Rating",
           value: stats.averageRating.toString(),
           icon: starIcon,
-          footnote: `+${stats.averageRatingChange}% from last month`,
-          footnoteClassName: "text-emerald-600",
+          footnote: `${stats.averageRatingChange >= 0 ? '+' : ''}${stats.averageRatingChange}% from last month`,
+          footnoteClassName: stats.averageRatingChange >= 0 ? "text-emerald-600" : "text-red-600",
         },
         {
           title: "Positive Reviews",
@@ -309,7 +329,7 @@ const Dashboard = () => {
               />
             ) : (
               <ReactApexChart
-                options={columnChartConfig(stats?.totalReviews || 10024)}
+                options={columnChartConfig(ratingDistribution || [])}
                 series={columnChartSeries}
                 type="bar"
                 height={300}
