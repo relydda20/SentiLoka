@@ -254,7 +254,7 @@ const dashboardController = {
       return {
         totalReviews: 0,
         averageRating: 0,
-        positivePercentage: 0,
+        positiveReviewsPercentage: 0,
         totalLocations: 0,
         totalReviewsChange: 0,
         averageRatingChange: 0
@@ -299,7 +299,7 @@ const dashboardController = {
       return {
         totalReviews: 0,
         averageRating: 0,
-        positivePercentage: 0,
+        positiveReviewsPercentage: 0,
         totalLocations,
         totalReviewsChange: 0,
         averageRatingChange: 0
