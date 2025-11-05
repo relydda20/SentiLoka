@@ -1,5 +1,19 @@
 # Requirements for Google Maps Review Scraper Integration
-# Install with: python_env/bin/pip install -r requirements.txt
+# in python_env created with: 
+# ```
+# python -m venv python_env
+# ```
+#
+# Install with: 
+# ```
+# python_env/bin/pip install -r requirements.txt
+# ```
+
+# Install Playwright browsers in python_venv with: 
+# ```
+# playwright install --with-deps chromium
+# ```
+
 # Python 3.12+ recommended for best performance
 
 # Core scraping dependencies (updated for Python 3.12+)

@@ -89,7 +89,7 @@ DOWNLOAD_HANDLERS = {
 PLAYWRIGHT_BROWSER_TYPE = "chromium"  # or "firefox" or "webkit"
 
 PLAYWRIGHT_LAUNCH_OPTIONS = {
-    "headless": False,  # Set to False for debugging
+    "headless": True,  # Set to False for debugging
     "timeout": 60000,  # 60 seconds
     # Uncomment below for debugging
     # "slowMo": 1000,  # Slow down by 1 second
@@ -106,7 +106,7 @@ PLAYWRIGHT_DEFAULT_NAVIGATION_TIMEOUT = 60000  # 60 seconds
 # For local testing, uncomment and add your key:
 # ZYTE_API_KEY = "YOUR_ZYTE_API_KEY_HERE"
 
-# Enable Zyte API
+    # Enable Zyte API
 ZYTE_API_ENABLED = True
 
 # Zyte API specific middlewares
