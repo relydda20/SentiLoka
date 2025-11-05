@@ -42,7 +42,7 @@ const ReviewCard = ({ review, onGenerateReply }) => {
               ))}
             </div>
             <span className="text-[#42676B] text-xs">
-              {formatDate(review.time)}
+              {formatDate(review.date)}
             </span>
           </div>
         </div>

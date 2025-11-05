@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useEffect } from "react";
+import React from "react";
 import { GoogleMap, useJsApiLoader } from "@react-google-maps/api";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -9,7 +9,6 @@ import {
   Loader2,
   AlertCircle,
 } from "lucide-react";
-import OverlappingMarkerSpiderfier from "../../utils/OverlappingMarkerSpiderfier";
 
 // Panel Components
 import LocationsPanel from "../../components/sentimentMap/LocationsPanel";
@@ -29,17 +28,14 @@ import GenerateReplyModal from "../../components/sentimentMap/modal/GenerateRepl
 import LocationMarker from "../../components/sentimentMap/marker/LocationMarker";
 import SelectedMarker from "../../components/sentimentMap/marker/SelectedMarker";
 
-// Services
-import {
-  fetchBusinessLocations,
-  registerBusinessLocation,
-  loadBusinessReviews,
-  fetchExistingReviews,
-  analyzeLocationSentiment,
-} from "../../services/locationReviewService";
-
 // Utils
 import { getMarkerColor } from "../../utils/sentimentUtils";
+
+// Custom Hooks
+import { useLocationData } from "../../hooks/useLocationData";
+import { useMapControls } from "../../hooks/useMapControls";
+import { useReviewManagement } from "../../hooks/useReviewManagement";
+import { useSentimentMap } from "../../hooks/useSentimentMap";
 
 const libraries = ["places"];
 
@@ -53,453 +49,155 @@ const defaultCenter = {
   lng: 106.8456,
 };
 
-const defaultFilters = {
-  searchTerm: "",
-  sentiment: "all",
-  rating: 0,
-};
-
 const SentimentMap = () => {
-  const [map, setMap] = useState(null);
-  const [locations, setLocations] = useState([]);
-  const [selectedLocation, setSelectedLocation] = useState(null);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [searchBox, setSearchBox] = useState(null);
-  const [selectedPlace, setSelectedPlace] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  // Location data hook
+  const { locations, setLocations, loading, setLoading, error, setError } =
+    useLocationData();
 
-  // *** STATE for filters and pagination ***
-  const [reviewPage, setReviewPage] = useState(1);
-  const [reviewFilters, setReviewFilters] = useState(defaultFilters);
-  const [isFetchingReviews, setIsFetchingReviews] = useState(false); // Combined loading state
+  // Main state management hook
+  const {
+    selectedLocation,
+    setSelectedLocation,
+    sidebarOpen,
+    setSidebarOpen,
+    isReplyModalOpen,
+    selectedReview,
+    isChatbotOpen,
+    setIsChatbotOpen,
+    handleGenerateReply,
+    handleCloseReplyModal,
+    createMarkerClickHandler,
+    createAddLocationHandler,
+  } = useSentimentMap();
 
-  const [loadingReviews, setLoadingReviews] = useState(false); // For initial load
-  const [loadingSentiment, setLoadingSentiment] = useState(false); // For initial analysis
+  // Review management hook (now powered by React Query)
+  const {
+    reviewPage,
+    reviewFilters,
+    reviewData,
+    isFetchingReviews,
+    loadingReviews,
+    loadingSentiment,
+    handleInitialLoadReviews,
+    handleInitialAnalyzeSentiment,
+    handleFilterOrPageChange,
+  } = useReviewManagement(selectedLocation?.id);
 
-  const [hoveredMarker, setHoveredMarker] = useState(null);
-  const [markerRefs, setMarkerRefs] = useState({});
-  const [poiVisible, setPoiVisible] = useState(false);
+  // Spiderfied marker click handler
+  const handleSpiderfiedMarkerClick = async (location) => {
+    const latestLocation =
+      locations.find((loc) => loc.id === location.id) || location;
+    setSelectedLocation(latestLocation);
+    setSidebarOpen(true);
 
-  // Modal states
-  const [isReplyModalOpen, setIsReplyModalOpen] = useState(false);
-  const [selectedReview, setSelectedReview] = useState(null);
-  const [isChatbotOpen, setIsChatbotOpen] = useState(false);
-
-  const omsRef = useRef(null);
-
-  const { isLoaded, loadError } = useJsApiLoader({
-    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
-    libraries,
-  });
-
-  // Load mock data on mount
-  useEffect(() => {
-    fetchBusinessLocationsData();
-  }, []);
-
-  // Register markers with Spiderfy when locations or marker refs change
-  useEffect(() => {
-    if (omsRef.current && Object.keys(markerRefs).length > 0) {
-      omsRef.current.clearMarkers();
-      Object.values(markerRefs).forEach((marker) => {
-        if (marker) {
-          omsRef.current.addMarker(marker);
-        }
-      });
-    }
-  }, [locations, markerRefs]);
-
-  // Set up OMS event listeners
-  useEffect(() => {
-    if (omsRef.current && locations.length > 0) {
-      omsRef.current.listeners = {
-        click: [],
-        spiderfy: [],
-        unspiderfy: [],
-      };
-
-      omsRef.current.addListener("click", (marker) => {
-        const locationId = marker._locationId;
-        const location = locations.find((loc) => loc.id === locationId);
-        if (location) {
-          handleSpiderfiedMarkerClick(location);
-        }
-      });
-
-      omsRef.current.addListener("spiderfy", (markers) => {
-        console.log("Spiderfied", markers.length, "markers");
-        setSidebarOpen(false);
-      });
-
-      omsRef.current.addListener("unspiderfy", () => {
-        console.log("Unspiderfied");
-      });
-    }
-  }, [locations]);
-
-  // Toggle POI visibility
-  const togglePOI = () => {
-    const newPoiVisible = !poiVisible;
-    setPoiVisible(newPoiVisible);
-    if (map) {
-      map.setOptions({
-        styles: [
-          {
-            featureType: "poi",
-            elementType: "labels",
-            stylers: [{ visibility: newPoiVisible ? "on" : "off" }],
-          },
-        ],
-      });
-    }
+    // React Query will automatically fetch reviews when selectedLocation changes
+    // The useReviewManagement hook listens to selectedLocation?.id
   };
 
-  const fetchBusinessLocationsData = async () => {
-    setLoading(true);
-    setError(null);
+  // Map controls hook
+  const {
+    map,
+    onMapLoad,
+    selectedPlace,
+    setSelectedPlace,
+    poiVisible,
+    togglePOI,
+    hoveredMarker,
+    setHoveredMarker,
+    handleMarkerLoad,
+    onAutocompleteLoad,
+    onPlaceChanged,
+    omsRef,
+  } = useMapControls(locations, handleSpiderfiedMarkerClick);
+
+  // Create handlers with dependencies
+  const handleMarkerClick = createMarkerClickHandler(
+    locations,
+    map,
+    setSelectedLocation,
+    setSidebarOpen,
+  );
+
+  const handleAddLocationToAnalysis = createAddLocationHandler(
+    selectedPlace,
+    setSelectedPlace,
+    setLocations,
+    setLoading,
+    setError,
+  );
+
+  const handleLoadReviews = async (locationId) => {
     try {
-      const data = await fetchBusinessLocations();
-      setLocations(data.businesses);
-    } catch (error) {
-      setError("Failed to load business locations");
-      console.error("Error fetching businesses:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+      const onScrapeProgress = (status) => {
+        console.log("📊 Scrape progress:", status.state, status.progress);
 
-  const onMapLoad = useCallback((map) => {
-    setMap(map);
-    map.setOptions({
-      styles: [
-        {
-          featureType: "poi",
-          elementType: "labels",
-          stylers: [{ visibility: "off" }],
-        },
-      ],
-    });
-    const oms = new OverlappingMarkerSpiderfier(map, {
-      markersWontMove: true,
-      markersWontHide: true,
-      keepSpiderfied: false,
-      nearbyDistance: 40,
-      circleFootSeparation: 35,
-    });
-    map.addListener("click", () => oms.unspiderfy());
-    omsRef.current = oms;
-  }, []);
-
-  const onAutocompleteLoad = useCallback((autocomplete) => {
-    setSearchBox(autocomplete);
-  }, []);
-
-  const onPlaceChanged = () => {
-    if (searchBox !== null) {
-      const place = searchBox.getPlace();
-      if (place.geometry && place.geometry.location) {
-        const placeData = {
-          placeId: place.place_id,
-          name: place.name,
-          address: place.formatted_address,
-          coordinates: {
-            lat: place.geometry.location.lat(),
-            lng: place.geometry.location.lng(),
-          },
-          rating: place.rating,
-          userRatingsTotal: place.user_ratings_total,
-          url: place.url,
-          types: place.types,
-          phoneNumber: place.formatted_phone_number,
-        };
-        setSelectedPlace(placeData);
-        if (map) {
-          map.panTo(placeData.coordinates);
-          map.setZoom(16);
-        }
-      }
-    }
-  };
-
-  // *** HELPER to fetch EXISTING reviews (NO scraping) for filters/pagination/marker clicks ***
-  const fetchReviewData = async (locationId, options) => {
-    setIsFetchingReviews(true);
-    setError(null);
-
-    console.log("🔍 fetchReviewData called with options:", options);
-
-    try {
-      // Use fetchExistingReviews - ONLY fetches from DB, does NOT trigger scraping
-      const data = await fetchExistingReviews(locationId, options);
-
-      // IMPORTANT: Only update locations array if this is an INITIAL load (no filters/pagination)
-      // Filtered/paginated results should ONLY update selectedLocation, not the locations array
-      const isInitialLoad = !options.rating && !options.searchTerm && 
-                           (!options.sentiment || options.sentiment === 'all') && 
-                           (!options.page || options.page === 1);
-      
-      if (isInitialLoad) {
-        // Update the main locations list only for initial unfiltered load
+        // Update both locations array and selectedLocation
         setLocations((prev) =>
           prev.map((loc) =>
-            loc.id === locationId ? { ...loc, ...data.business } : loc,
+            loc.id === locationId
+              ? {
+                  ...loc,
+                  scrapeStatus: status.state,
+                  scrapeProgress: status.progress || {
+                    percentage: 0,
+                    current: 0,
+                    total: 0,
+                    estimatedTimeRemaining: null,
+                    message: null,
+                  },
+                }
+              : loc,
           ),
         );
-      }
-      
-      // Always update the selectedLocation state with current results (filtered or not)
-      // Use callback form to get the latest state value
-      setSelectedLocation((prev) => {
-        // Only update if this is the currently selected location
-        if (prev?.id === locationId) {
-          console.log("📝 Updating selectedLocation with reviews:", {
-            isFiltered: !isInitialLoad,
-            reviewsLength: data.business.reviews?.length,
-            pagination: data.business.pagination,
-          });
-          const updated = { ...prev, ...data.business };
-          console.log("📝 Updated selectedLocation reviews count:", updated.reviews?.length);
-          return updated;
-        }
-        return prev; // Return unchanged if different location
-      });
-    } catch (error) {
-      console.error("Error fetching review data:", error);
-      setError("Failed to fetch reviews. Please try again.");
-    } finally {
-      setIsFetchingReviews(false);
-    }
-  };
 
-  const handleMarkerClick = async (location) => {
-    // *** Reset filters on new location click ***
-    setReviewFilters(defaultFilters);
-    setReviewPage(1);
-
-    // Find the latest location data from locations array (includes previously loaded reviews)
-    const latestLocation = locations.find(loc => loc.id === location.id) || location;
-    
-    console.log(`📍 Opening location: ${latestLocation.businessName}`);
-    console.log(`   Reviews in memory:`, latestLocation.reviews?.length || 0);
-    console.log(`   Reviews count in DB:`, latestLocation.reviewsCount || 0);
-    console.log(`   Scrape status:`, latestLocation.scrapeStatus);
-    
-    setSelectedLocation(latestLocation);
-    setSidebarOpen(true);
-
-    // Pan to the marker when clicked
-    if (map) {
-      map.panTo(location.coordinates);
-      map.setZoom(16);
-    }
-
-    // Auto-fetch reviews if location has scraped reviews in DB but they're not loaded in memory
-    // This handles page refreshes and ensures reviews are always available
-    const hasScrapedReviews = latestLocation.reviewsCount > 0;
-    const reviewsNotLoaded = !latestLocation.reviews || latestLocation.reviews.length === 0;
-    
-    if (hasScrapedReviews && reviewsNotLoaded) {
-      console.log('📥 Auto-fetching reviews for location (has', latestLocation.reviewsCount, 'reviews in DB)...');
-      await fetchReviewData(latestLocation.id, { page: 1, ...defaultFilters });
-    }
-  };
-
-  const handleSpiderfiedMarkerClick = async (location) => {
-    setReviewFilters(defaultFilters);
-    setReviewPage(1);
-    
-    // Find the latest location data from locations array (includes previously loaded reviews)
-    const latestLocation = locations.find(loc => loc.id === location.id) || location;
-    setSelectedLocation(latestLocation);
-    setSidebarOpen(true);
-    
-    // Auto-fetch reviews if location has scraped reviews in DB but they're not loaded
-    const hasScrapedReviews = latestLocation.reviewsCount > 0;
-    const reviewsNotLoaded = !latestLocation.reviews || latestLocation.reviews.length === 0;
-    
-    if (hasScrapedReviews && reviewsNotLoaded) {
-      console.log('📥 Auto-fetching reviews for spiderfied marker...');
-      await fetchReviewData(latestLocation.id, { page: 1, ...defaultFilters });
-    }
-  };
-
-  // *** RENAMED & MODIFIED ***
-  const handleInitialLoadReviews = async (locationId) => {
-    setLoadingReviews(true); // Specific loader for *initial* load
-    setError(null);
-    console.log("=== Load Reviews Request ===");
-    try {
-      const options = { 
-        page: 1, 
-        ...defaultFilters,
-        // Progress callback for scraping updates
-        onScrapeProgress: (status) => {
-          console.log("📊 Scrape progress:", status.state, status.progress);
-          // Update location with scraping status
-          setLocations((prev) =>
-            prev.map((loc) =>
-              loc.id === locationId 
-                ? { ...loc, scrapeStatus: status.state, scrapeProgress: status.progress }
-                : loc
-            )
-          );
-        }
-      };
-      const data = await loadBusinessReviews(locationId, options);
-
-      console.log("✅ Reviews loaded successfully:", data);
-
-      // Update locations with the full business data including reviews
-      setLocations((prev) =>
-        prev.map((loc) =>
-          loc.id === locationId ? { ...loc, ...data.business } : loc,
-        ),
-      );
-      
-      // Update selected location with reviews
-      if (selectedLocation?.id === locationId) {
-        setSelectedLocation((prev) => ({ 
-          ...prev, 
-          ...data.business,
-          reviews: data.business.reviews || [],
-          pagination: data.business.pagination,
-        }));
-      }
-
-      // Show success message if reviews were scraped
-      if (data.business.reviews && data.business.reviews.length > 0) {
-        console.log(`✅ Successfully loaded ${data.business.reviews.length} reviews`);
-      }
-    } catch (error) {
-      console.error("Error loading reviews:", error);
-      setError(error.message || "Failed to load reviews");
-    } finally {
-      setLoadingReviews(false);
-    }
-  };
-
-  // *** RENAMED & MODIFIED ***
-  const handleInitialAnalyzeSentiment = async (locationId) => {
-    setLoadingSentiment(true); // Specific loader for *initial* analysis
-    setError(null);
-    console.log("=== Analyze Sentiment Request ===");
-    try {
-      // Step 1: Trigger sentiment analysis
-      const analysisData = await analyzeLocationSentiment(locationId);
-      
-      console.log(`✅ Analysis complete: ${analysisData.business.analysis.newlyAnalyzed} new, ${analysisData.business.analysis.alreadyAnalyzed} existing`);
-      
-      // Step 2: Reload reviews to get the analyzed versions with sentiment data
-      const options = { page: 1, ...defaultFilters };
-      const reviewData = await loadBusinessReviews(locationId, options);
-
-      // Step 3: Update state with both analysis results and reloaded reviews
-      const updatedBusiness = {
-        ...analysisData.business,
-        ...reviewData.business,
+        // Also update selectedLocation if it's the one being scraped
+        setSelectedLocation((prev) => {
+          if (prev && prev.id === locationId) {
+            return {
+              ...prev,
+              scrapeStatus: status.state,
+              scrapeProgress: status.progress || {
+                percentage: 0,
+                current: 0,
+                total: 0,
+                estimatedTimeRemaining: null,
+                message: null,
+              },
+            };
+          }
+          return prev;
+        });
       };
 
+      const updatedBusiness = await handleInitialLoadReviews(locationId, onScrapeProgress);
+
+      // Update locations cache
       setLocations((prev) =>
         prev.map((loc) =>
           loc.id === locationId ? { ...loc, ...updatedBusiness } : loc,
         ),
       );
-      
-      if (selectedLocation?.id === locationId) {
-        setSelectedLocation((prev) => ({ ...prev, ...updatedBusiness }));
-      }
-      
-      alert(`✅ Sentiment analyzed successfully!\n${analysisData.business.analysis.newlyAnalyzed} reviews newly analyzed.`);
     } catch (error) {
-      console.error("Error analyzing sentiment:", error);
+      setError(error.message || "Failed to load reviews");
+    }
+  };
+
+  const handleAnalyzeSentiment = async (locationId) => {
+    try {
+      const { updatedBusiness, message } = await handleInitialAnalyzeSentiment(locationId);
+
+      // Update locations cache
+      setLocations((prev) =>
+        prev.map((loc) =>
+          loc.id === locationId ? { ...loc, ...updatedBusiness } : loc,
+        ),
+      );
+
+      alert(message);
+    } catch (error) {
       setError(error.message || "Failed to analyze sentiment");
       alert(`❌ Failed to analyze sentiment: ${error.message}`);
-    } finally {
-      setLoadingSentiment(false);
     }
-  };
-
-  // *** NEW HANDLER for pagination & filtering ***
-  const handleFilterOrPageChange = (newOptions) => {
-    if (!selectedLocation) return;
-
-    const newPage = newOptions.page !== undefined ? newOptions.page : 1;
-    const newFilters = {
-      searchTerm:
-        newOptions.searchTerm !== undefined
-          ? newOptions.searchTerm
-          : reviewFilters.searchTerm,
-      sentiment:
-        newOptions.sentiment !== undefined
-          ? newOptions.sentiment
-          : reviewFilters.sentiment,
-      rating:
-        newOptions.rating !== undefined
-          ? newOptions.rating
-          : reviewFilters.rating,
-    };
-
-    setReviewPage(newPage);
-    setReviewFilters(newFilters);
-
-    fetchReviewData(selectedLocation.id, { ...newFilters, page: newPage });
-  };
-
-  const handleMarkerLoad = (marker, locationId) => {
-    setMarkerRefs((prev) => ({ ...prev, [locationId]: marker }));
-  };
-
-  const handleAddLocationToAnalysis = async () => {
-    if (!selectedPlace) return;
-    setLoading(true);
-    setError(null);
-    const businessData = {
-      businessName: selectedPlace.name,
-      placeId: selectedPlace.placeId,
-      address: selectedPlace.address,
-      coordinates: selectedPlace.coordinates,
-      googleMapsUrl: selectedPlace.url,
-      phoneNumber: selectedPlace.phoneNumber,
-      category: selectedPlace.types?.[0] || "establishment",
-      rating: selectedPlace.rating,
-      totalReviews: selectedPlace.userRatingsTotal,
-      businessTypes: selectedPlace.types,
-      addedAt: new Date().toISOString(),
-    };
-
-    try {
-      const data = await registerBusinessLocation(businessData);
-      setLocations((prev) => [...prev, data.business]);
-      setSelectedPlace(null);
-      setError(null);
-      setTimeout(() => {
-        alert(
-          "✅ Location added successfully! Click the new marker to load and analyze reviews.",
-        );
-      }, 100);
-    } catch (error) {
-      console.error("Error adding location:", error);
-      setError("Failed to add location");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Open modal with selected review
-  const handleGenerateReply = (review) => {
-    console.log("=== Opening Reply Modal ===");
-    console.log("Review:", review);
-    console.log("========================");
-
-    setSelectedReview(review);
-    setIsReplyModalOpen(true);
-  };
-
-  // Close modal
-  const handleCloseReplyModal = () => {
-    setIsReplyModalOpen(false);
-    setSelectedReview(null);
   };
 
   const getSentimentIcon = (sentiment) => {
@@ -552,6 +250,11 @@ const SentimentMap = () => {
   };
 
   const analytics = calculateAnalytics();
+
+  const { isLoaded, loadError } = useJsApiLoader({
+    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
+    libraries,
+  });
 
   if (loadError) {
     return (
@@ -667,21 +370,20 @@ const SentimentMap = () => {
       <ReviewSidebar
         isOpen={sidebarOpen}
         selectedLocation={selectedLocation}
-        loadingReviews={loadingReviews} // For initial load button
+        reviewData={reviewData}
+        loadingReviews={loadingReviews}
         onClose={() => {
           setSidebarOpen(false);
-          // Keep selectedLocation so reviews persist when reopened
         }}
-        onLoadReviews={handleInitialLoadReviews} // Use initial loader
+        onLoadReviews={handleLoadReviews}
         onGenerateReply={handleGenerateReply}
         getSentimentIcon={getSentimentIcon}
-        loadingSentiment={loadingSentiment} // For initial analyze button
-        onAnalyzeSentiment={handleInitialAnalyzeSentiment} // Use initial analyzer
-        // *** NEW PROPS for filtering/pagination ***
+        loadingSentiment={loadingSentiment}
+        onAnalyzeSentiment={handleAnalyzeSentiment}
         reviewFilters={reviewFilters}
         reviewPage={reviewPage}
         onFilterOrPageChange={handleFilterOrPageChange}
-        isFetchingReviews={isFetchingReviews} // General loading state
+        isFetchingReviews={isFetchingReviews}
       />
       {/* Chatbot Sidebar */}
       <ChatbotSidebar

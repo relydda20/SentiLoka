@@ -1,0 +1,208 @@
+/**
+ * Location Service
+ * Handles location CRUD operations
+ */
+import apiClient from "../utils/apiClient";
+
+/**
+ * Fetch all business locations (markers for analysis)
+ * GET /api/locations
+ */
+export const fetchBusinessLocations = async () => {
+  try {
+    console.log("🔄 Loading business locations from API...");
+
+    const response = await apiClient.get("/locations");
+    const locationsFromApi = response.data.data || [];
+
+    // Map backend data to the format the frontend expects
+    const mappedBusinesses = locationsFromApi.map((loc) => {
+      // Map sentiment from database (pre-calculated)
+      let sentimentData = null;
+      if (loc.overallSentiment && loc.overallSentiment.totalReviews > 0) {
+        const totalReviews = loc.overallSentiment.totalReviews;
+        const positivePercentage = loc.overallSentiment.positive || 0;
+        const neutralPercentage = loc.overallSentiment.neutral || 0;
+        const negativePercentage = loc.overallSentiment.negative || 0;
+
+        sentimentData = {
+          // Counts for display
+          positive: Math.round((positivePercentage / 100) * totalReviews),
+          neutral: Math.round((neutralPercentage / 100) * totalReviews),
+          negative: Math.round((negativePercentage / 100) * totalReviews),
+          // Percentages for marker colors
+          positivePercentage: positivePercentage,
+          negativePercentage: negativePercentage,
+          // Additional metrics
+          averageRating: loc.overallSentiment.averageRating || 0,
+          totalReviews: totalReviews,
+          lastCalculated: loc.overallSentiment.lastCalculated,
+        };
+      }
+
+      return {
+        id: loc._id,
+        businessName: loc.name,
+        placeId: loc.placeId,
+        address: loc.address,
+        coordinates: loc.coordinates,
+        phoneNumber: loc.phoneNumber,
+        category: loc.googleData?.types?.[0] || "establishment",
+        status: loc.status,
+        scrapeStatus: loc.scrapeStatus || 'idle',
+        scrapeProgress: loc.scrapeProgress || {
+          percentage: 0,
+          current: 0,
+          total: 0,
+          estimatedTimeRemaining: null,
+          startedAt: null,
+          message: null
+        },
+        reviewsCount: loc.scrapedReviewCount || 0,
+        analyzedReviewCount: loc.analyzedReviewCount || 0,
+        averageRating: loc.googleData?.rating || 0,
+        sentiment: sentimentData,
+        reviews: [],
+        pagination: { currentPage: 0, totalPages: 0, totalReviews: 0 },
+        cacheStatus: {
+          isCached: false,
+          lastScrapedAt: loc.scrapeConfig?.lastScraped,
+          cacheExpiresAt: null,
+          hoursUntilExpiry: 0,
+          needsRefresh: loc.scrapeStatus !== "completed",
+        },
+        createdAt: loc.createdAt,
+        updatedAt: loc.updatedAt,
+      };
+    });
+
+    const locationsWithSentiment = mappedBusinesses.filter(
+      (b) => b.sentiment,
+    ).length;
+    console.log(
+      `✅ ${mappedBusinesses.length} Business locations loaded from API! (${locationsWithSentiment} with sentiment data)`,
+    );
+
+    return {
+      businesses: mappedBusinesses,
+      pagination: {
+        currentPage: 1,
+        totalPages: 1,
+        totalBusinesses: mappedBusinesses.length,
+        businessesPerPage: 50,
+      },
+    };
+  } catch (error) {
+    console.error("❌ Error fetching business locations:", error);
+    throw error;
+  }
+};
+
+/**
+ * Register a new business location
+ * POST /api/locations
+ */
+export const registerBusinessLocation = async (businessData) => {
+  try {
+    console.log("🔄 Registering business location via API...");
+
+    const response = await apiClient.post("/locations", {
+      placeId: businessData.placeId,
+      name: businessData.businessName,
+      address: businessData.address,
+      coordinates: businessData.coordinates,
+      googleMapsUrl: businessData.googleMapsUrl,
+      rating: businessData.rating,
+      userRatingsTotal: businessData.totalReviews,
+      types: businessData.businessTypes,
+    });
+
+    const newBusiness = response.data.data;
+    console.log("✅ Business location registered!", newBusiness);
+
+    return {
+      business: {
+        id: newBusiness._id,
+        businessName: newBusiness.name,
+        placeId: newBusiness.placeId,
+        address: newBusiness.address,
+        coordinates: newBusiness.coordinates,
+        phoneNumber: newBusiness.phoneNumber,
+        category: newBusiness.googleData?.types?.[0] || "establishment",
+        status: newBusiness.status,
+        scrapeStatus: newBusiness.scrapeStatus || 'idle',
+        scrapeProgress: newBusiness.scrapeProgress || {
+          percentage: 0,
+          current: 0,
+          total: 0,
+          estimatedTimeRemaining: null,
+          startedAt: null,
+          message: null
+        },
+        reviewsCount: 0, // FIXED: New locations have 0 scraped reviews
+        analyzedReviewCount: 0,
+        averageRating: newBusiness.googleData?.rating || 0,
+        sentiment: null,
+        reviews: [],
+        pagination: { currentPage: 0, totalPages: 0, totalReviews: 0 },
+        cacheStatus: {
+          isCached: false,
+          lastScrapedAt: null,
+          cacheExpiresAt: null,
+          hoursUntilExpiry: 0,
+          needsRefresh: true,
+        },
+        createdAt: newBusiness.createdAt,
+        updatedAt: newBusiness.updatedAt,
+      },
+    };
+  } catch (error) {
+    console.error("❌ Error registering business location:", error);
+    throw error;
+  }
+};
+
+/**
+ * Get location details and scrape status
+ * GET /api/locations/:locationId
+ */
+export const getLocationScrapeStatus = async (locationId) => {
+  try {
+    const response = await apiClient.get(`/locations/${locationId}`);
+
+    if (!response.data || !response.data.success) {
+      throw new Error("Failed to get location status");
+    }
+
+    return response.data.data;
+  } catch (error) {
+    console.error(`Error getting location status:`, error);
+    throw error;
+  }
+};
+
+/**
+ * Delete a location
+ * DELETE /api/locations/:locationId
+ */
+export const deleteLocation = async (locationId) => {
+  try {
+    console.log("🗑️ Deleting location:", locationId);
+
+    const response = await apiClient.delete(`/locations/${locationId}`);
+
+    if (!response.data || !response.data.success) {
+      throw new Error(response.data?.message || "Failed to delete location");
+    }
+
+    console.log("✅ Location deleted successfully");
+
+    return {
+      success: true,
+      message: response.data.message,
+    };
+  } catch (error) {
+    console.error(`❌ Error deleting location ${locationId}:`, error);
+    throw error;
+  }
+};

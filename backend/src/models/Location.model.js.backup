@@ -155,28 +155,6 @@ const locationSchema = new mongoose.Schema(
       enum: ['idle', 'pending', 'scraping', 'completed', 'failed'],
       default: 'idle'
     },
-    scrapeProgress: {
-      percentage: {
-        type: Number,
-        default: 0,
-        min: 0,
-        max: 100
-      },
-      current: {
-        type: Number,
-        default: 0
-      },
-      total: {
-        type: Number,
-        default: 0
-      },
-      estimatedTimeRemaining: {
-        type: Number, // in seconds
-        default: null
-      },
-      startedAt: Date,
-      message: String
-    },
     lastScrapeError: {
       message: String,
       timestamp: Date
@@ -312,66 +290,10 @@ locationSchema.methods.addSentimentHistory = async function () {
 locationSchema.statics.findByUserAndSlug = async function (userSlug, locationSlug) {
   const User = mongoose.model('User');
   const user = await User.findOne({ slug: userSlug });
-
+  
   if (!user) return null;
-
+  
   return await this.findOne({ userId: user._id, slug: locationSlug });
-};
-
-// Scraping progress methods
-locationSchema.methods.startScraping = async function(totalReviews = 0) {
-  this.scrapeStatus = 'scraping';
-  this.scrapeProgress = {
-    percentage: 0,
-    current: 0,
-    total: totalReviews,
-    estimatedTimeRemaining: null,
-    startedAt: new Date(),
-    message: 'Initializing scraper...'
-  };
-  await this.save();
-  return this.scrapeProgress;
-};
-
-locationSchema.methods.updateScrapeProgress = async function(current, total, message = null) {
-  this.scrapeProgress.current = current;
-  this.scrapeProgress.total = total;
-  this.scrapeProgress.percentage = total > 0 ? Math.round((current / total) * 100) : 0;
-
-  if (message) {
-    this.scrapeProgress.message = message;
-  }
-
-  // Calculate estimated time remaining
-  if (this.scrapeProgress.startedAt && current > 0) {
-    const elapsedMs = Date.now() - this.scrapeProgress.startedAt.getTime();
-    const msPerItem = elapsedMs / current;
-    const remainingItems = total - current;
-    this.scrapeProgress.estimatedTimeRemaining = Math.round((remainingItems * msPerItem) / 1000); // in seconds
-  }
-
-  await this.save();
-  return this.scrapeProgress;
-};
-
-locationSchema.methods.completeScraping = async function(message = 'Scraping completed successfully') {
-  this.scrapeStatus = 'completed';
-  this.scrapeConfig.lastScraped = new Date();
-  this.scrapeProgress.percentage = 100;
-  this.scrapeProgress.estimatedTimeRemaining = 0;
-  this.scrapeProgress.message = message;
-  await this.save();
-  return this.scrapeProgress;
-};
-
-locationSchema.methods.failScraping = async function(errorMessage) {
-  this.scrapeStatus = 'failed';
-  this.lastScrapeError = {
-    message: errorMessage,
-    timestamp: new Date()
-  };
-  this.scrapeProgress.message = `Error: ${errorMessage}`;
-  await this.save();
 };
 
 const Location = mongoose.model('Location', locationSchema);

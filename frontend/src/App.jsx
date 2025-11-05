@@ -4,6 +4,9 @@ import AppRoutes from './routes/AppRoutes';
 import { useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { checkAuth } from './store/auth/authSlice';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+import { queryClient } from './config/queryClient';
 
 function App() {
   const dispatch = useDispatch();
@@ -11,10 +14,7 @@ function App() {
 
   useEffect(() => {
     // Silently check if user has valid session (via refresh token cookie)
-    dispatch(checkAuth()).catch(() => {
-      // Ignore errors - user simply isn't logged in
-      console.log('ℹ️ No active session found');
-    });
+    dispatch(checkAuth());
   }, [dispatch]);
 
   // Show a loading screen while checking auth status
@@ -27,9 +27,13 @@ function App() {
   }
 
   return (
-    <BrowserRouter>
-      <AppRoutes />
-    </BrowserRouter>
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <AppRoutes />
+      </BrowserRouter>
+      {/* React Query Devtools - only visible in development */}
+      <ReactQueryDevtools initialIsOpen={false} />
+    </QueryClientProvider>
   );
 }
 

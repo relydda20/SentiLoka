@@ -1,4 +1,3 @@
-import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import ReviewSidebarHeader from "./ReviewSidebarHeader";
 import ReviewSidebarSentiment from "./ReviewSidebarSentiment.jsx";
@@ -7,6 +6,7 @@ import ReviewList from "./ReviewList";
 const ReviewSidebar = ({
   isOpen,
   selectedLocation,
+  reviewData, // Data from React Query
   loadingReviews, // For initial load
   onClose,
   onLoadReviews,
@@ -22,25 +22,29 @@ const ReviewSidebar = ({
 }) => {
   if (!isOpen || !selectedLocation) return null;
 
-  // Reviews and pagination info are now directly on selectedLocation
-  const { reviews = [], pagination = null } = selectedLocation;
+  // Use reviewData from React Query if available, otherwise fall back to selectedLocation
+  const reviews = reviewData?.reviews || selectedLocation.reviews || [];
+  const pagination = reviewData?.pagination || selectedLocation.pagination || null;
+  const sentiment = reviewData?.sentiment || selectedLocation.sentiment || null;
+  const reviewsCount = reviewData?.reviewsCount || selectedLocation.reviewsCount || 0;
 
   // hasReviews is TRUE if the location has reviews in the database (even if current filter shows 0)
   // Use reviewsCount (total in DB) instead of current filtered results
   // This ensures filter UI stays visible even when filters return 0 results
-  const hasReviews = (selectedLocation.reviewsCount && selectedLocation.reviewsCount > 0) || 
-                     reviews.length > 0 || 
+  const hasReviews = (reviewsCount > 0) ||
+                     reviews.length > 0 ||
                      (pagination && pagination.totalReviews > 0);
-  
+
   // Debug log
   console.log("📊 ReviewSidebar state:", {
     locationId: selectedLocation.id,
-    reviewsCount: selectedLocation.reviewsCount,
+    reviewsCount,
     hasReviews,
     reviewsLength: reviews.length,
     reviewIds: reviews.map(r => r.reviewId || r.id).slice(0, 3), // First 3 review IDs
     reviewAuthors: reviews.map(r => r.author).slice(0, 3), // First 3 authors
     pagination,
+    usingReactQuery: !!reviewData,
   });
 
   return (
@@ -64,8 +68,8 @@ const ReviewSidebar = ({
 
           {/* Sentiment Summary */}
           <ReviewSidebarSentiment
-            sentiment={selectedLocation.sentiment}
-            reviewsCount={selectedLocation.reviewsCount}
+            sentiment={sentiment}
+            reviewsCount={reviewsCount}
             getSentimentIcon={getSentimentIcon}
             hasReviews={hasReviews}
             loadingSentiment={loadingSentiment}

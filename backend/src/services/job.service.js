@@ -148,9 +148,8 @@ export const processScrapeJob = async (job) => {
       }
       userId = location.userId;
 
-      // Update location status
-      location.scrapeStatus = 'scraping';
-      await location.save();
+      // Start scraping with progress tracking
+      await location.startScraping();
     }
 
     // Update job progress
@@ -164,9 +163,21 @@ export const processScrapeJob = async (job) => {
     const scraperResult = await executeScraper({
       url,
       onProgress: async (progressData) => {
+        const reviewsScraped = progressData.reviewsScraped || 0;
+
+        // Update location progress with estimation
+        if (!isTestJob && location) {
+          await location.updateScrapeProgress(
+            reviewsScraped,
+            reviewsScraped, // We don't know total yet, so use current as estimate
+            progressData.message
+          );
+        }
+
+        // Update job progress
         await job.progress({
           stage: 'scraping',
-          reviewsScraped: progressData.reviewsScraped || 0,
+          reviewsScraped,
           message: progressData.message,
         });
       },
@@ -226,8 +237,8 @@ export const processScrapeJob = async (job) => {
     if (!isTestJob) {
       location = await Location.findById(locationId);
       if (location) {
-        location.scrapeStatus = 'completed';
-        location.scrapeConfig.lastScraped = new Date();
+        // Complete scraping with progress update
+        await location.completeScraping(`Successfully scraped ${savedReviewsCount} reviews`);
 
         // Calculate next scheduled scrape based on frequency
         if (location.scrapeConfig.scrapeFrequency === 'daily') {
@@ -281,13 +292,10 @@ export const processScrapeJob = async (job) => {
 
     // Update location status to failed (skip if test location)
     if (!locationId.startsWith('test-')) {
-      await Location.findByIdAndUpdate(locationId, {
-        scrapeStatus: 'failed',
-        lastScrapeError: {
-          message: error.message,
-          timestamp: new Date(),
-        },
-      });
+      const failedLocation = await Location.findById(locationId);
+      if (failedLocation) {
+        await failedLocation.failScraping(error.message);
+      }
     }
 
     throw error;
