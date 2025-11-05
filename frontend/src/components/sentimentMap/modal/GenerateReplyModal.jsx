@@ -37,7 +37,7 @@ const GenerateReplyModal = ({ isOpen, onClose, review }) => {
       const reply = await generateReviewReply({
         reviewText: review?.text,
         rating: review?.rating,
-        sentiment: review?.sentiment,
+        sentiment: review?.sentiment?.toLowerCase(), // Convert to lowercase for backend
         tone,
         style,
         length: getLengthLabel(),
@@ -61,7 +61,7 @@ const GenerateReplyModal = ({ isOpen, onClose, review }) => {
       const reply = await regenerateReviewReply({
         reviewText: review?.text,
         rating: review?.rating,
-        sentiment: review?.sentiment,
+        sentiment: review?.sentiment?.toLowerCase(), // Convert to lowercase for backend
         previousReply: generatedReply,
         tone,
         style,
