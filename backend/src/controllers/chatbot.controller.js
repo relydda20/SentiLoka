@@ -3,6 +3,7 @@ import { CONFIG } from "../config/sentiment-analysis-config.js";
 import ReviewSummary from "../models/ReviewSummary.model.js";
 import Conversation from "../models/Conversation.model.js";
 import Location from "../models/Location.model.js";
+import UserLocation from "../models/UserLocation.model.js";
 import { v4 as uuidv4 } from "uuid";
 import {
   getCachedContext,
@@ -111,14 +112,23 @@ export const getUserLocations = async (req, res) => {
 
     console.log(`\n📍 Fetching locations for user: ${userId}`);
 
-    // Fetch user's locations with review counts
-    const locations = await Location.find({
+    // Fetch user's locations through the UserLocation junction table
+    const userLocations = await UserLocation.find({
       userId,
-      isDeleted: { $ne: true },
+      status: 'active', // Only active locations
     })
+      .populate({
+        path: 'locationId',
+        select: 'name address googleMapsUrl overallSentiment createdAt updatedAt status',
+        match: { status: { $ne: 'deleted' } } // Exclude deleted locations
+      })
       .sort({ updatedAt: -1 })
-      .select("name address googleMapsUrl reviewCount analyzedReviewCount createdAt updatedAt")
       .lean();
+
+    // Filter out any null locationId (deleted locations) and map to location objects
+    const locations = userLocations
+      .filter(ul => ul.locationId != null)
+      .map(ul => ul.locationId);
 
     console.log(`✅ Found ${locations.length} location(s)`);
 
@@ -132,8 +142,8 @@ export const getUserLocations = async (req, res) => {
           name: location.name,
           address: location.address,
           googleMapsUrl: location.googleMapsUrl,
-          reviewCount: location.reviewCount || 0,
-          analyzedReviewCount: location.analyzedReviewCount || 0,
+          reviewCount: location.overallSentiment?.totalReviews || 0,
+          analyzedReviewCount: location.overallSentiment?.totalReviews || 0,
           ready: readinessCheck.ready,
           status: readinessCheck.status,
           message: readinessCheck.message,
@@ -167,6 +177,31 @@ export const getUserLocations = async (req, res) => {
     });
   }
 };
+
+/**
+ * Helper function to generate a short conversation title from the first user message
+ * @param {string} message - First user message
+ * @returns {string} - Generated title (max 60 chars)
+ */
+function generateConversationTitle(message) {
+  // Remove extra whitespace and trim
+  const cleaned = message.trim().replace(/\s+/g, ' ');
+
+  // If message is short enough, use it as-is
+  if (cleaned.length <= 60) {
+    return cleaned;
+  }
+
+  // Truncate to 60 chars at word boundary
+  const truncated = cleaned.substring(0, 60);
+  const lastSpace = truncated.lastIndexOf(' ');
+
+  if (lastSpace > 40) {
+    return truncated.substring(0, lastSpace) + '...';
+  }
+
+  return truncated + '...';
+}
 
 /**
  * Helper function to generate combined summary from multiple review summaries
@@ -265,16 +300,16 @@ export const chatWithBot = async (req, res) => {
 
     console.log("✅ All locations ready for chat");
 
-    // STEP 2: Fetch location metadata for context
+    // STEP 2: Fetch location metadata for context (locations are shared, verified via readiness check)
     const locations = await Location.find({
       _id: { $in: sanitizedLocationIds },
-      userId,
-    }).select("name address googleMapsUrl reviewCount analyzedReviewCount");
+      status: { $ne: 'deleted' },
+    }).select("name address googleMapsUrl overallSentiment");
 
     if (locations.length !== sanitizedLocationIds.length) {
       return res.status(404).json({
         success: false,
-        error: "Some locations not found or do not belong to user",
+        error: "Some locations not found",
       });
     }
 
@@ -282,8 +317,8 @@ export const chatWithBot = async (req, res) => {
       locationId: loc._id,
       name: loc.name,
       address: loc.address,
-      reviewCount: loc.reviewCount || 0,
-      analyzedReviewCount: loc.analyzedReviewCount || 0,
+      reviewCount: loc.overallSentiment?.totalReviews || 0,
+      analyzedReviewCount: loc.overallSentiment?.totalReviews || 0,
     }));
 
     console.log(`📍 Locations: ${locations.map((l) => l.name).join(", ")}`);
@@ -511,42 +546,64 @@ TONE: Professional yet friendly, data-driven but conversational`,
     ];
 
     // STEP 9: Save conversation to database with location metadata
-    let savedSessionId = sessionId || uuidv4();
+    let savedSessionId = sessionId;
+    let isNewConversation = false;
+
+    // Check if this is a new conversation (no sessionId provided or session doesn't exist)
+    if (!sessionId) {
+      savedSessionId = uuidv4();
+      isNewConversation = true;
+    } else {
+      const existingConversation = await Conversation.findOne({ sessionId, userId });
+      if (!existingConversation) {
+        isNewConversation = true;
+      }
+    }
+
     try {
-      await Conversation.findOneAndUpdate(
-        { sessionId: savedSessionId, userId },
-        {
-          $push: {
-            messages: {
-              $each: [
-                { role: "user", content: message },
-                { role: "assistant", content: botReply },
-              ],
-            },
-          },
-          $set: {
-            userId,
-            attachedLocationIds: sanitizedLocationIds,
-            locationMetadata: locationMetadata.map((loc) => ({
-              ...loc,
-              attachedAt: new Date(),
-            })),
-            lastActivity: new Date(),
-            "metadata.totalMessages": updatedHistory.length,
-            "metadata.reviewSnapshot": {
-              totalReviews: allReviews.length,
-              averageRating: parseFloat(averageRating),
-              locationCount: locations.length,
-            },
-            "metadata.locationsAnalyzed": locations.map((loc) => ({
-              locationId: loc._id,
-              locationName: loc.name,
-            })),
+      const updateData = {
+        $push: {
+          messages: {
+            $each: [
+              { role: "user", content: message },
+              { role: "assistant", content: botReply },
+            ],
           },
         },
+        $set: {
+          userId,
+          attachedLocationIds: sanitizedLocationIds,
+          locationMetadata: locationMetadata.map((loc) => ({
+            ...loc,
+            attachedAt: new Date(),
+          })),
+          lastActivity: new Date(),
+          "metadata.totalMessages": updatedHistory.length,
+          "metadata.reviewSnapshot": {
+            totalReviews: allReviews.length,
+            averageRating: parseFloat(averageRating),
+            locationCount: locations.length,
+          },
+          "metadata.locationsAnalyzed": locations.map((loc) => ({
+            locationId: loc._id,
+            locationName: loc.name,
+          })),
+        },
+      };
+
+      // Only set title for new conversations (first message)
+      if (isNewConversation) {
+        updateData.$set.title = generateConversationTitle(message);
+        console.log(`📝 Creating new conversation with title: "${updateData.$set.title}"`);
+      }
+
+      await Conversation.findOneAndUpdate(
+        { sessionId: savedSessionId, userId },
+        updateData,
         { upsert: true, new: true }
       );
-      console.log(`💾 Conversation saved for session: ${savedSessionId}`);
+
+      console.log(`💾 Conversation ${isNewConversation ? 'created' : 'updated'} for session: ${savedSessionId}`);
     } catch (dbError) {
       console.error("⚠️ Failed to save conversation:", dbError.message);
       // Don't fail the request if DB save fails
@@ -649,14 +706,7 @@ export const compareLocations = async (req, res) => {
       });
     }
 
-    // Verify ownership
-    if (location1.userId.toString() !== userId.toString() || 
-        location2.userId.toString() !== userId.toString()) {
-      return res.status(403).json({
-        success: false,
-        error: "You do not have permission to compare these locations",
-      });
-    }
+    // Note: Ownership is already verified by readiness check via UserLocation junction table
 
     // STEP 3: Fetch reviews for both locations
     const [reviews1, reviews2] = await Promise.all([
@@ -828,59 +878,82 @@ TONE: Professional, analytical, insightful, and constructive`,
     ];
 
     // STEP 11: Save conversation with location metadata
-    let savedSessionId = sessionId || uuidv4();
+    let savedSessionId = sessionId;
+    let isNewConversation = false;
+
+    // Check if this is a new conversation
+    if (!sessionId) {
+      savedSessionId = uuidv4();
+      isNewConversation = true;
+    } else {
+      const existingConversation = await Conversation.findOne({ sessionId, userId });
+      if (!existingConversation) {
+        isNewConversation = true;
+      }
+    }
+
     try {
-      await Conversation.findOneAndUpdate(
-        { sessionId: savedSessionId, userId },
-        {
-          $push: {
-            messages: {
-              $each: [
-                { role: "user", content: defaultMessage },
-                { role: "assistant", content: botReply },
-              ],
-            },
-          },
-          $set: {
-            userId,
-            attachedLocationIds: [locationId1, locationId2],
-            locationMetadata: [
-              {
-                locationId: location1._id,
-                name: location1.name,
-                reviewCount: location1Analysis.totalReviews,
-                analyzedReviewCount: location1Analysis.totalReviews,
-                attachedAt: new Date(),
-              },
-              {
-                locationId: location2._id,
-                name: location2.name,
-                reviewCount: location2Analysis.totalReviews,
-                analyzedReviewCount: location2Analysis.totalReviews,
-                attachedAt: new Date(),
-              },
+      const updateData = {
+        $push: {
+          messages: {
+            $each: [
+              { role: "user", content: defaultMessage },
+              { role: "assistant", content: botReply },
             ],
-            lastActivity: new Date(),
-            "metadata.totalMessages": updatedHistory.length,
-            "metadata.comparisonSnapshot": {
-              location1: {
-                id: locationId1,
-                name: location1.name,
-                totalReviews: location1Analysis.totalReviews,
-                averageRating: location1Analysis.averageRating,
-              },
-              location2: {
-                id: locationId2,
-                name: location2.name,
-                totalReviews: location2Analysis.totalReviews,
-                averageRating: location2Analysis.averageRating,
-              },
+          },
+        },
+        $set: {
+          userId,
+          attachedLocationIds: [locationId1, locationId2],
+          locationMetadata: [
+            {
+              locationId: location1._id,
+              name: location1.name,
+              reviewCount: location1Analysis.totalReviews,
+              analyzedReviewCount: location1Analysis.totalReviews,
+              attachedAt: new Date(),
+            },
+            {
+              locationId: location2._id,
+              name: location2.name,
+              reviewCount: location2Analysis.totalReviews,
+              analyzedReviewCount: location2Analysis.totalReviews,
+              attachedAt: new Date(),
+            },
+          ],
+          lastActivity: new Date(),
+          "metadata.totalMessages": updatedHistory.length,
+          "metadata.comparisonSnapshot": {
+            location1: {
+              id: locationId1,
+              name: location1.name,
+              totalReviews: location1Analysis.totalReviews,
+              averageRating: location1Analysis.averageRating,
+            },
+            location2: {
+              id: locationId2,
+              name: location2.name,
+              totalReviews: location2Analysis.totalReviews,
+              averageRating: location2Analysis.averageRating,
             },
           },
         },
+      };
+
+      // Only set title for new conversations (first message)
+      if (isNewConversation) {
+        const comparisonTitle = message || `Compare ${location1.name} vs ${location2.name}`;
+        updateData.$set.title = generateConversationTitle(comparisonTitle);
+        console.log(`📝 Creating new comparison conversation with title: "${updateData.$set.title}"`);
+      }
+
+      await Conversation.findOneAndUpdate(
+        { sessionId: savedSessionId, userId },
+        updateData,
         { upsert: true, new: true }
       );
-      console.log(`💾 Comparison conversation saved for session: ${savedSessionId}`);
+
+      console.log(`💾 Comparison conversation ${isNewConversation ? 'created' : 'updated'} for session: ${savedSessionId}`);
     } catch (dbError) {
       console.error("⚠️ Failed to save conversation:", dbError.message);
     }
@@ -1129,12 +1202,12 @@ export const getAllConversations = async (req, res) => {
       });
     }
 
-    // Only get user's own conversations - include messages for history display
+    // Only get user's own conversations - include title and messages for history display
     const conversations = await Conversation.find({ userId })
       .sort({ lastActivity: -1 })
       .limit(parseInt(limit))
       .skip(parseInt(skip))
-      .select("sessionId messages lastActivity metadata createdAt locationMetadata attachedLocationIds");
+      .select("sessionId title messages lastActivity metadata createdAt locationMetadata attachedLocationIds");
 
     const total = await Conversation.countDocuments({ userId });
 

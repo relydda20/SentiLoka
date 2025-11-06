@@ -13,6 +13,11 @@ const conversationSchema = new mongoose.Schema(
       ref: "User",
       default: null, // Optional: for authenticated users
     },
+    title: {
+      type: String,
+      default: null, // Generated from first user message
+      maxlength: 100,
+    },
     // ✅ NEW: Locations attached to this conversation
     attachedLocationIds: [{
       type: mongoose.Schema.Types.ObjectId,
