@@ -7,31 +7,30 @@ import { getCachedLocationReviews, cacheLocationReviews } from './redis-cache.se
 /**
  * Get reviews that haven't been analyzed yet (with caching optimization)
  * @param {string} locationId - Location ID
- * @param {string} userId - User ID
  * @returns {Promise<Object>} Object containing all reviews and unanalyzed reviews
  */
-export const getUnanalyzedReviews = async (locationId, userId) => {
+export const getUnanalyzedReviews = async (locationId) => {
   console.log('🔍 Checking for unanalyzed reviews...');
 
   let allReviews = [];
 
   // ✅ Check the "all reviews" cache key first (pre-cached by scraper)
-  const allReviewsCacheKey = `${locationId}:${userId}:all:reviews`;
-  const cachedData = await getCachedLocationReviews(allReviewsCacheKey, userId);
+  const allReviewsCacheKey = `${locationId}:all:reviews`;
+  const cachedData = await getCachedLocationReviews(allReviewsCacheKey);
 
   if (cachedData && cachedData.reviews && cachedData.reviews.length > 0) {
     console.log(`✓ Found ${cachedData.reviews.length} reviews in cache (pre-cached from scraper)`);
     allReviews = cachedData.reviews;
   } else {
     console.log('⚠️ Cache miss - fetching all reviews from MongoDB...');
-    // Get all reviews for this location
-    allReviews = await Review.find({ locationId, userId })
+    // Get all reviews for this location (reviews are now shared across users)
+    allReviews = await Review.find({ locationId })
       .sort({ publishedAt: -1 })
       .lean();
 
     // Cache for next time (in case scraper didn't cache it)
     if (allReviews.length > 0) {
-      await cacheLocationReviews(allReviewsCacheKey, userId, {
+      await cacheLocationReviews(allReviewsCacheKey, {
         location: { id: locationId },
         reviews: allReviews,
         pagination: {
@@ -56,9 +55,9 @@ export const getUnanalyzedReviews = async (locationId, userId) => {
     };
   }
 
-  // Get all already-analyzed review IDs from ReviewSummary
+  // Get all already-analyzed review IDs from ReviewSummary (summaries are now shared)
   const analyzedReviewIds = await ReviewSummary.find(
-    { locationId, userId },
+    { locationId },
     { reviewId: 1, _id: 0 }
   ).distinct('reviewId');
 
@@ -89,6 +88,7 @@ export const transformReviewsForAnalysis = (reviews) => {
     rating: review.rating,
     description: review.text || '', // Handle reviews with no text
     source: 'Google Maps',
+    publishedAt: review.publishedAt, // Include publishedAt for ReviewSummary
   }));
 };
 
@@ -122,7 +122,6 @@ export const analyzeReviews = async (
  * @param {Array} analysisResults - Results from sentiment analysis
  * @param {Array} originalReviews - Original review objects for matching
  * @param {string} locationId - Location ID
- * @param {string} userId - User ID
  * @param {string} placeId - Place ID
  * @returns {Promise<Object>} Save statistics
  */
@@ -130,7 +129,6 @@ export const saveAnalysisResults = async (
   analysisResults,
   originalReviews,
   locationId,
-  userId,
   placeId
 ) => {
   const successfulResults = analysisResults.filter(
@@ -149,12 +147,12 @@ export const saveAnalysisResults = async (
   const bulkOps = successfulResults.map((result, index) => {
     const summaryData = {
       reviewId: originalReviews[index]?.review_id || null,
-      userId: userId,
       locationId: locationId,
       placeId: placeId,
       author: result.author,
       rating: result.rating,
       text: result.text,
+      publishedAt: originalReviews[index]?.publishedAt || new Date(), // Include publishedAt
       sentiment: result.sentiment,
       sentimentScore: result.sentiment_score,
       confidence: result.confidence,
@@ -166,13 +164,11 @@ export const saveAnalysisResults = async (
     };
 
     if (originalReviews[index]?.review_id) {
-      // Update if exists, insert if not (upsert)
+      // Update if exists, insert if not (upsert) - summaries are now shared across users
       return {
         updateOne: {
           filter: {
             reviewId: originalReviews[index].review_id,
-            userId: userId,
-            locationId: locationId,
           },
           update: { $set: summaryData },
           upsert: true,
@@ -213,13 +209,12 @@ export const saveAnalysisResults = async (
 /**
  * Get analysis statistics for a location
  * @param {string} locationId - Location ID
- * @param {string} userId - User ID
  * @returns {Promise<Object>} Analysis statistics
  */
-export const getAnalysisStatistics = async (locationId, userId) => {
+export const getAnalysisStatistics = async (locationId) => {
   const [totalReviews, analyzedReviews] = await Promise.all([
-    Review.countDocuments({ locationId, userId }),
-    ReviewSummary.countDocuments({ locationId, userId }),
+    Review.countDocuments({ locationId }),
+    ReviewSummary.countDocuments({ locationId }),
   ]);
 
   return {

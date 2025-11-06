@@ -1,25 +1,145 @@
-import Review from '../models/Review.model.js';
-import Location from '../models/Location.model.js';
-import { generateReply, regenerateReply } from '../services/replyGenerator.service.js';
+import Review from "../models/Review.model.js";
+import Location from "../models/Location.model.js";
+import {
+  generateReply,
+  regenerateReply,
+} from "../services/replyGenerator.service.js";
 
 const reviewController = {
+  // Get reviews for a specific location with pagination (RAW reviews before sentiment analysis)
+  getLocationReviews: async (req, res) => {
+    try {
+      const { locationId } = req.params;
+
+      // Parse query parameters
+      const page = parseInt(req.query.page) || 1;
+      const limit = parseInt(req.query.limit) || 10;
+      const sortBy = req.query.sortBy || "publishedAt";
+      const sortOrder = req.query.sortOrder || "desc";
+      const rating = req.query.rating ? parseInt(req.query.rating) : null;
+      const searchTerm = req.query.search ? req.query.search.trim() : null;
+
+      const skip = (page - 1) * limit;
+
+      // Verify location exists
+      const location = await Location.findById(locationId);
+      if (!location) {
+        return res.status(404).json({
+          success: false,
+          message: "Location not found",
+        });
+      }
+
+      // Build query filter
+      const query = { locationId };
+
+      // Add rating filter if specified
+      if (rating && rating >= 1 && rating <= 5) {
+        query.rating = rating;
+      }
+
+      // Add search filter if specified (search in review text and author name)
+      if (searchTerm) {
+        query.$or = [
+          { text: { $regex: searchTerm, $options: "i" } },
+          { "author.name": { $regex: searchTerm, $options: "i" } },
+        ];
+      }
+
+      // Build sort object with secondary sort by _id for consistency
+      const sort = {
+        [sortBy]: sortOrder === "asc" ? 1 : -1,
+        _id: -1, // Secondary sort for consistent pagination
+      };
+
+      // Debug: Log the query being executed
+      console.log("🔍 MongoDB Query:", JSON.stringify(query));
+      console.log("📊 Sort:", JSON.stringify(sort));
+
+      // Get total count with filters
+      const totalItems = await Review.countDocuments(query);
+      console.log(`✅ Found ${totalItems} reviews matching filters`);
+
+      if (totalItems === 0) {
+        return res.status(404).json({
+          success: false,
+          message:
+            searchTerm || rating
+              ? "No reviews found matching your filters."
+              : "No reviews found for this location. Please scrape reviews first.",
+        });
+      }
+
+      // Get paginated reviews
+      const reviews = await Review.find(query)
+        .sort(sort)
+        .skip(skip)
+        .limit(limit)
+        .select("-__v")
+        .lean();
+
+      // Calculate pagination metadata
+      const totalPages = Math.ceil(totalItems / limit);
+      const hasNext = page < totalPages;
+      const hasPrev = page > 1;
+
+      res.status(200).json({
+        success: true,
+        message: `Found ${reviews.length} reviews (page ${page}/${totalPages})`,
+        data: {
+          reviews: reviews.map((review) => ({
+            _id: review._id,
+            reviewId: review.googleReviewId,
+            author: review.author?.name || "Anonymous",
+            rating: review.rating,
+            text: review.text || "",
+            publishedAt: review.publishedAt,
+            likes: review.likes || 0,
+            sourceUrl: review.sourceUrl,
+            // These will be null for raw reviews (before sentiment analysis)
+            sentiment: null,
+            sentimentScore: null,
+            summary: null,
+            sentimentKeywords: [],
+            contextualTopics: [],
+          })),
+          pagination: {
+            currentPage: page,
+            totalPages,
+            totalItems,
+            limit,
+            hasNext,
+            hasPrev,
+          },
+        },
+      });
+    } catch (error) {
+      console.error("Error in getLocationReviews:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to get location reviews",
+        error: error.message,
+      });
+    }
+  },
+
   // Get all reviews
   getAllReviews: async (req, res) => {
     try {
       const reviews = await Review.find()
-        .populate('locationId', 'name address')
-        .select('-__v')
+        .populate("locationId", "name address")
+        .select("-__v")
         .sort({ publishedAt: -1 });
 
       res.status(200).json({
         success: true,
         data: reviews,
-        count: reviews.length
+        count: reviews.length,
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: error.message
+        message: error.message,
       });
     }
   },
@@ -30,24 +150,24 @@ const reviewController = {
       const { reviewId } = req.params;
 
       const review = await Review.findById(reviewId)
-        .populate('locationId', 'name address')
-        .select('-__v');
+        .populate("locationId", "name address")
+        .select("-__v");
 
       if (!review) {
         return res.status(404).json({
           success: false,
-          message: 'Review not found'
+          message: "Review not found",
         });
       }
 
       res.status(200).json({
         success: true,
-        data: review
+        data: review,
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: error.message
+        message: error.message,
       });
     }
   },
@@ -62,32 +182,32 @@ const reviewController = {
       if (!locationExists) {
         return res.status(404).json({
           success: false,
-          message: 'Location not found'
+          message: "Location not found",
         });
       }
 
       // Validate sentiment value
-      if (!['positive', 'neutral', 'negative'].includes(sentiment)) {
+      if (!["positive", "neutral", "negative"].includes(sentiment)) {
         return res.status(400).json({
           success: false,
-          message: 'Invalid sentiment. Must be: positive, neutral, or negative'
+          message: "Invalid sentiment. Must be: positive, neutral, or negative",
         });
       }
 
       const reviews = await Review.find({ locationId, sentiment })
-        .select('-__v')
+        .select("-__v")
         .sort({ publishedAt: -1 });
 
       res.status(200).json({
         success: true,
         data: reviews,
         count: reviews.length,
-        sentiment
+        sentiment,
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: error.message
+        message: error.message,
       });
     }
   },
@@ -103,7 +223,7 @@ const reviewController = {
       if (!locationExists) {
         return res.status(404).json({
           success: false,
-          message: 'Location not found'
+          message: "Location not found",
         });
       }
 
@@ -112,21 +232,21 @@ const reviewController = {
 
       const reviews = await Review.find({
         locationId,
-        publishedAt: { $gte: dateThreshold }
+        publishedAt: { $gte: dateThreshold },
       })
-        .select('-__v')
+        .select("-__v")
         .sort({ publishedAt: -1 });
 
       res.status(200).json({
         success: true,
         data: reviews,
         count: reviews.length,
-        days: parseInt(days)
+        days: parseInt(days),
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: error.message
+        message: error.message,
       });
     }
   },
@@ -148,7 +268,7 @@ const reviewController = {
         sentimentBreakdown,
         keywords,
         topics,
-        analyzedAt
+        analyzedAt,
       } = req.body;
 
       // Verify location exists
@@ -156,7 +276,7 @@ const reviewController = {
       if (!locationExists) {
         return res.status(404).json({
           success: false,
-          message: 'Location not found'
+          message: "Location not found",
         });
       }
 
@@ -165,7 +285,7 @@ const reviewController = {
       if (existingReview) {
         return res.status(409).json({
           success: false,
-          message: 'Review with this Google Review ID already exists'
+          message: "Review with this Google Review ID already exists",
         });
       }
 
@@ -176,27 +296,27 @@ const reviewController = {
         rating,
         text,
         publishedAt,
-        sourceUrl: sourceUrl || '',
+        sourceUrl: sourceUrl || "",
         likes: likes || 0,
         sentiment,
         sentimentScore,
         sentimentBreakdown: sentimentBreakdown || {},
         keywords: keywords || { positive: [], negative: [] },
         topics: topics || [],
-        analyzedAt: analyzedAt || new Date()
+        analyzedAt: analyzedAt || new Date(),
       });
 
       await newReview.save();
 
       res.status(201).json({
         success: true,
-        message: 'Review added successfully',
-        data: newReview
+        message: "Review added successfully",
+        data: newReview,
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: error.message
+        message: error.message,
       });
     }
   },
@@ -208,31 +328,30 @@ const reviewController = {
       const updateData = req.body;
 
       // Fields that cannot be updated
-      const restrictedFields = ['locationId', 'googleReviewId', 'scrapedAt'];
-      restrictedFields.forEach(field => delete updateData[field]);
+      const restrictedFields = ["locationId", "googleReviewId", "scrapedAt"];
+      restrictedFields.forEach((field) => delete updateData[field]);
 
-      const review = await Review.findByIdAndUpdate(
-        reviewId,
-        updateData,
-        { new: true, runValidators: true }
-      ).select('-__v');
+      const review = await Review.findByIdAndUpdate(reviewId, updateData, {
+        new: true,
+        runValidators: true,
+      }).select("-__v");
 
       if (!review) {
         return res.status(404).json({
           success: false,
-          message: 'Review not found'
+          message: "Review not found",
         });
       }
 
       res.status(200).json({
         success: true,
-        message: 'Review updated successfully',
-        data: review
+        message: "Review updated successfully",
+        data: review,
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: error.message
+        message: error.message,
       });
     }
   },
@@ -247,19 +366,19 @@ const reviewController = {
       if (!review) {
         return res.status(404).json({
           success: false,
-          message: 'Review not found'
+          message: "Review not found",
         });
       }
 
       res.status(200).json({
         success: true,
-        message: 'Review deleted successfully',
-        data: review
+        message: "Review deleted successfully",
+        data: review,
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: error.message
+        message: error.message,
       });
     }
   },
@@ -274,7 +393,7 @@ const reviewController = {
       if (!locationExists) {
         return res.status(404).json({
           success: false,
-          message: 'Location not found'
+          message: "Location not found",
         });
       }
 
@@ -282,24 +401,24 @@ const reviewController = {
         { $match: { locationId: locationId } },
         {
           $group: {
-            _id: '$sentiment',
+            _id: "$sentiment",
             count: { $sum: 1 },
-            avgRating: { $avg: '$rating' },
-            avgScore: { $avg: '$sentimentScore' }
-          }
+            avgRating: { $avg: "$rating" },
+            avgScore: { $avg: "$sentimentScore" },
+          },
         },
-        { $sort: { _id: 1 } }
+        { $sort: { _id: 1 } },
       ]);
 
       res.status(200).json({
         success: true,
         data: stats,
-        locationId
+        locationId,
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: error.message
+        message: error.message,
       });
     }
   },
@@ -313,7 +432,7 @@ const reviewController = {
       if (!reviewText || rating === undefined || !sentiment) {
         return res.status(400).json({
           success: false,
-          message: 'reviewText, rating, and sentiment are required fields'
+          message: "reviewText, rating, and sentiment are required fields",
         });
       }
 
@@ -321,15 +440,15 @@ const reviewController = {
       if (rating < 1 || rating > 5) {
         return res.status(400).json({
           success: false,
-          message: 'Rating must be between 1 and 5'
+          message: "Rating must be between 1 and 5",
         });
       }
 
       // Validate sentiment value
-      if (!['positive', 'neutral', 'negative'].includes(sentiment)) {
+      if (!["positive", "neutral", "negative"].includes(sentiment)) {
         return res.status(400).json({
           success: false,
-          message: 'Sentiment must be: positive, neutral, or negative'
+          message: "Sentiment must be: positive, neutral, or negative",
         });
       }
 
@@ -338,25 +457,25 @@ const reviewController = {
         reviewText,
         rating,
         sentiment,
-        tone: tone || 'Professional',
-        style: style || 'Formal',
-        length: length || 'Medium'
+        tone: tone || "Professional",
+        style: style || "Formal",
+        length: length || "Medium",
       });
 
       res.status(200).json({
         success: true,
         reply: reply,
         parameters: {
-          tone: tone || 'Professional',
-          style: style || 'Formal',
-          length: length || 'Medium'
-        }
+          tone: tone || "Professional",
+          style: style || "Formal",
+          length: length || "Medium",
+        },
       });
     } catch (error) {
-      console.error('Error in generateAIReply:', error);
+      console.error("Error in generateAIReply:", error);
       res.status(500).json({
         success: false,
-        message: error.message || 'Failed to generate AI reply'
+        message: error.message || "Failed to generate AI reply",
       });
     }
   },
@@ -364,13 +483,21 @@ const reviewController = {
   // Regenerate AI-powered reply for a review
   regenerateAIReply: async (req, res) => {
     try {
-      const { reviewText, rating, sentiment, previousReply, tone, style, length } = req.body;
+      const {
+        reviewText,
+        rating,
+        sentiment,
+        previousReply,
+        tone,
+        style,
+        length,
+      } = req.body;
 
       // Validate required fields
       if (!reviewText || rating === undefined || !sentiment) {
         return res.status(400).json({
           success: false,
-          message: 'reviewText, rating, and sentiment are required fields'
+          message: "reviewText, rating, and sentiment are required fields",
         });
       }
 
@@ -378,15 +505,15 @@ const reviewController = {
       if (rating < 1 || rating > 5) {
         return res.status(400).json({
           success: false,
-          message: 'Rating must be between 1 and 5'
+          message: "Rating must be between 1 and 5",
         });
       }
 
       // Validate sentiment value
-      if (!['positive', 'neutral', 'negative'].includes(sentiment)) {
+      if (!["positive", "neutral", "negative"].includes(sentiment)) {
         return res.status(400).json({
           success: false,
-          message: 'Sentiment must be: positive, neutral, or negative'
+          message: "Sentiment must be: positive, neutral, or negative",
         });
       }
 
@@ -396,28 +523,28 @@ const reviewController = {
         rating,
         sentiment,
         previousReply: previousReply || null,
-        tone: tone || 'Professional',
-        style: style || 'Formal',
-        length: length || 'Medium'
+        tone: tone || "Professional",
+        style: style || "Formal",
+        length: length || "Medium",
       });
 
       res.status(200).json({
         success: true,
         reply: reply,
         parameters: {
-          tone: tone || 'Professional',
-          style: style || 'Formal',
-          length: length || 'Medium'
-        }
+          tone: tone || "Professional",
+          style: style || "Formal",
+          length: length || "Medium",
+        },
       });
     } catch (error) {
-      console.error('Error in regenerateAIReply:', error);
+      console.error("Error in regenerateAIReply:", error);
       res.status(500).json({
         success: false,
-        message: error.message || 'Failed to regenerate AI reply'
+        message: error.message || "Failed to regenerate AI reply",
       });
     }
-  }
+  },
 };
 
 export default reviewController;

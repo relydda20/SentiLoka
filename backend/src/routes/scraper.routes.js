@@ -10,6 +10,7 @@ import {
   flushScraperCache,
   clearScraperCache,
   getAllScraperCacheStats,
+  rescrapeLocation,
 } from '../controllers/scraper.controller.js';
 import { authenticate } from '../middleware/auth.middleware.js';
 import { asyncHandler } from '../middleware/validation.middleware.js';
@@ -116,5 +117,13 @@ router.delete('/cache/:locationId', asyncHandler(clearScraperCache));
  * @returns Statistics about all cached reviews across all locations
  */
 router.get('/cache-stats', asyncHandler(getAllScraperCacheStats));
+
+/**
+ * @route POST /api/scraper/rescrape/:locationId
+ * @desc Rescrape location - Delete all existing reviews and sentiment, start fresh scrape
+ * @access Private
+ * @returns New scrape job details
+ */
+router.post('/rescrape/:locationId', asyncHandler(rescrapeLocation));
 
 export default router;

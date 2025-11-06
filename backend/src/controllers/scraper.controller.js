@@ -1,6 +1,7 @@
 import { addScrapeJob, getJobStatus, getLocationJobs } from '../services/job.service.js';
 import { validateGoogleMapsUrl } from '../services/scraper.service.js';
 import Location from '../models/Location.model.js';
+import UserLocation from '../models/UserLocation.model.js';
 import { scraperQueue } from '../config/queue.config.js';
 import {
   getCachedReviewCount,
@@ -25,34 +26,32 @@ export const startScrape = async (req, res) => {
       });
     }
 
-    // Scrape all available reviews from the location
-    const { locationId, url } = req.body;
+    // Get locationId from request body
+    const { locationId } = req.body;
 
     // Validate required fields
-    if (!locationId || !url) {
+    if (!locationId) {
       return res.status(400).json({
         success: false,
-        message: 'locationId and url are required',
+        message: 'locationId is required',
       });
     }
 
-    // Validate Google Maps URL
-    if (!validateGoogleMapsUrl(url)) {
-      return res.status(400).json({
+    // Verify user has access to this location via UserLocation
+    const userLocation = await UserLocation.findOne({
+      userId: req.user._id,
+      locationId,
+      status: 'active'
+    });
+
+    if (!userLocation) {
+      return res.status(403).json({
         success: false,
-        message: 'Invalid Google Maps URL format',
+        message: 'You do not have permission to scrape this location',
       });
     }
 
-    // Validation disabled - scrape ALL available reviews
-    // if (maxReviews < 1 || maxReviews > 800) {
-    //   return res.status(400).json({
-    //     success: false,
-    //     message: 'maxReviews must be between 1 and 800',
-    //   });
-    // }
-
-    // Find location and verify ownership
+    // Find location
     const location = await Location.findById(locationId);
 
     if (!location) {
@@ -62,11 +61,21 @@ export const startScrape = async (req, res) => {
       });
     }
 
-    // Verify user owns this location
-    if (location.userId.toString() !== req.user._id.toString()) {
-      return res.status(403).json({
+    // Get Google Maps URL from location model
+    const url = location.googleMapsUrl;
+
+    if (!url) {
+      return res.status(400).json({
         success: false,
-        message: 'You do not have permission to scrape this location',
+        message: 'Google Maps URL not found for this location. Please update the location with a valid Google Maps URL.',
+      });
+    }
+
+    // Validate Google Maps URL
+    if (!validateGoogleMapsUrl(url)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid Google Maps URL format stored in location. Please update the location.',
       });
     }
 
@@ -79,14 +88,14 @@ export const startScrape = async (req, res) => {
       });
     }
 
-    // Add job to queue
+    // Add job to queue using URL from location model
     const jobResult = await addScrapeJob({
       locationId: locationId,
       url: url,
       userId: req.user._id.toString(),
     });
 
-    console.log(`Scrape job created: ${jobResult.jobId} for location ${locationId}`);
+    console.log(`Scrape job created: ${jobResult.jobId} for location ${locationId} using stored URL: ${url}`);
 
     return res.status(201).json({
       success: true,
@@ -94,6 +103,7 @@ export const startScrape = async (req, res) => {
       data: {
         jobId: jobResult.jobId,
         locationId: jobResult.locationId,
+        url: url,
         status: jobResult.status,
         createdAt: jobResult.createdAt,
       },
@@ -618,9 +628,9 @@ export const flushScraperCache = async (req, res) => {
 
     const userId = req.user._id.toString();
     
-    // Check if there are reviews in cache
-    const cachedCount = await getCachedReviewCount(locationId, userId);
-    
+    // Check if there are reviews in cache (reviews are now shared across users)
+    const cachedCount = await getCachedReviewCount(locationId);
+
     if (cachedCount === 0) {
       return res.status(404).json({
         success: false,
@@ -630,8 +640,8 @@ export const flushScraperCache = async (req, res) => {
 
     console.log(`Manually flushing ${cachedCount} cached reviews for location ${locationId}`);
 
-    // Flush to database
-    const result = await flushScrapedReviewsToDatabase(locationId, userId, batchSize);
+    // Flush to database (reviews are now shared across users)
+    const result = await flushScrapedReviewsToDatabase(locationId, batchSize);
 
     return res.status(200).json({
       success: true,
@@ -738,6 +748,92 @@ export const getAllScraperCacheStats = async (req, res) => {
   }
 };
 
+/**
+ * Rescrape location - Delete all reviews and sentiment, start fresh scrape
+ * @route POST /api/scraper/rescrape/:locationId
+ * @access Private
+ */
+export const rescrapeLocation = async (req, res) => {
+  try {
+    const { locationId } = req.params;
+
+    // Verify user has access
+    const userLocation = await UserLocation.findOne({
+      userId: req.user._id,
+      locationId,
+      status: 'active'
+    });
+
+    if (!userLocation) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have permission to rescrape this location',
+      });
+    }
+
+    const location = await Location.findById(locationId);
+    if (!location) {
+      return res.status(404).json({
+        success: false,
+        message: 'Location not found',
+      });
+    }
+
+    // Check if already scraping
+    if (location.scrapeStatus === 'scraping' || location.scrapeStatus === 'pending') {
+      return res.status(409).json({
+        success: false,
+        message: 'Location is already being scraped',
+      });
+    }
+
+    // Import Review and ReviewSummary models
+    const Review = (await import('../models/Review.model.js')).default;
+    const ReviewSummary = (await import('../models/ReviewSummary.model.js')).default;
+
+    // Delete all reviews and sentiment for this location
+    await Review.deleteMany({ locationId });
+    await ReviewSummary.deleteMany({ locationId });
+
+    // Reset sentiment and analysis timestamp
+    location.overallSentiment = {
+      positive: 0,
+      neutral: 0,
+      negative: 0,
+      averageRating: 0,
+      totalReviews: 0
+    };
+    location.lastAnalyzedAt = null;
+    await location.save();
+
+    // Start fresh scrape
+    const jobResult = await addScrapeJob({
+      locationId: locationId,
+      url: location.googleMapsUrl,
+      userId: req.user._id.toString(),
+    });
+
+    console.log(`Rescrape job created: ${jobResult.jobId} for location ${locationId}`);
+
+    return res.status(201).json({
+      success: true,
+      message: 'Rescraping started - old data deleted',
+      data: {
+        jobId: jobResult.jobId,
+        locationId: jobResult.locationId,
+        status: jobResult.status,
+      },
+    });
+  } catch (error) {
+    console.error('Error rescraping location:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to rescrape location',
+      error: error.message,
+    });
+  }
+};
+
 export default {
   startScrape,
   getJobProgress,
@@ -749,4 +845,5 @@ export default {
   flushScraperCache,
   clearScraperCache,
   getAllScraperCacheStats,
+  rescrapeLocation,
 };

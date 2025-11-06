@@ -40,6 +40,7 @@
     "apexcharts": "^5.3.5",
     "lucide-react": "^0.548.0",
     "react-apexcharts": "^1.8.0",
-    "react-hook-form": "^7.66.0"
+    "react-hook-form": "^7.66.0",
+    "redux": "^5.0.1"
   }
 }

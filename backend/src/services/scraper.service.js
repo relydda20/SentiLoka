@@ -1,8 +1,8 @@
-import { spawn } from 'child_process';
-import path from 'path';
-import fs from 'fs/promises';
-import { fileURLToPath } from 'url';
-import crypto from 'crypto';
+import { spawn } from "child_process";
+import path from "path";
+import fs from "fs/promises";
+import { fileURLToPath } from "url";
+import crypto from "crypto";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -13,15 +13,24 @@ const __dirname = path.dirname(__filename);
  * @returns {boolean} - Whether the URL is valid
  */
 export const validateGoogleMapsUrl = (url) => {
-  if (!url || typeof url !== 'string') {
+  if (!url || typeof url !== "string") {
     return false;
   }
 
   // Valid patterns for Google Maps place URLs
   const patterns = [
-    /^https?:\/\/(www\.)?google\.[a-z]+\/maps\/place\/.+/i,
-    /^https?:\/\/maps\.google\.[a-z]+\/maps\?.*cid=/i,
-    /^https?:\/\/(www\.)?google\.[a-z]+\/maps\/.*@-?\d+\.?\d*,-?\d+\.?\d*,.*/i,
+    // google.com/maps/place/Name/...
+    /^https?:\/\/(www\.)?google\.[a-z.]+\/maps\/place\/.+/i,
+    // maps.google.com/maps?cid=... OR maps.google.com/?cid=...
+    /^https?:\/\/maps\.google\.[a-z.]+\/(maps)?\?.*cid=/i,
+    // google.com/?cid=... (short format)
+    /^https?:\/\/(www\.)?google\.[a-z.]+\/\?.*cid=/i,
+    // Coordinate-based URLs with @lat,lng
+    /^https?:\/\/(www\.)?google\.[a-z.]+\/maps\/.*@-?\d+\.?\d*,-?\d+\.?\d*,.*/i,
+    // maps.app.goo.gl/... (short URLs)
+    /^https?:\/\/maps\.app\.goo\.gl\/.+/i,
+    // goo.gl/maps/... (legacy short URLs)
+    /^https?:\/\/goo\.gl\/maps\/.+/i,
   ];
 
   return patterns.some((pattern) => pattern.test(url));
@@ -44,7 +53,7 @@ export const extractPlaceInfoFromUrl = (url) => {
     // Extract place name from /place/ pattern
     const placeMatch = url.match(/\/place\/([^\/]+)/);
     if (placeMatch) {
-      info.placeName = decodeURIComponent(placeMatch[1].replace(/\+/g, ' '));
+      info.placeName = decodeURIComponent(placeMatch[1].replace(/\+/g, " "));
     }
 
     // Extract coordinates if present
@@ -62,7 +71,7 @@ export const extractPlaceInfoFromUrl = (url) => {
       info.placeId = cidMatch[1];
     }
   } catch (error) {
-    console.error('Error extracting place info from URL:', error);
+    console.error("Error extracting place info from URL:", error);
   }
 
   return info;
@@ -73,9 +82,9 @@ export const extractPlaceInfoFromUrl = (url) => {
  * @returns {string} - Temporary file path
  */
 const generateTempFilePath = () => {
-  const tempDir = path.join(__dirname, '../../temp');
+  const tempDir = path.join(__dirname, "../../temp");
   const timestamp = Date.now();
-  const randomStr = crypto.randomBytes(8).toString('hex');
+  const randomStr = crypto.randomBytes(8).toString("hex");
   return path.join(tempDir, `scraper_output_${timestamp}_${randomStr}.json`);
 };
 
@@ -83,7 +92,7 @@ const generateTempFilePath = () => {
  * Ensure temp directory exists
  */
 const ensureTempDir = async () => {
-  const tempDir = path.join(__dirname, '../../temp');
+  const tempDir = path.join(__dirname, "../../temp");
   try {
     await fs.access(tempDir);
   } catch {
@@ -111,13 +120,10 @@ const cleanupTempFile = async (filePath) => {
  * @param {Function} options.onProgress - Progress callback function
  * @returns {Promise<Object>} - Scraper results
  */
-export const executeScraper = async ({
-  url,
-  onProgress = null,
-}) => {
+export const executeScraper = async ({ url, onProgress = null }) => {
   // Validate URL
   if (!validateGoogleMapsUrl(url)) {
-    throw new Error('Invalid Google Maps URL format');
+    throw new Error("Invalid Google Maps URL format");
   }
 
   // Ensure temp directory exists
@@ -127,42 +133,54 @@ export const executeScraper = async ({
   const outputFile = generateTempFilePath();
 
   // Get the path to the backend directory (where scrapy.cfg is located)
-  const backendDir = path.join(__dirname, '../../');
+  const backendDir = path.join(__dirname, "../../");
 
-  // Check if Python virtual environment exists
-  const venvPython = path.join(backendDir, 'python_env/bin/python');
+  // check for python executable in virtual environment
+  const isWindows = process.platform === "win32";
+  const venvPython = isWindows
+    ? path.join(backendDir, "python_env/Scripts/python.exe")
+    : path.join(backendDir, "python_env/bin/python");
+
   const pythonExecutable = await fs
     .access(venvPython)
     .then(() => venvPython)
-    .catch(() => 'python3'); // Fallback to system Python
+    .catch(() => {
+      // Try common Python commands as fallback
+      return isWindows ? "python" : "python3";
+    });
 
   return new Promise((resolve, reject) => {
     // Use Scrapy command with the spider name - scrape ALL available reviews (no limit)
     const args = [
-      '-m', 'scrapy', 'crawl', 'maps_reviews',
-      '-a', `url=${url}`,
-      '-O', outputFile,
+      "-m",
+      "scrapy",
+      "crawl",
+      "maps_reviews",
+      "-a",
+      `url=${url}`,
+      "-O",
+      outputFile,
     ];
 
-    console.log(`Executing scraper: ${pythonExecutable} ${args.join(' ')}`);
+    console.log(`Executing scraper: ${pythonExecutable} ${args.join(" ")}`);
 
     const scraperProcess = spawn(pythonExecutable, args, {
-      cwd: backendDir,  // Run from backend directory where scrapy.cfg is
+      cwd: backendDir, // Run from backend directory where scrapy.cfg is
       env: {
         ...process.env,
-        PYTHONUNBUFFERED: '1', // Ensure real-time output
+        PYTHONUNBUFFERED: "1", // Ensure real-time output
       },
     });
 
-    let stdoutData = '';
-    let stderrData = '';
+    let stdoutData = "";
+    let stderrData = "";
     let reviewsScraped = 0;
 
     // Handle stdout (progress updates)
-    scraperProcess.stdout.on('data', (data) => {
+    scraperProcess.stdout.on("data", (data) => {
       stdoutData += data.toString();
-      const lines = stdoutData.split('\n');
-      stdoutData = lines.pop() || ''; // Keep incomplete line
+      const lines = stdoutData.split("\n");
+      stdoutData = lines.pop() || ""; // Keep incomplete line
 
       lines.forEach((line) => {
         console.log(`[Scraper] ${line}`);
@@ -175,40 +193,40 @@ export const executeScraper = async ({
           reviewsScraped = parseInt(progressMatch[1]);
 
           onProgress({
-            type: 'progress',
+            type: "progress",
             reviewsScraped,
             message: `Scraped ${reviewsScraped} reviews...`,
           });
         }
 
         // Parse completion message
-        if (line.includes('Scraping completed') && onProgress) {
+        if (line.includes("Scraping completed") && onProgress) {
           onProgress({
-            type: 'complete',
-            message: 'Scraping completed successfully',
+            type: "complete",
+            message: "Scraping completed successfully",
           });
         }
       });
     });
 
     // Handle stderr (errors and warnings)
-    scraperProcess.stderr.on('data', (data) => {
+    scraperProcess.stderr.on("data", (data) => {
       stderrData += data.toString();
       console.error(`[Scraper Error] ${data.toString()}`);
     });
 
     // Handle process completion
-    scraperProcess.on('close', async (code) => {
+    scraperProcess.on("close", async (code) => {
       if (code !== 0) {
         await cleanupTempFile(outputFile);
         return reject(
-          new Error(`Scraper process exited with code ${code}: ${stderrData}`)
+          new Error(`Scraper process exited with code ${code}: ${stderrData}`),
         );
       }
 
       try {
         // Read the output file
-        const fileContent = await fs.readFile(outputFile, 'utf-8');
+        const fileContent = await fs.readFile(outputFile, "utf-8");
         let scraperOutput = JSON.parse(fileContent);
 
         // If Scrapy returns an array directly, wrap it in an object
@@ -236,7 +254,7 @@ export const executeScraper = async ({
     });
 
     // Handle process errors
-    scraperProcess.on('error', async (error) => {
+    scraperProcess.on("error", async (error) => {
       await cleanupTempFile(outputFile);
       reject(new Error(`Failed to start scraper process: ${error.message}`));
     });
@@ -244,8 +262,8 @@ export const executeScraper = async ({
     // Send initial progress update
     if (onProgress) {
       onProgress({
-        type: 'start',
-        message: 'Starting scraper...',
+        type: "start",
+        message: "Starting scraper...",
       });
     }
   });
@@ -257,9 +275,12 @@ export const executeScraper = async ({
  */
 export const testScraperAvailability = async () => {
   try {
-    const backendDir = path.join(__dirname, '../../');
-    const scrapyCfgPath = path.join(backendDir, 'scrapy.cfg');
-    const spiderPath = path.join(backendDir, 'scraper/src/spiders/maps_reviews_spiders.py');
+    const backendDir = path.join(__dirname, "../../");
+    const scrapyCfgPath = path.join(backendDir, "scrapy.cfg");
+    const spiderPath = path.join(
+      backendDir,
+      "scraper/src/spiders/maps_reviews_spiders.py",
+    );
 
     // Check if scrapy.cfg and spider exist
     await fs.access(scrapyCfgPath);
@@ -267,7 +288,7 @@ export const testScraperAvailability = async () => {
 
     return true;
   } catch (error) {
-    console.error('Scraper availability test failed:', error);
+    console.error("Scraper availability test failed:", error);
     return false;
   }
 };

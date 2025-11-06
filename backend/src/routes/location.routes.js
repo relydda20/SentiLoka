@@ -27,6 +27,7 @@ import {
   getLocations,
   getLocation,
   updateLocationStatus,
+  deleteLocation,
 } from '../controllers/location.controller.js';
 import { authenticate } from '../middleware/auth.middleware.js';
 
@@ -37,7 +38,7 @@ router.use(authenticate);
 
 /**
  * @route POST /api/locations
- * @desc Create a new location
+ * @desc Create a new location or link existing location
  * @access Private
  */
 router.post('/', createLocation);
@@ -58,9 +59,16 @@ router.get('/:id', getLocation);
 
 /**
  * @route PATCH /api/locations/:id/status
- * @desc Update location scrape status
+ * @desc Update location scrape status (for testing/debugging)
  * @access Private
  */
 router.patch('/:id/status', updateLocationStatus);
+
+/**
+ * @route DELETE /api/locations/:id
+ * @desc Remove location from user's tracked locations (soft delete)
+ * @access Private
+ */
+router.delete('/:id', deleteLocation);
 
 export default router;

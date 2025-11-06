@@ -128,7 +128,7 @@ export const getLocationJobs = async (locationId) => {
  * @param {Object} job - Bull job object
  */
 export const processScrapeJob = async (job) => {
-  const { locationId, url } = job.data;
+  const { locationId, url, userId } = job.data;
 
   console.log(
     `Processing scrape job ${job.id} for location ${locationId} - scraping ALL available reviews`
@@ -138,19 +138,21 @@ export const processScrapeJob = async (job) => {
     // Check if this is a test job
     const isTestJob = locationId.startsWith('test-');
 
-    // Fetch location to get userId (skip if test location)
+    // Fetch location (skip if test location)
     let location = null;
-    let userId = null;
     if (!isTestJob) {
       location = await Location.findById(locationId);
       if (!location) {
         throw new Error('Location not found');
       }
-      userId = location.userId;
 
-      // Update location status
-      location.scrapeStatus = 'scraping';
-      await location.save();
+      // Verify userId is provided
+      if (!userId) {
+        throw new Error('User ID is required for scraping');
+      }
+
+      // Start scraping with progress tracking
+      await location.startScraping();
     }
 
     // Update job progress
@@ -164,9 +166,21 @@ export const processScrapeJob = async (job) => {
     const scraperResult = await executeScraper({
       url,
       onProgress: async (progressData) => {
+        const reviewsScraped = progressData.reviewsScraped || 0;
+
+        // Update location progress with estimation
+        if (!isTestJob && location) {
+          await location.updateScrapeProgress(
+            reviewsScraped,
+            reviewsScraped, // We don't know total yet, so use current as estimate
+            progressData.message
+          );
+        }
+
+        // Update job progress
         await job.progress({
           stage: 'scraping',
-          reviewsScraped: progressData.reviewsScraped || 0,
+          reviewsScraped,
           message: progressData.message,
         });
       },
@@ -196,14 +210,14 @@ export const processScrapeJob = async (job) => {
       message: 'Caching scraped reviews to Redis...',
     });
 
-    // Cache reviews to Redis first (fast operation)
+    // Cache reviews to Redis first (fast operation) - reviews are now shared across users
     let cachedCount = 0;
     if (!isTestJob) {
-      cachedCount = await cacheScrapedReviews(locationId, userId, transformedReviews);
+      cachedCount = await cacheScrapedReviews(locationId, transformedReviews);
       console.log(`✓ Cached ${cachedCount} reviews to Redis for location ${locationId}`);
-      
+
       // Check if we should auto-flush (if cache is getting large)
-      await autoFlushIfNeeded(locationId, userId, 500);
+      await autoFlushIfNeeded(locationId, 500);
     }
 
     // Update progress
@@ -213,10 +227,10 @@ export const processScrapeJob = async (job) => {
       message: 'Flushing cached reviews to database...',
     });
 
-    // Flush cached reviews to database in batches (efficient bulk operation)
+    // Flush cached reviews to database in batches (efficient bulk operation) - reviews are now shared
     let flushResult = { inserted: 0, updated: 0, failed: 0 };
     if (!isTestJob) {
-      flushResult = await flushScrapedReviewsToDatabase(locationId, userId, 100);
+      flushResult = await flushScrapedReviewsToDatabase(locationId, 100);
       console.log(`✓ Flushed reviews to database:`, flushResult);
     }
 
@@ -226,8 +240,8 @@ export const processScrapeJob = async (job) => {
     if (!isTestJob) {
       location = await Location.findById(locationId);
       if (location) {
-        location.scrapeStatus = 'completed';
-        location.scrapeConfig.lastScraped = new Date();
+        // Complete scraping with progress update
+        await location.completeScraping(`Successfully scraped ${savedReviewsCount} reviews`);
 
         // Calculate next scheduled scrape based on frequency
         if (location.scrapeConfig.scrapeFrequency === 'daily') {
@@ -242,10 +256,26 @@ export const processScrapeJob = async (job) => {
 
         await location.save();
 
-        // Invalidate old caches (they're now stale)
-        await invalidateCacheForLocation(userId.toString(), locationId);
-        await invalidateLocationCache(locationId, userId.toString());
-        console.log(`🗑️ Invalidated old caches for location ${locationId}`);
+        // Invalidate old caches for ALL users tracking this location
+        // Since locations are now shared between users, we need to invalidate caches for all
+        try {
+          const UserLocation = (await import('../models/UserLocation.model.js')).default;
+          const userLocations = await UserLocation.find({
+            locationId,
+            status: 'active'
+          }).select('userId');
+
+          // Invalidate cache for each user tracking this location
+          for (const userLoc of userLocations) {
+            await invalidateCacheForLocation(userLoc.userId.toString(), locationId);
+            await invalidateLocationCache(locationId, userLoc.userId.toString());
+          }
+
+          console.log(`🗑️ Invalidated caches for ${userLocations.length} user(s) tracking location ${locationId}`);
+        } catch (cacheError) {
+          console.error('Error invalidating caches:', cacheError);
+          // Don't fail the job if cache invalidation fails
+        }
 
         // Note: Reviews will be cached on-demand when frontend fetches them
         // Sentiment calculation will be done after batch analysis
@@ -281,13 +311,10 @@ export const processScrapeJob = async (job) => {
 
     // Update location status to failed (skip if test location)
     if (!locationId.startsWith('test-')) {
-      await Location.findByIdAndUpdate(locationId, {
-        scrapeStatus: 'failed',
-        lastScrapeError: {
-          message: error.message,
-          timestamp: new Date(),
-        },
-      });
+      const failedLocation = await Location.findById(locationId);
+      if (failedLocation) {
+        await failedLocation.failScraping(error.message);
+      }
     }
 
     throw error;

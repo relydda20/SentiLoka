@@ -5,27 +5,22 @@ const reviewSummarySchema = new mongoose.Schema(
     // Review identification
     reviewId: {
       type: String,
-      sparse: true, // Allows multiple null values but enforces uniqueness for non-null
+      unique: true, // Each Google review ID is analyzed once and shared across users
+      required: true,
       index: true,
     },
 
-    // User and Location association
-    userId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: true,
-      index: true
-    },
+    // Location association (removed userId - summaries are shared)
     locationId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Location',
+      ref: "Location",
       required: true,
-      index: true
+      index: true,
     },
     placeId: {
       type: String,
       required: true,
-      index: true
+      index: true,
     },
 
     // Original review data
@@ -102,50 +97,55 @@ const reviewSummarySchema = new mongoose.Schema(
   },
   {
     timestamps: true, // Adds createdAt and updatedAt
-  }
+  },
 );
 
-// Indexes for efficient querying
+// Indexes for efficient querying (removed userId indexes - summaries are shared)
 reviewSummarySchema.index({ processedAt: -1 });
 reviewSummarySchema.index({ publishedAt: -1 });
 reviewSummarySchema.index({ createdAt: -1 });
-reviewSummarySchema.index({ userId: 1, locationId: 1 });
-reviewSummarySchema.index({ userId: 1, sentiment: 1 });
 reviewSummarySchema.index({ locationId: 1, sentiment: 1 });
-reviewSummarySchema.index({ locationId: 1, publishedAt: -1 }); // For trends queries
-// Unique compound index to prevent duplicate analyses
-reviewSummarySchema.index({ userId: 1, locationId: 1, reviewId: 1 }, { unique: true, sparse: true });
+reviewSummarySchema.index({ locationId: 1, publishedAt: -1 });
 
 // Static method to get all summaries for a location
 reviewSummarySchema.statics.getSummariesByLocation = function (
   locationId,
-  limit = null
+  limit = null,
 ) {
   const query = this.find({ locationId, sentiment: { $ne: "error" } })
     .sort({ processedAt: -1 })
-    .select("summary sentiment sentimentScore author rating sentimentKeywords contextualTopics processedAt");
+    .select(
+      "summary sentiment sentimentScore author rating sentimentKeywords contextualTopics processedAt",
+    );
 
   // Only apply limit if specified
   return limit ? query.limit(limit) : query;
 };
 
-// Static method to get recent summaries for a user
-reviewSummarySchema.statics.getRecentSummaries = function (userId, limit = 50) {
-  return this.find({ userId, sentiment: { $ne: "error" } })
+// Static method to get recent summaries for a location
+reviewSummarySchema.statics.getRecentSummaries = function (
+  locationId,
+  limit = 50,
+) {
+  return this.find({ locationId, sentiment: { $ne: "error" } })
     .sort({ processedAt: -1 })
     .limit(limit)
-    .select("summary sentiment sentimentScore author rating locationId processedAt");
+    .select(
+      "summary sentiment sentimentScore author rating locationId processedAt",
+    );
 };
 
 // Static method to get summaries by sentiment for a location
 reviewSummarySchema.statics.getSummariesBySentiment = function (
   locationId,
   sentiment,
-  limit = null
+  limit = null,
 ) {
   const query = this.find({ locationId, sentiment })
     .sort({ processedAt: -1 })
-    .select("summary sentimentScore author rating sentimentKeywords contextualTopics processedAt");
+    .select(
+      "summary sentimentScore author rating sentimentKeywords contextualTopics processedAt",
+    );
 
   // Only apply limit if specified
   return limit ? query.limit(limit) : query;

@@ -185,18 +185,18 @@ export async function getLocationStatus(locationId, userId) {
       return basicStatus;
     }
 
-    // Get additional details for ready locations
+    // Get additional details for ready locations (summaries are now shared across users)
     const [location, recentReviews, sentimentBreakdown] = await Promise.all([
       Location.findById(locationId).select('name address overallSentiment').lean(),
-      
-      ReviewSummary.find({ locationId, userId, sentiment: { $ne: 'error' } })
+
+      ReviewSummary.find({ locationId, sentiment: { $ne: 'error' } })
         .sort({ processedAt: -1 })
         .limit(5)
         .select('summary sentiment rating author')
         .lean(),
-      
+
       ReviewSummary.aggregate([
-        { $match: { locationId: locationId, userId: userId, sentiment: { $ne: 'error' } } },
+        { $match: { locationId: locationId, sentiment: { $ne: 'error' } } },
         { $group: { _id: '$sentiment', count: { $sum: 1 } } },
       ]),
     ]);

@@ -48,38 +48,37 @@ const SCRAPER_CACHE_CONFIG = {
 };
 
 /**
- * Generate Redis key for scraper cache
+ * Generate Redis key for scraper cache (reviews are now shared across users)
  */
-const generateScraperKey = (locationId, userId, type = 'reviews') => {
-  return `${SCRAPER_CACHE_CONFIG.KEY_PREFIX}:${type}:${userId}:${locationId}`;
+const generateScraperKey = (locationId, type = 'reviews') => {
+  return `${SCRAPER_CACHE_CONFIG.KEY_PREFIX}:${type}:${locationId}`;
 };
 
 /**
- * Generate Redis key for scraper metadata
+ * Generate Redis key for scraper metadata (reviews are now shared across users)
  */
-const generateMetadataKey = (locationId, userId) => {
-  return `${SCRAPER_CACHE_CONFIG.KEY_PREFIX}:metadata:${userId}:${locationId}`;
+const generateMetadataKey = (locationId) => {
+  return `${SCRAPER_CACHE_CONFIG.KEY_PREFIX}:metadata:${locationId}`;
 };
 
 /**
  * Cache a single scraped review in Redis
  * @param {string} locationId - Location ID
- * @param {string} userId - User ID
  * @param {Object} review - Review data
  */
-export const cacheScrapedReview = async (locationId, userId, review) => {
+export const cacheScrapedReview = async (locationId, review) => {
   try {
-    const key = generateScraperKey(locationId, userId);
-    
+    const key = generateScraperKey(locationId);
+
     // Add review to Redis list (LPUSH adds to the left/beginning)
     await scraperRedis.lpush(key, JSON.stringify(review));
-    
+
     // Set expiry on the list (refreshes TTL on each addition)
     await scraperRedis.expire(key, SCRAPER_CACHE_CONFIG.REVIEW_TTL);
-    
+
     // Update metadata
-    await updateScraperMetadata(locationId, userId, 1);
-    
+    await updateScraperMetadata(locationId, 1);
+
     return true;
   } catch (error) {
     console.error(`Error caching scraped review for location ${locationId}:`, error);
@@ -90,33 +89,32 @@ export const cacheScrapedReview = async (locationId, userId, review) => {
 /**
  * Cache multiple scraped reviews in Redis (batch)
  * @param {string} locationId - Location ID
- * @param {string} userId - User ID
  * @param {Array} reviews - Array of review objects
  */
-export const cacheScrapedReviews = async (locationId, userId, reviews) => {
+export const cacheScrapedReviews = async (locationId, reviews) => {
   try {
     if (!reviews || reviews.length === 0) {
       return 0;
     }
 
-    const key = generateScraperKey(locationId, userId);
-    
+    const key = generateScraperKey(locationId);
+
     // Use pipeline for better performance
     const pipeline = scraperRedis.pipeline();
-    
+
     // Add all reviews to Redis list
     reviews.forEach(review => {
       pipeline.lpush(key, JSON.stringify(review));
     });
-    
+
     // Set expiry
     pipeline.expire(key, SCRAPER_CACHE_CONFIG.REVIEW_TTL);
-    
+
     await pipeline.exec();
-    
+
     // Update metadata
-    await updateScraperMetadata(locationId, userId, reviews.length);
-    
+    await updateScraperMetadata(locationId, reviews.length);
+
     console.log(`✓ Cached ${reviews.length} scraped reviews for location ${locationId}`);
     return reviews.length;
   } catch (error) {
@@ -128,23 +126,22 @@ export const cacheScrapedReviews = async (locationId, userId, reviews) => {
 /**
  * Get all cached scraped reviews for a location
  * @param {string} locationId - Location ID
- * @param {string} userId - User ID
  * @param {number} count - Number of reviews to retrieve (default: all)
  */
-export const getCachedScrapedReviews = async (locationId, userId, count = -1) => {
+export const getCachedScrapedReviews = async (locationId, count = -1) => {
   try {
-    const key = generateScraperKey(locationId, userId);
-    
+    const key = generateScraperKey(locationId);
+
     // Get reviews from Redis list (LRANGE 0 -1 gets all items)
     const reviewStrings = await scraperRedis.lrange(key, 0, count);
-    
+
     if (!reviewStrings || reviewStrings.length === 0) {
       return [];
     }
-    
+
     // Parse JSON strings back to objects
     const reviews = reviewStrings.map(str => JSON.parse(str));
-    
+
     console.log(`✓ Retrieved ${reviews.length} cached scraped reviews for location ${locationId}`);
     return reviews;
   } catch (error) {
@@ -156,11 +153,10 @@ export const getCachedScrapedReviews = async (locationId, userId, count = -1) =>
 /**
  * Get count of cached reviews for a location
  * @param {string} locationId - Location ID
- * @param {string} userId - User ID
  */
-export const getCachedReviewCount = async (locationId, userId) => {
+export const getCachedReviewCount = async (locationId) => {
   try {
-    const key = generateScraperKey(locationId, userId);
+    const key = generateScraperKey(locationId);
     const count = await scraperRedis.llen(key);
     return count;
   } catch (error) {
@@ -172,17 +168,16 @@ export const getCachedReviewCount = async (locationId, userId) => {
 /**
  * Update scraper metadata (total reviews cached, timestamps)
  */
-const updateScraperMetadata = async (locationId, userId, incrementBy = 1) => {
+const updateScraperMetadata = async (locationId, incrementBy = 1) => {
   try {
-    const key = generateMetadataKey(locationId, userId);
-    
+    const key = generateMetadataKey(locationId);
+
     const metadata = {
       locationId,
-      userId,
       lastUpdated: new Date().toISOString(),
       totalCached: incrementBy,
     };
-    
+
     // Get existing metadata
     const existing = await scraperRedis.get(key);
     if (existing) {
@@ -192,7 +187,7 @@ const updateScraperMetadata = async (locationId, userId, incrementBy = 1) => {
     } else {
       metadata.firstCached = new Date().toISOString();
     }
-    
+
     await scraperRedis.setex(key, SCRAPER_CACHE_CONFIG.REVIEW_TTL, JSON.stringify(metadata));
     return metadata;
   } catch (error) {
@@ -204,9 +199,9 @@ const updateScraperMetadata = async (locationId, userId, incrementBy = 1) => {
 /**
  * Get scraper metadata
  */
-export const getScraperMetadata = async (locationId, userId) => {
+export const getScraperMetadata = async (locationId) => {
   try {
-    const key = generateMetadataKey(locationId, userId);
+    const key = generateMetadataKey(locationId);
     const metadata = await scraperRedis.get(key);
     return metadata ? JSON.parse(metadata) : null;
   } catch (error) {
@@ -218,13 +213,12 @@ export const getScraperMetadata = async (locationId, userId) => {
 /**
  * Flush cached reviews to MongoDB (batch insert)
  * @param {string} locationId - Location ID
- * @param {string} userId - User ID
  * @param {number} batchSize - Number of reviews to process per batch
  * @returns {Promise<Object>} - Result object with counts
  */
-export const flushScrapedReviewsToDatabase = async (locationId, userId, batchSize = SCRAPER_CACHE_CONFIG.BATCH_INSERT_SIZE) => {
+export const flushScrapedReviewsToDatabase = async (locationId, batchSize = SCRAPER_CACHE_CONFIG.BATCH_INSERT_SIZE) => {
   try {
-    const key = generateScraperKey(locationId, userId);
+    const key = generateScraperKey(locationId);
     
     // Get total count first
     const totalCount = await scraperRedis.llen(key);
@@ -271,17 +265,15 @@ export const flushScrapedReviewsToDatabase = async (locationId, userId, batchSiz
         break; // No more reviews to process
       }
       
-      // Bulk upsert to MongoDB
+      // Bulk upsert to MongoDB (reviews are now shared across users)
       const bulkOps = batch.map(reviewData => ({
         updateOne: {
           filter: {
-            userId,
             googleReviewId: reviewData.googleReviewId,
           },
           update: {
             $set: {
               ...reviewData,
-              userId,
               locationId,
               scrapedAt: new Date(),
             },
@@ -311,7 +303,7 @@ export const flushScrapedReviewsToDatabase = async (locationId, userId, batchSiz
     }
     
     // Clear metadata
-    const metadataKey = generateMetadataKey(locationId, userId);
+    const metadataKey = generateMetadataKey(locationId);
     await scraperRedis.del(metadataKey);
     
     const result = {
@@ -341,18 +333,17 @@ export const flushScrapedReviewsToDatabase = async (locationId, userId, batchSiz
 /**
  * Clear cached reviews for a location without saving to database
  * @param {string} locationId - Location ID
- * @param {string} userId - User ID
  */
-export const clearScrapedReviewCache = async (locationId, userId) => {
+export const clearScrapedReviewCache = async (locationId) => {
   try {
-    const key = generateScraperKey(locationId, userId);
-    const metadataKey = generateMetadataKey(locationId, userId);
-    
+    const key = generateScraperKey(locationId);
+    const metadataKey = generateMetadataKey(locationId);
+
     const count = await scraperRedis.llen(key);
-    
+
     await scraperRedis.del(key);
     await scraperRedis.del(metadataKey);
-    
+
     console.log(`✓ Cleared ${count} cached reviews for location ${locationId}`);
     return count;
   } catch (error) {
@@ -379,15 +370,13 @@ export const getScraperCacheStats = async () => {
       const count = await scraperRedis.llen(key);
       const ttl = await scraperRedis.ttl(key);
       
-      // Extract locationId and userId from key
+      // Extract locationId from key
       const parts = key.split(':');
-      const userId = parts[2];
-      const locationId = parts[3];
-      
+      const locationId = parts[2];
+
       stats.totalReviewsCached += count;
       stats.locations.push({
         locationId,
-        userId,
         cachedReviews: count,
         expiresIn: ttl > 0 ? `${Math.floor(ttl / 60)} minutes` : 'expired',
       });
@@ -403,19 +392,18 @@ export const getScraperCacheStats = async () => {
 /**
  * Auto-flush cache when it reaches a certain size
  * @param {string} locationId - Location ID
- * @param {string} userId - User ID
  * @param {number} threshold - Flush when cache size reaches this number
  */
-export const autoFlushIfNeeded = async (locationId, userId, threshold = 500) => {
+export const autoFlushIfNeeded = async (locationId, threshold = 500) => {
   try {
-    const count = await getCachedReviewCount(locationId, userId);
-    
+    const count = await getCachedReviewCount(locationId);
+
     if (count >= threshold) {
       console.log(`⚠️ Cache size (${count}) reached threshold (${threshold}). Auto-flushing...`);
-      const result = await flushScrapedReviewsToDatabase(locationId, userId);
+      const result = await flushScrapedReviewsToDatabase(locationId);
       return result;
     }
-    
+
     return null;
   } catch (error) {
     console.error('Error in auto-flush:', error);

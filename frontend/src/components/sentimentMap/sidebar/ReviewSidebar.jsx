@@ -1,4 +1,3 @@
-import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import ReviewSidebarHeader from "./ReviewSidebarHeader";
 import ReviewSidebarSentiment from "./ReviewSidebarSentiment.jsx";
@@ -7,6 +6,7 @@ import ReviewList from "./ReviewList";
 const ReviewSidebar = ({
   isOpen,
   selectedLocation,
+  reviewData, // Data from React Query
   loadingReviews, // For initial load
   onClose,
   onLoadReviews,
@@ -19,14 +19,37 @@ const ReviewSidebar = ({
   reviewPage,
   onFilterOrPageChange,
   isFetchingReviews, // General loading for filters/pagination
+  onRescrape,
+  onReanalyze,
+  isRescraping,
+  isReanalyzing,
 }) => {
   if (!isOpen || !selectedLocation) return null;
 
-  // Reviews and pagination info are now directly on selectedLocation
-  const { reviews = [], pagination = null } = selectedLocation;
+  // Use reviewData from React Query if available, otherwise fall back to selectedLocation
+  const reviews = reviewData?.reviews || selectedLocation.reviews || [];
+  const pagination = reviewData?.pagination || selectedLocation.pagination || null;
+  const sentiment = reviewData?.sentiment || selectedLocation.sentiment || null;
+  const reviewsCount = reviewData?.reviewsCount || selectedLocation.reviewsCount || 0;
 
-  // This prop is TRUE if the location has reviews in the DB (even if not loaded yet)
-  const hasReviews = (selectedLocation.reviewsCount || 0) > 0;
+  // hasReviews is TRUE if the location has reviews in the database (even if current filter shows 0)
+  // Use reviewsCount (total in DB) instead of current filtered results
+  // This ensures filter UI stays visible even when filters return 0 results
+  const hasReviews = (reviewsCount > 0) ||
+                     reviews.length > 0 ||
+                     (pagination && pagination.totalReviews > 0);
+
+  // Debug log
+  console.log("📊 ReviewSidebar state:", {
+    locationId: selectedLocation.id,
+    reviewsCount,
+    hasReviews,
+    reviewsLength: reviews.length,
+    reviewIds: reviews.map(r => r.reviewId || r.id).slice(0, 3), // First 3 review IDs
+    reviewAuthors: reviews.map(r => r.author).slice(0, 3), // First 3 authors
+    pagination,
+    usingReactQuery: !!reviewData,
+  });
 
   return (
     <AnimatePresence>
@@ -45,12 +68,16 @@ const ReviewSidebar = ({
             loadingReviews={loadingReviews}
             onClose={onClose}
             onLoadReviews={() => onLoadReviews(selectedLocation.id)}
+            onRescrape={onRescrape}
+            onReanalyze={onReanalyze}
+            isRescraping={isRescraping}
+            isReanalyzing={isReanalyzing}
           />
 
           {/* Sentiment Summary */}
           <ReviewSidebarSentiment
-            sentiment={selectedLocation.sentiment}
-            reviewsCount={selectedLocation.reviewsCount}
+            sentiment={sentiment}
+            reviewsCount={reviewsCount}
             getSentimentIcon={getSentimentIcon}
             hasReviews={hasReviews}
             loadingSentiment={loadingSentiment}
@@ -62,6 +89,7 @@ const ReviewSidebar = ({
             reviews={reviews} // Pass paginated reviews
             pagination={pagination} // Pass pagination info
             hasReviews={hasReviews} // *** THIS IS THE FIX: Pass hasReviews ***
+            sentiment={sentiment} // Pass sentiment summary to determine if analyzed
             loadingReviews={loadingReviews} // For initial load skeleton
             isFetchingReviews={isFetchingReviews} // For filter/page loading
             onGenerateReply={onGenerateReply}
