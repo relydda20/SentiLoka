@@ -92,6 +92,11 @@ export const useLoadReviewsMutation = () => {
           ...data,
         })
       );
+
+      // Invalidate all locations list to update sidebar and map markers
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.locations.all,
+      });
     },
     onError: (error) => {
       console.error('❌ [React Query] Error loading reviews:', error);
@@ -133,6 +138,11 @@ export const useAnalyzeSentimentMutation = () => {
           ...data,
         })
       );
+
+      // Invalidate all locations list to update sidebar and map markers
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.locations.all,
+      });
     },
     onError: (error) => {
       console.error('❌ [React Query] Error analyzing sentiment:', error);
@@ -188,6 +198,11 @@ export const useRescrapeMutation = () => {
       // Invalidate location detail
       queryClient.invalidateQueries({
         queryKey: queryKeys.locations.detail(data.locationId),
+      });
+
+      // Invalidate all locations list to update sidebar and map markers
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.locations.all,
       });
     },
     onError: (error) => {

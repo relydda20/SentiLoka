@@ -751,6 +751,9 @@ export const getLocationSentiments = async (req, res) => {
     // Get total count for pagination with filters
     const totalItems = await ReviewSummary.countDocuments(query);
 
+    // Get total count WITHOUT filters to determine if location has ANY analyzed reviews
+    const totalAnalyzedReviews = await ReviewSummary.countDocuments({ locationId });
+
     // Get paginated sentiment summaries
     const summaries = await ReviewSummary.find(query)
       .sort(sort)
@@ -770,6 +773,7 @@ export const getLocationSentiments = async (req, res) => {
         currentPage: page,
         totalPages,
         totalItems,
+        totalAnalyzedReviews, // Total count ignoring filters
         limit,
         hasNext,
         hasPrev,

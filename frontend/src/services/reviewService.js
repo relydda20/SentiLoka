@@ -4,7 +4,10 @@
  */
 import apiClient from "../utils/apiClient";
 import { getLocationScrapeStatus } from "./locationService";
-import { triggerLocationScrape, subscribeScrapeProgress } from "./scraperService";
+import {
+  triggerLocationScrape,
+  subscribeScrapeProgress,
+} from "./scraperService";
 import { calculateOverallSentiment } from "./sentimentService";
 
 const REVIEWS_PER_PAGE = 5;
@@ -13,14 +16,14 @@ const REVIEWS_PER_PAGE = 5;
  * Map review data from backend to frontend format
  */
 const mapReviewToFrontend = (review, reviewSource) => {
-  // ReviewSummary model fields: author, rating, text, publishedAt, sentiment, sentimentScore, etc.
-  // Raw Review model fields: authorName, rating, reviewText, publishedAt (no sentiment data)
+  // Normalized API format: author, rating, text, publishedAt, sentiment, sentimentScore, etc.
+  // Both raw reviews and analyzed reviews use the same field names
   const mapped = {
     id: review._id,
     reviewId: review.reviewId,
-    author: review.author || review.authorName || "Anonymous",
+    author: review.author || "Anonymous",
     rating: review.rating,
-    text: review.text || review.reviewText || "",
+    text: review.text || "",
     date: review.publishedAt,
     sentiment: review.sentiment || null,
     sentimentScore: review.sentimentScore || null,
@@ -29,17 +32,6 @@ const mapReviewToFrontend = (review, reviewSource) => {
     contextualTopics: review.contextualTopics || [],
     isAnalyzed: reviewSource === "analyzed",
   };
-
-  // Debug log for first few reviews to verify data
-  if (review._id && Math.random() < 0.1) { // Log ~10% of reviews for debugging
-    console.log('📋 Mapped review:', {
-      id: review._id,
-      author: mapped.author,
-      sentiment: mapped.sentiment,
-      reviewSource,
-      hasRawSentiment: !!review.sentiment
-    });
-  }
 
   return mapped;
 };
@@ -93,10 +85,17 @@ const buildSentimentSummary = (location, reviewSource, allReviews = null) => {
   // Priority 2: Calculate from all reviews if provided
   if (reviewSource === "analyzed" && allReviews && allReviews.length > 0) {
     const totalAnalyzed = allReviews.length;
-    const positiveCount = allReviews.filter((r) => r.sentiment === "positive").length;
-    const negativeCount = allReviews.filter((r) => r.sentiment === "negative").length;
-    const neutralCount = allReviews.filter((r) => r.sentiment === "neutral").length;
-    const avgRating = allReviews.reduce((sum, r) => sum + r.rating, 0) / totalAnalyzed;
+    const positiveCount = allReviews.filter(
+      (r) => r.sentiment === "positive",
+    ).length;
+    const negativeCount = allReviews.filter(
+      (r) => r.sentiment === "negative",
+    ).length;
+    const neutralCount = allReviews.filter(
+      (r) => r.sentiment === "neutral",
+    ).length;
+    const avgRating =
+      allReviews.reduce((sum, r) => sum + r.rating, 0) / totalAnalyzed;
 
     console.log("📊 Calculated sentiment from reviews");
     return {
@@ -119,7 +118,10 @@ const buildSentimentSummary = (location, reviewSource, allReviews = null) => {
  */
 export const fetchExistingReviews = async (locationId, options = {}) => {
   try {
-    console.log("📥 Fetching existing reviews (no scraping) for location:", locationId);
+    console.log(
+      "📥 Fetching existing reviews (no scraping) for location:",
+      locationId,
+    );
 
     const {
       page = 1,
@@ -132,7 +134,11 @@ export const fetchExistingReviews = async (locationId, options = {}) => {
     } = options;
 
     const location = await getLocationScrapeStatus(locationId);
-    const totalReviewsInDB = await getTotalReviewCount(locationId, sortBy, sortOrder);
+    const totalReviewsInDB = await getTotalReviewCount(
+      locationId,
+      sortBy,
+      sortOrder,
+    );
 
     // Build query params with filters
     const params = new URLSearchParams({
@@ -156,6 +162,8 @@ export const fetchExistingReviews = async (locationId, options = {}) => {
 
     // Try ANALYZED reviews first
     let hasAnalyzedReviews = false;
+    let locationHasAnalyzedReviews = false; // Track if location has ANY analyzed reviews
+
     try {
       console.log("🔍 Attempting to load analyzed reviews...");
       const analyzedParams = new URLSearchParams(params);
@@ -168,19 +176,55 @@ export const fetchExistingReviews = async (locationId, options = {}) => {
       );
 
       if (analyzedResponse.data?.success) {
-        reviews = analyzedResponse.data.data?.reviews || [];
-        pagination = analyzedResponse.data.data?.pagination || null;
-        reviewSource = "analyzed";
-        hasAnalyzedReviews = true;
-        console.log(`✅ Fetched ${reviews.length} ANALYZED reviews`);
+        const fetchedReviews = analyzedResponse.data.data?.reviews || [];
+        const totalAnalyzedInDB = analyzedResponse.data.data?.pagination?.totalAnalyzedReviews || 0;
+
+        // Use the unfiltered count to determine if location has ANY analyzed reviews
+        locationHasAnalyzedReviews = totalAnalyzedInDB > 0;
+
+        if (fetchedReviews.length > 0) {
+          reviews = fetchedReviews;
+          pagination = analyzedResponse.data.data.pagination;
+          reviewSource = "analyzed";
+          hasAnalyzedReviews = true;
+          console.log(`✅ Fetched ${reviews.length} ANALYZED reviews`);
+        } else {
+          console.log(`⚠️ Analyzed reviews API returned 0 results (totalAnalyzedInDB: ${totalAnalyzedInDB})`);
+          // If location has analyzed reviews, don't fall back (even with no filters)
+          if (locationHasAnalyzedReviews) {
+            console.log("⚠️ Location has analyzed reviews but filter returned 0 - returning empty");
+            reviews = [];
+            pagination = {
+              currentPage: page,
+              totalPages: 0,
+              totalItems: 0,
+              totalAnalyzedReviews: totalAnalyzedInDB,
+              limit,
+              hasNext: false,
+              hasPrev: false,
+            };
+            hasAnalyzedReviews = true; // Prevent fallback
+          } else {
+            console.log("⚠️ Location has no analyzed reviews - will try raw reviews");
+          }
+        }
       }
     } catch (analyzedError) {
-      console.log("⚠️ Error fetching analyzed reviews:", analyzedError.response?.status);
-      // Only continue to fallback if the error is NOT a filter-related issue
-      // If it's a 404 or 500, we can try raw reviews
-      // But if sentiment filter was applied and failed, don't fall back to raw reviews (they don't have sentiment)
-      if (sentiment !== "all") {
-        console.log("⚠️ Sentiment filter applied but analyzed reviews unavailable - returning empty");
+      console.log(
+        "⚠️ Error fetching analyzed reviews:",
+        analyzedError.response?.status,
+      );
+      // If it's a 404, location has no analyzed reviews yet
+      if (analyzedError.response?.status === 404) {
+        locationHasAnalyzedReviews = false;
+        console.log("⚠️ Location has no analyzed reviews (404)");
+      }
+
+      // If location has analyzed reviews, don't fall back even on error
+      if (locationHasAnalyzedReviews) {
+        console.log(
+          "⚠️ Error but location has analyzed reviews - returning empty",
+        );
         reviews = [];
         pagination = {
           currentPage: page,
@@ -194,13 +238,17 @@ export const fetchExistingReviews = async (locationId, options = {}) => {
       }
     }
 
-    // Fallback to raw reviews if no analyzed reviews found AND no sentiment filter applied
+    // Fallback to raw reviews ONLY if:
+    // 1. No analyzed reviews found
+    // 2. No filters are active
+    // 3. Location has never been analyzed
     if (!hasAnalyzedReviews) {
       console.log("⚠️ No analyzed reviews found, trying raw reviews...");
       try {
         const rawResponse = await apiClient.get(
           `/reviews/location/${locationId}?${params.toString()}`,
         );
+        console.log("response : ", rawResponse);
 
         if (rawResponse.data?.success) {
           reviews = rawResponse.data.data.reviews || [];
@@ -224,14 +272,20 @@ export const fetchExistingReviews = async (locationId, options = {}) => {
       }
     }
 
-    const mappedReviews = reviews.map((review) => mapReviewToFrontend(review, reviewSource));
+    const mappedReviews = reviews.map((review) =>
+      mapReviewToFrontend(review, reviewSource),
+    );
 
     // Get overall sentiment if analyzed
     let sentimentSummary = null;
     if (reviewSource === "analyzed") {
       sentimentSummary = await calculateOverallSentiment(locationId);
       if (!sentimentSummary) {
-        sentimentSummary = buildSentimentSummary(location, reviewSource, mappedReviews);
+        sentimentSummary = buildSentimentSummary(
+          location,
+          reviewSource,
+          mappedReviews,
+        );
       }
     } else {
       sentimentSummary = buildSentimentSummary(location, reviewSource);
@@ -243,8 +297,10 @@ export const fetchExistingReviews = async (locationId, options = {}) => {
           totalPages: pagination.totalPages || 0,
           totalReviews: pagination.totalItems || 0,
           limit: pagination.limit || limit,
-          hasNextPage: pagination.hasNext !== undefined ? pagination.hasNext : false,
-          hasPrevPage: pagination.hasPrev !== undefined ? pagination.hasPrev : false,
+          hasNextPage:
+            pagination.hasNext !== undefined ? pagination.hasNext : false,
+          hasPrevPage:
+            pagination.hasPrev !== undefined ? pagination.hasPrev : false,
         }
       : {
           currentPage: page,
@@ -254,7 +310,6 @@ export const fetchExistingReviews = async (locationId, options = {}) => {
           hasNextPage: false,
           hasPrevPage: false,
         };
-
     return {
       business: {
         id: locationId,
@@ -281,9 +336,7 @@ export const loadReviewsWithScraping = async (locationId, options = {}) => {
   try {
     console.log("🚀 Manually triggering scrape for location:", locationId);
 
-    const {
-      onScrapeProgress = null,
-    } = options;
+    const { onScrapeProgress = null } = options;
 
     // Check location status
     const { getLocationScrapeStatus } = await import("./locationService");
@@ -305,7 +358,9 @@ export const loadReviewsWithScraping = async (locationId, options = {}) => {
         );
       }
 
-      const { triggerLocationScrape, subscribeScrapeProgress } = await import("./scraperService");
+      const { triggerLocationScrape, subscribeScrapeProgress } = await import(
+        "./scraperService"
+      );
 
       const scrapeResult = await triggerLocationScrape(locationId);
       console.log(`✅ Scrape job started: ${scrapeResult.jobId}`);
@@ -323,7 +378,10 @@ export const loadReviewsWithScraping = async (locationId, options = {}) => {
     // Now load the reviews from database
     return await loadBusinessReviews(locationId, options);
   } catch (error) {
-    console.error(`❌ Error loading reviews with scraping for location ${locationId}:`, error);
+    console.error(
+      `❌ Error loading reviews with scraping for location ${locationId}:`,
+      error,
+    );
     throw error;
   }
 };
@@ -353,7 +411,11 @@ export const loadBusinessReviews = async (locationId, options = {}) => {
     console.log("📥 Loading existing reviews without triggering scrape...");
 
     // Load reviews from database
-    const totalReviewsInDB = await getTotalReviewCount(locationId, sortBy, sortOrder);
+    const totalReviewsInDB = await getTotalReviewCount(
+      locationId,
+      sortBy,
+      sortOrder,
+    );
 
     const params = new URLSearchParams({
       page: page.toString(),
@@ -380,7 +442,10 @@ export const loadBusinessReviews = async (locationId, options = {}) => {
         `/reviews/location/${locationId}?${params.toString()}`,
       );
 
-      if (rawResponse.data?.success && rawResponse.data.data?.reviews?.length > 0) {
+      if (
+        rawResponse.data?.success &&
+        rawResponse.data.data?.reviews?.length > 0
+      ) {
         reviews = rawResponse.data.data.reviews;
         pagination = rawResponse.data.data.pagination;
         reviewSource = "raw";
@@ -415,7 +480,9 @@ export const loadBusinessReviews = async (locationId, options = {}) => {
     }
 
     // If no reviews found, return empty data (no error thrown)
-    const mappedReviews = reviews.map((review) => mapReviewToFrontend(review, reviewSource));
+    const mappedReviews = reviews.map((review) =>
+      mapReviewToFrontend(review, reviewSource),
+    );
 
     return {
       business: {
@@ -423,27 +490,32 @@ export const loadBusinessReviews = async (locationId, options = {}) => {
         reviews: mappedReviews,
         reviewsCount: totalReviewsInDB || pagination?.totalItems || 0,
         reviewSource,
-        pagination: pagination ? {
-          currentPage: pagination.currentPage,
-          totalPages: pagination.totalPages,
-          totalReviews: pagination.totalItems,
-          limit: pagination.limit,
-          hasNextPage: pagination.hasNext,
-          hasPrevPage: pagination.hasPrev,
-        } : {
-          currentPage: page,
-          totalPages: 0,
-          totalReviews: 0,
-          limit,
-          hasNextPage: false,
-          hasPrevPage: false,
-        },
+        pagination: pagination
+          ? {
+              currentPage: pagination.currentPage,
+              totalPages: pagination.totalPages,
+              totalReviews: pagination.totalItems,
+              limit: pagination.limit,
+              hasNextPage: pagination.hasNext,
+              hasPrevPage: pagination.hasPrev,
+            }
+          : {
+              currentPage: page,
+              totalPages: 0,
+              totalReviews: 0,
+              limit,
+              hasNextPage: false,
+              hasPrevPage: false,
+            },
         scrapeStatus: location.scrapeStatus || "idle",
         lastScraped: location.scrapeConfig?.lastScraped,
       },
     };
   } catch (error) {
-    console.error(`❌ Error loading reviews for location ${locationId}:`, error);
+    console.error(
+      `❌ Error loading reviews for location ${locationId}:`,
+      error,
+    );
 
     return {
       business: {
@@ -474,7 +546,9 @@ export const loadBusinessReviews = async (locationId, options = {}) => {
 export const reanalyzeSentiment = async (locationId) => {
   try {
     console.log("🔄 Reanalyzing sentiment for location:", locationId);
-    const response = await apiClient.post(`/review-sentiments/reanalyze/${locationId}`);
+    const response = await apiClient.post(
+      `/review-sentiments/reanalyze/${locationId}`,
+    );
 
     if (response.data?.success) {
       console.log("✅ Sentiment reanalysis completed");
