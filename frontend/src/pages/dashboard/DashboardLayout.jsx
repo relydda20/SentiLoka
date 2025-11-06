@@ -169,7 +169,7 @@ const DashboardLayout = () => {
                     <DropdownItem
                       onClick={() => {
                         setIsDropdownOpen(false);
-                        navigate('/dashboard/profile');
+                        navigate(`/dashboard/profile/${user?.slug || 'me'}`);
                       }}
                       className="hover:bg-[#FAF6E9] text-[#2F4B4E]"
                     >

@@ -11,24 +11,15 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 export const fetchUserProfile = async () => {
   try {
     console.log("Loading user profile...");
-    await delay(800);
 
-    // const response = await apiClient.get('/api/user/profile');
-    // return response.data.data;
+    const response = await apiClient.get('/auth/me');
 
-    console.log("✅User profile loaded!");
-    // Mock data
-    return {
-      id: 1,
-      name: "Maxwell",
-      email: "maxwell@petstore.com",
-      bio: "Hey, I'm Maxwell! I run a cozy pet store where every furry, feathery, and scaly friend is welcome. I started the shop out of my love for animals and a passion for helping people care for their pets. When I'm not at the store, you'll probably find me playing fetch with my dog, Luna, or trying to stop my cat from knocking things off the counter (again).",
-      avatar: null,
-      createdAt: "2023-01-15T00:00:00Z",
-    };
+    console.log("✅ User profile loaded!", response.data);
+    // Backend returns { success: true, data: { user: {...} } }
+    return response.data.data.user;
   } catch (error) {
     console.error("❌ Error fetching user profile:", error);
-    throw error;
+    throw new Error(error.response?.data?.message || "Failed to fetch profile");
   }
 };
 
@@ -38,24 +29,14 @@ export const fetchUserProfile = async () => {
 export const updateUserProfile = async (profileData) => {
   try {
     console.log("Updating user profile...", profileData);
-    await delay(1000);
 
-    // const response = await apiClient.put('/api/user/profile', profileData);
-    // return response.data.data;
+    const response = await apiClient.put('/users/profile', profileData);
 
     console.log("✅ User profile updated!");
-    // Mock response
-    return {
-      success: true,
-      message: "Profile updated successfully",
-      data: {
-        ...profileData,
-        updatedAt: new Date().toISOString(),
-      },
-    };
+    return response.data.data;
   } catch (error) {
     console.error("❌ Error updating user profile:", error);
-    throw error;
+    throw new Error(error.response?.data?.message || "Failed to update profile");
   }
 };
 
@@ -65,20 +46,14 @@ export const updateUserProfile = async (profileData) => {
 export const changePassword = async (passwordData) => {
   try {
     console.log("Changing password...");
-    await delay(1200);
 
-    // const response = await apiClient.post('/api/user/change-password', passwordData);
-    // return response.data;
+    const response = await apiClient.post('/users/change-password', passwordData);
 
     console.log("✅ Password changed!");
-    // Mock response
-    return {
-      success: true,
-      message: "Password changed successfully",
-    };
+    return response.data;
   } catch (error) {
     console.error("❌ Error changing password:", error);
-    throw error;
+    throw new Error(error.response?.data?.message || "Failed to change password");
   }
 };
 

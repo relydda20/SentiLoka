@@ -27,7 +27,8 @@ const userSchema = new mongoose.Schema(
     description: {
       type: String,
       trim: true,
-      maxlength: [1000, 'Description cannot exceed 1000 characters']
+      maxlength: [1000, 'Description cannot exceed 1000 characters'],
+      default: '',
     },
     email: {
       type: String,

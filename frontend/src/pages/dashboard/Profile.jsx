@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { MapPin, Smile, Frown, Meh, Lock, Edit3, Settings, Search, Star } from "lucide-react";
@@ -15,6 +16,8 @@ import {
 } from "../../services/profileService";
 
 const Profile = () => {
+  const { slug } = useParams();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -32,6 +35,13 @@ const Profile = () => {
     queryKey: ["userProfile"],
     queryFn: fetchUserProfile,
   });
+
+  // Redirect to correct slug URL if slug doesn't match
+  useEffect(() => {
+    if (userProfile?.slug && slug !== userProfile.slug) {
+      navigate(`/dashboard/profile/${userProfile.slug}`, { replace: true });
+    }
+  }, [userProfile, slug, navigate]);
 
   // Fetch user stores
   const {
@@ -52,7 +62,7 @@ const Profile = () => {
   } = useForm({
     defaultValues: {
       name: "",
-      bio: "",
+      description: "",
     },
   });
 
@@ -102,7 +112,7 @@ const Profile = () => {
     if (userProfile) {
       resetProfile({
         name: userProfile.name,
-        bio: userProfile.bio,
+        description: userProfile.description || "",
       });
     }
   }, [userProfile, resetProfile]);
@@ -282,7 +292,7 @@ const Profile = () => {
               {/* Avatar & Basic Info */}
               <div className="flex flex-1 items-start gap-4 w-full">
                 <motion.img
-                  src={maxwellAvatar}
+                  src={userProfile?.image || maxwellAvatar}
                   alt="User Avatar"
                   className="rounded-2xl ring-[#E8E5D5] ring-4 w-16 md:w-20 h-16 md:h-20 object-cover shrink-0"
                   whileHover={{ scale: 1.05 }}
@@ -318,19 +328,19 @@ const Profile = () => {
 
                       <div className="mb-3">
                         <textarea
-                          {...registerProfile("bio", {
+                          {...registerProfile("description", {
                             maxLength: {
-                              value: 500,
-                              message: "Bio must be less than 500 characters",
+                              value: 1000,
+                              message: "Description must be less than 1000 characters",
                             },
                           })}
                           rows={5}
                           className="bg-gray-50 p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-[#2F4B4E] focus:ring-2 w-full text-gray-700 text-sm resize-none"
                           placeholder="Write something about yourself..."
                         />
-                        {profileErrors.bio && (
+                        {profileErrors.description && (
                           <p className="mt-1 text-red-500 text-xs">
-                            {profileErrors.bio.message}
+                            {profileErrors.description.message}
                           </p>
                         )}
                       </div>
@@ -363,16 +373,22 @@ const Profile = () => {
                         {userProfile?.name}
                       </h2>
                       <p className="max-w-3xl text-gray-700 text-sm leading-relaxed">
-                        {showFullBio
-                          ? userProfile?.bio
-                          : `${userProfile?.bio?.substring(0, 150)}...`}
-                        {userProfile?.bio && userProfile.bio.length > 150 && (
-                          <button
-                            onClick={() => setShowFullBio(!showFullBio)}
-                            className="ml-1 font-medium text-[#2F4B4E] hover:underline"
-                          >
-                            {showFullBio ? "Show less" : "Read more"}
-                          </button>
+                        {userProfile?.description ? (
+                          <>
+                            {showFullBio
+                              ? userProfile.description
+                              : `${userProfile.description.substring(0, 150)}${userProfile.description.length > 150 ? '...' : ''}`}
+                            {userProfile.description.length > 150 && (
+                              <button
+                                onClick={() => setShowFullBio(!showFullBio)}
+                                className="ml-1 font-medium text-[#2F4B4E] hover:underline"
+                              >
+                                {showFullBio ? "Show less" : "Read more"}
+                              </button>
+                            )}
+                          </>
+                        ) : (
+                          <span className="text-gray-500 italic">No description added yet.</span>
                         )}
                       </p>
                     </>
