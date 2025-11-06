@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { GoogleMap, useJsApiLoader } from "@react-google-maps/api";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -78,6 +78,8 @@ const SentimentMap = () => {
     isFetchingReviews,
     loadingReviews,
     loadingSentiment,
+    isRescraping,
+    rescrapeMutation,
     handleInitialLoadReviews,
     handleInitialAnalyzeSentiment,
     handleFilterOrPageChange,
@@ -197,6 +199,110 @@ const SentimentMap = () => {
     } catch (error) {
       setError(error.message || "Failed to analyze sentiment");
       alert(`❌ Failed to analyze sentiment: ${error.message}`);
+    }
+  };
+
+  // State for reanalyze operation
+  const [isReanalyzing, setIsReanalyzing] = useState(false);
+
+  const handleRescrape = async () => {
+    if (!selectedLocation?.id) return;
+
+    const locationId = selectedLocation.id;
+
+    try {
+      // Progress callback to update UI while scraping
+      const onScrapeProgress = (status) => {
+        console.log("📊 Rescrape progress:", status.state, status.progress);
+
+        // Update both locations array and selectedLocation with progress
+        setLocations((prev) =>
+          prev.map((loc) =>
+            loc.id === locationId
+              ? {
+                  ...loc,
+                  scrapeStatus: status.state,
+                  scrapeProgress: status.progress || {
+                    percentage: 0,
+                    current: 0,
+                    total: 0,
+                    estimatedTimeRemaining: null,
+                    message: null,
+                  },
+                }
+              : loc,
+          ),
+        );
+
+        setSelectedLocation((prev) => {
+          if (prev && prev.id === locationId) {
+            return {
+              ...prev,
+              scrapeStatus: status.state,
+              scrapeProgress: status.progress || {
+                percentage: 0,
+                current: 0,
+                total: 0,
+                estimatedTimeRemaining: null,
+                message: null,
+              },
+            };
+          }
+          return prev;
+        });
+      };
+
+      // Use the rescrape mutation from React Query
+      // This will keep old reviews visible during scraping
+      // and automatically refetch new data when complete
+      await rescrapeMutation.mutateAsync({
+        locationId,
+        onProgress: onScrapeProgress,
+      });
+
+      console.log("✅ Rescraping completed!");
+      alert("✅ Rescraping completed! New data is now available.");
+    } catch (error) {
+      console.error("❌ Error during rescrape:", error);
+      alert(`❌ Failed to rescrape: ${error.message}`);
+    }
+  };
+
+  const handleReanalyze = async () => {
+    if (!selectedLocation?.id) return;
+
+    const locationId = selectedLocation.id;
+    setIsReanalyzing(true);
+
+    try {
+      // Import service
+      const { reanalyzeSentiment } = await import("../../services/reviewService");
+
+      const result = await reanalyzeSentiment(locationId);
+      console.log("✅ Sentiment reanalysis completed:", result);
+
+      // Refresh the location data
+      const { getLocationScrapeStatus } = await import("../../services/locationService");
+      const updatedLocation = await getLocationScrapeStatus(locationId);
+
+      // Update locations cache
+      setLocations((prev) =>
+        prev.map((loc) =>
+          loc.id === locationId ? { ...loc, ...updatedLocation } : loc,
+        ),
+      );
+
+      // Update selected location
+      setSelectedLocation((prev) =>
+        prev?.id === locationId ? { ...prev, ...updatedLocation } : prev
+      );
+
+      setIsReanalyzing(false);
+      alert("✅ Sentiment reanalysis completed!");
+    } catch (error) {
+      console.error("❌ Error reanalyzing sentiment:", error);
+      setIsReanalyzing(false);
+      alert(`❌ Failed to reanalyze sentiment: ${error.message}`);
     }
   };
 
@@ -383,6 +489,10 @@ const SentimentMap = () => {
         reviewFilters={reviewFilters}
         reviewPage={reviewPage}
         onFilterOrPageChange={handleFilterOrPageChange}
+        onRescrape={handleRescrape}
+        onReanalyze={handleReanalyze}
+        isRescraping={isRescraping}
+        isReanalyzing={isReanalyzing}
         isFetchingReviews={isFetchingReviews}
       />
       {/* Chatbot Sidebar */}

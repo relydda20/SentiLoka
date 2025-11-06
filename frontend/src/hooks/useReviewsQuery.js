@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../config/queryClient';
 import {
   fetchExistingReviews,
-  loadBusinessReviews,
+  loadReviewsWithScraping,
 } from '../services/reviewService';
 import { analyzeLocationSentiment } from '../services/locationReviewService';
 
@@ -73,7 +73,7 @@ export const useLoadReviewsMutation = () => {
   return useMutation({
     mutationFn: async ({ locationId, options }) => {
       console.log('🔄 [React Query] Loading reviews (with scraping if needed):', locationId);
-      const result = await loadBusinessReviews(locationId, options);
+      const result = await loadReviewsWithScraping(locationId, options);
       return result.business;
     },
     onSuccess: (data, variables) => {
@@ -136,6 +136,62 @@ export const useAnalyzeSentimentMutation = () => {
     },
     onError: (error) => {
       console.error('❌ [React Query] Error analyzing sentiment:', error);
+    },
+  });
+};
+
+/**
+ * Hook to rescrape a location
+ * This mutation handles the rescrape process and invalidates cache when complete
+ */
+export const useRescrapeMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ locationId, onProgress }) => {
+      console.log('🔄 [React Query] Starting rescrape for location:', locationId);
+
+      // Import the service functions
+      const { rescrapeLocation, subscribeScrapeProgress } = await import('../services/scraperService');
+
+      // Start the rescrape job
+      const result = await rescrapeLocation(locationId);
+      console.log(`✅ Rescrape job started: ${result.jobId}`);
+
+      // Subscribe to progress updates via SSE
+      await subscribeScrapeProgress(result.jobId, {
+        onProgress,
+        onComplete: (data) => {
+          console.log('✅ [React Query] Rescraping completed!', data);
+        },
+        onError: (error) => {
+          console.error('❌ [React Query] Rescraping failed:', error);
+          throw error;
+        },
+      });
+
+      return { locationId, jobId: result.jobId };
+    },
+    onSuccess: (data) => {
+      console.log('✅ [React Query] Rescrape completed, invalidating cache for location:', data.locationId);
+
+      // Invalidate all review queries for this location to fetch new data
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.reviews.byLocation(data.locationId),
+      });
+
+      // Invalidate sentiment queries
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.sentiment.byLocation(data.locationId),
+      });
+
+      // Invalidate location detail
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.locations.detail(data.locationId),
+      });
+    },
+    onError: (error) => {
+      console.error('❌ [React Query] Error during rescrape:', error);
     },
   });
 };

@@ -19,6 +19,10 @@ const ReviewSidebar = ({
   reviewPage,
   onFilterOrPageChange,
   isFetchingReviews, // General loading for filters/pagination
+  onRescrape,
+  onReanalyze,
+  isRescraping,
+  isReanalyzing,
 }) => {
   if (!isOpen || !selectedLocation) return null;
 
@@ -64,6 +68,10 @@ const ReviewSidebar = ({
             loadingReviews={loadingReviews}
             onClose={onClose}
             onLoadReviews={() => onLoadReviews(selectedLocation.id)}
+            onRescrape={onRescrape}
+            onReanalyze={onReanalyze}
+            isRescraping={isRescraping}
+            isReanalyzing={isReanalyzing}
           />
 
           {/* Sentiment Summary */}

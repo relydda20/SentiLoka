@@ -241,7 +241,63 @@ export const fetchExistingReviews = async (locationId, options = {}) => {
 };
 
 /**
- * Load reviews for a location (triggers scraping if needed)
+ * Manually trigger scraping and load reviews
+ * This should be called when the user explicitly clicks "Load Reviews"
+ */
+export const loadReviewsWithScraping = async (locationId, options = {}) => {
+  try {
+    console.log("🚀 Manually triggering scrape for location:", locationId);
+
+    const {
+      onScrapeProgress = null,
+    } = options;
+
+    // Check location status
+    const { getLocationScrapeStatus } = await import("./locationService");
+    const location = await getLocationScrapeStatus(locationId);
+
+    // Check if we need to scrape
+    const needsScraping =
+      location.scrapeStatus === "idle" ||
+      location.scrapeStatus === "failed" ||
+      !location.scrapeConfig?.lastScraped;
+
+    // Trigger scraping if needed
+    if (needsScraping) {
+      console.log("🚀 Starting scrape job...");
+
+      if (!location.googleMapsUrl || location.googleMapsUrl.trim() === "") {
+        throw new Error(
+          `Cannot scrape location "${location.name}": Google Maps URL is not set.`,
+        );
+      }
+
+      const { triggerLocationScrape, subscribeScrapeProgress } = await import("./scraperService");
+
+      const scrapeResult = await triggerLocationScrape(locationId);
+      console.log(`✅ Scrape job started: ${scrapeResult.jobId}`);
+
+      // Use SSE for real-time progress
+      await subscribeScrapeProgress(scrapeResult.jobId, {
+        onProgress: onScrapeProgress,
+        onComplete: () => console.log("✅ Scraping completed!"),
+        onError: (error) => console.error("❌ Scraping failed:", error),
+      });
+    } else {
+      console.log("✅ Location already scraped");
+    }
+
+    // Now load the reviews from database
+    return await loadBusinessReviews(locationId, options);
+  } catch (error) {
+    console.error(`❌ Error loading reviews with scraping for location ${locationId}:`, error);
+    throw error;
+  }
+};
+
+/**
+ * Load reviews for a location (NO AUTO-SCRAPE - just loads existing data)
+ * Use loadReviewsWithScraping() if you need to trigger scraping
  */
 export const loadBusinessReviews = async (locationId, options = {}) => {
   try {
@@ -255,41 +311,13 @@ export const loadBusinessReviews = async (locationId, options = {}) => {
       searchTerm = "",
       sortBy = "date",
       sortOrder = "desc",
-      onScrapeProgress = null,
-      forceScrape = false,
     } = options;
 
     // Check location scrape status
     const location = await getLocationScrapeStatus(locationId);
 
-    const needsScraping =
-      forceScrape ||
-      location.scrapeStatus === "idle" ||
-      location.scrapeStatus === "failed" ||
-      !location.scrapeConfig?.lastScraped;
-
-    // Trigger scraping if needed
-    if (needsScraping) {
-      console.log("🚀 Location needs scraping, triggering scraper...");
-
-      if (!location.googleMapsUrl || location.googleMapsUrl.trim() === "") {
-        throw new Error(
-          `Cannot scrape location "${location.name}": Google Maps URL is not set.`,
-        );
-      }
-
-      const scrapeResult = await triggerLocationScrape(locationId);
-      console.log(`✅ Scrape job started: ${scrapeResult.jobId}`);
-
-      // Use SSE instead of polling for real-time progress
-      await subscribeScrapeProgress(scrapeResult.jobId, {
-        onProgress: onScrapeProgress,
-        onComplete: () => console.log("✅ Scraping completed!"),
-        onError: (error) => console.error("❌ Scraping failed:", error),
-      });
-    } else {
-      console.log("✅ Location already scraped, loading reviews...");
-    }
+    // NO AUTO-SCRAPING - just load existing data
+    console.log("📥 Loading existing reviews without triggering scrape...");
 
     // Load reviews from database
     const totalReviewsInDB = await getTotalReviewCount(locationId, sortBy, sortOrder);
@@ -353,10 +381,7 @@ export const loadBusinessReviews = async (locationId, options = {}) => {
       }
     }
 
-    if (!reviews || (reviews.length === 0 && !rating && !searchTerm && sentiment === "all")) {
-      throw new Error("No reviews found for this location");
-    }
-
+    // If no reviews found, return empty data (no error thrown)
     const mappedReviews = reviews.map((review) => mapReviewToFrontend(review, reviewSource));
 
     return {
@@ -365,15 +390,22 @@ export const loadBusinessReviews = async (locationId, options = {}) => {
         reviews: mappedReviews,
         reviewsCount: totalReviewsInDB || pagination?.totalItems || 0,
         reviewSource,
-        pagination: {
+        pagination: pagination ? {
           currentPage: pagination.currentPage,
           totalPages: pagination.totalPages,
           totalReviews: pagination.totalItems,
           limit: pagination.limit,
           hasNextPage: pagination.hasNext,
           hasPrevPage: pagination.hasPrev,
+        } : {
+          currentPage: page,
+          totalPages: 0,
+          totalReviews: 0,
+          limit,
+          hasNextPage: false,
+          hasPrevPage: false,
         },
-        scrapeStatus: "completed",
+        scrapeStatus: location.scrapeStatus || "idle",
         lastScraped: location.scrapeConfig?.lastScraped,
       },
     };
@@ -397,5 +429,28 @@ export const loadBusinessReviews = async (locationId, options = {}) => {
         error: error.message,
       },
     };
+  }
+};
+
+/**
+ * Reanalyze sentiment for a location
+ * Deletes existing sentiment analysis, keeps reviews, redoes analysis
+ * @param {string} locationId - Location ID
+ * @returns {Promise} - Reanalysis result
+ */
+export const reanalyzeSentiment = async (locationId) => {
+  try {
+    console.log("🔄 Reanalyzing sentiment for location:", locationId);
+    const response = await apiClient.post(`/review-sentiments/reanalyze/${locationId}`);
+
+    if (response.data?.success) {
+      console.log("✅ Sentiment reanalysis completed");
+      return response.data;
+    }
+
+    throw new Error(response.data?.error || "Failed to reanalyze sentiment");
+  } catch (error) {
+    console.error("❌ Error reanalyzing sentiment:", error);
+    throw error;
   }
 };

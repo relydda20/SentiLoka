@@ -7,6 +7,7 @@ import {
   useExistingReviewsQuery,
   useLoadReviewsMutation,
   useAnalyzeSentimentMutation,
+  useRescrapeMutation,
   usePrefetchNextPage,
 } from "./useReviewsQuery";
 
@@ -19,14 +20,46 @@ const DEFAULT_FILTERS = {
 export const useReviewManagement = (selectedLocationId) => {
   const [reviewPage, setReviewPage] = useState(1);
   const [reviewFilters, setReviewFilters] = useState(DEFAULT_FILTERS);
+  const [hasLoadedReviews, setHasLoadedReviews] = useState(false);
+  const [checkedForExistingReviews, setCheckedForExistingReviews] = useState(false);
 
-  // Reset page and filters when location changes
+  // Reset page, filters, and loaded state when location changes
   useEffect(() => {
     setReviewPage(1);
     setReviewFilters(DEFAULT_FILTERS);
+    setHasLoadedReviews(false); // Start with false
+    setCheckedForExistingReviews(false); // Need to check if location has reviews
   }, [selectedLocationId]);
 
-  // Query for existing reviews (auto-fetches and caches)
+  // Check if location already has reviews on mount
+  useEffect(() => {
+    const checkExistingReviews = async () => {
+      if (!selectedLocationId || checkedForExistingReviews) return;
+
+      try {
+        // Import the service
+        const { getLocationScrapeStatus } = await import('../services/locationService');
+        const location = await getLocationScrapeStatus(selectedLocationId);
+
+        // If location has been scraped and has a lastScraped date, enable auto-fetch
+        if (location.scrapeConfig?.lastScraped) {
+          console.log('✅ Location already has reviews, enabling auto-fetch');
+          setHasLoadedReviews(true);
+        } else {
+          console.log('📭 Location has no reviews yet, waiting for user to click Load Reviews');
+        }
+      } catch (error) {
+        console.error('Error checking for existing reviews:', error);
+      } finally {
+        setCheckedForExistingReviews(true);
+      }
+    };
+
+    checkExistingReviews();
+  }, [selectedLocationId, checkedForExistingReviews]);
+
+  // Query for existing reviews (NO AUTO-FETCH on sidebar open)
+  // Only fetches after user explicitly loads reviews
   const {
     data: reviewData,
     isLoading: isFetchingReviews,
@@ -38,7 +71,7 @@ export const useReviewManagement = (selectedLocationId) => {
       page: reviewPage,
       ...reviewFilters,
     },
-    !!selectedLocationId // Only fetch when location is selected
+    !!selectedLocationId && hasLoadedReviews // Only fetch if location selected AND reviews have been loaded
   );
 
   // Mutation for loading reviews (with scraping)
@@ -46,6 +79,9 @@ export const useReviewManagement = (selectedLocationId) => {
 
   // Mutation for analyzing sentiment
   const analyzeSentimentMutation = useAnalyzeSentimentMutation();
+
+  // Mutation for rescraping
+  const rescrapeMutation = useRescrapeMutation();
 
   // Note: Prefetching disabled - we always fetch fresh data for pagination
   const { prefetchNextPage } = usePrefetchNextPage();
@@ -67,6 +103,10 @@ export const useReviewManagement = (selectedLocationId) => {
         });
 
         console.log("✅ Reviews loaded successfully:", result);
+
+        // Enable automatic fetching now that reviews have been loaded
+        setHasLoadedReviews(true);
+
         return result;
       } catch (error) {
         console.error("Error loading reviews:", error);
@@ -146,6 +186,10 @@ export const useReviewManagement = (selectedLocationId) => {
     // Loading states from mutations
     loadingReviews: loadReviewsMutation.isPending,
     loadingSentiment: analyzeSentimentMutation.isPending,
+    isRescraping: rescrapeMutation.isPending,
+
+    // Mutations
+    rescrapeMutation,
 
     // Handlers
     handleInitialLoadReviews,

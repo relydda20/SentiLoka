@@ -1,6 +1,7 @@
 import React from "react";
 import { motion } from "framer-motion";
-import { X, MapPin, Star, RefreshCw, Loader2, Clock } from "lucide-react";
+import { X, MapPin, Star, RefreshCw, Loader2, Clock, RotateCcw, BrainCircuit } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
 
 const ReviewSidebarHeader = ({
   selectedLocation,
@@ -8,6 +9,10 @@ const ReviewSidebarHeader = ({
   loadingReviews,
   onClose,
   onLoadReviews,
+  onRescrape,
+  onReanalyze,
+  isRescraping,
+  isReanalyzing,
 }) => {
   // Determine button state and message
   const getLoadingMessage = () => {
@@ -73,6 +78,73 @@ const ReviewSidebarHeader = ({
           <p className="text-[#E1E6C3] text-sm">No rating data</p>
         )}
       </div>
+
+      {/* Timestamps */}
+      {hasReviews && (
+        <div className="mt-3 space-y-1 text-xs text-white/80">
+          {selectedLocation.lastScraped && (
+            <div className="flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5" />
+              <span>
+                Last scraped: {formatDistanceToNow(new Date(selectedLocation.lastScraped), { addSuffix: true })}
+              </span>
+            </div>
+          )}
+          {selectedLocation.lastAnalyzedAt && (
+            <div className="flex items-center gap-1.5">
+              <BrainCircuit className="w-3.5 h-3.5" />
+              <span>
+                Last analyzed: {formatDistanceToNow(new Date(selectedLocation.lastAnalyzedAt), { addSuffix: true })}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Action buttons for locations with reviews */}
+      {hasReviews && !isScrapingInProgress && (
+        <div className="mt-4 flex gap-2">
+          <motion.button
+            onClick={onRescrape}
+            disabled={isRescraping}
+            whileHover={!isRescraping ? { scale: 1.02 } : {}}
+            whileTap={!isRescraping ? { scale: 0.98 } : {}}
+            className="flex-1 flex justify-center items-center gap-2 bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed backdrop-blur-sm px-3 py-2 rounded-lg text-sm font-medium text-white transition-colors"
+          >
+            {isRescraping ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Rescraping...
+              </>
+            ) : (
+              <>
+                <RotateCcw className="w-4 h-4" />
+                Rescrape
+              </>
+            )}
+          </motion.button>
+
+          <motion.button
+            onClick={onReanalyze}
+            disabled={isReanalyzing}
+            whileHover={!isReanalyzing ? { scale: 1.02 } : {}}
+            whileTap={!isReanalyzing ? { scale: 0.98 } : {}}
+            className="flex-1 flex justify-center items-center gap-2 bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed backdrop-blur-sm px-3 py-2 rounded-lg text-sm font-medium text-white transition-colors"
+          >
+            {isReanalyzing ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Reanalyzing...
+              </>
+            ) : (
+              <>
+                <BrainCircuit className="w-4 h-4" />
+                Reanalyze
+              </>
+            )}
+          </motion.button>
+        </div>
+      )}
 
       {!hasReviews && (
         <div className="mt-4 space-y-2">
