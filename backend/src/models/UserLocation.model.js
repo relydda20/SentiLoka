@@ -19,16 +19,6 @@ const userLocationSchema = new mongoose.Schema(
       required: [true, 'Location ID is required'],
       index: true
     },
-    // User-specific customization for this location
-    customName: {
-      type: String,
-      trim: true
-    },
-    tags: [String],
-    notes: {
-      type: String,
-      maxlength: 1000
-    },
     // Track when this user added the location
     addedAt: {
       type: Date,
@@ -39,18 +29,6 @@ const userLocationSchema = new mongoose.Schema(
       type: String,
       enum: ['active', 'removed'],
       default: 'active'
-    },
-    // User-specific settings
-    notifications: {
-      enabled: {
-        type: Boolean,
-        default: true
-      },
-      frequency: {
-        type: String,
-        enum: ['realtime', 'daily', 'weekly', 'never'],
-        default: 'weekly'
-      }
     },
     // Track user's last interaction with this location
     lastViewedAt: Date,

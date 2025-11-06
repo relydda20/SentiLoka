@@ -2,12 +2,6 @@ import mongoose from 'mongoose';
 
 const locationSchema = new mongoose.Schema(
   {
-    userId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: [true, 'User ID is required'],
-      index: true
-    },
     slug: {
       type: String,
       lowercase: true,
@@ -17,6 +11,7 @@ const locationSchema = new mongoose.Schema(
     placeId: {
       type: String,
       required: [true, 'Place ID is required'],
+      unique: true, // Now globally unique since locations are shared
       index: true
     },
     name: {
@@ -132,6 +127,10 @@ const locationSchema = new mongoose.Schema(
       },
       lastCalculated: Date
     },
+    lastAnalyzedAt: {
+      type: Date,
+      default: null
+    },
     sentimentHistory: [
       {
         date: {
@@ -184,11 +183,6 @@ const locationSchema = new mongoose.Schema(
     isVerified: {
       type: Boolean,
       default: false
-    },
-    tags: [String],
-    notes: {
-      type: String,
-      maxlength: 1000
     }
   },
   {
@@ -198,9 +192,9 @@ const locationSchema = new mongoose.Schema(
   }
 );
 
-locationSchema.index({ userId: 1, placeId: 1 }, { unique: true });
-locationSchema.index({ userId: 1, slug: 1 }, { unique: true, sparse: true }); // Slug unique per user
-locationSchema.index({ userId: 1, status: 1 });
+// Slug should be globally unique, sparse to allow null values
+locationSchema.index({ slug: 1 }, { unique: true, sparse: true });
+locationSchema.index({ status: 1 });
 locationSchema.index({ 'coordinates.lat': 1, 'coordinates.lng': 1 });
 
 locationSchema.virtual('reviews', {
@@ -217,8 +211,8 @@ locationSchema.pre('save', async function (next) {
 });
 
 locationSchema.methods.generateUniqueSlug = async function () {
-  const name = this.customName || this.name;
-  
+  const name = this.name;
+
   let baseSlug = name
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
@@ -231,8 +225,8 @@ locationSchema.methods.generateUniqueSlug = async function () {
   let slug = baseSlug;
   let counter = 1;
 
-  while (await mongoose.model('Location').findOne({ 
-    userId: this.userId, 
+  // Slug is now globally unique, not per-user
+  while (await mongoose.model('Location').findOne({
     slug,
     _id: { $ne: this._id }
   })) {
@@ -309,13 +303,25 @@ locationSchema.methods.addSentimentHistory = async function () {
   await this.save();
 };
 
+// This method now requires checking the UserLocation junction table
 locationSchema.statics.findByUserAndSlug = async function (userSlug, locationSlug) {
   const User = mongoose.model('User');
-  const user = await User.findOne({ slug: userSlug });
+  const UserLocation = mongoose.model('UserLocation');
 
+  const user = await User.findOne({ slug: userSlug });
   if (!user) return null;
 
-  return await this.findOne({ userId: user._id, slug: locationSlug });
+  const location = await this.findOne({ slug: locationSlug });
+  if (!location) return null;
+
+  // Check if user has access to this location
+  const userLocation = await UserLocation.findOne({
+    userId: user._id,
+    locationId: location._id,
+    status: 'active'
+  });
+
+  return userLocation ? location : null;
 };
 
 // Scraping progress methods
