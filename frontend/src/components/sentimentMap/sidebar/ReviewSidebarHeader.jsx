@@ -1,5 +1,13 @@
 import { motion } from "framer-motion";
-import { X, MapPin, Star, RefreshCw, Loader2, Clock, RotateCcw, BrainCircuit } from "lucide-react";
+import {
+  X,
+  Star,
+  RefreshCw,
+  Loader2,
+  Clock,
+  RotateCcw,
+  BrainCircuit,
+} from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 const ReviewSidebarHeader = ({
@@ -18,17 +26,18 @@ const ReviewSidebarHeader = ({
     const status = selectedLocation.scrapeStatus;
     const progress = selectedLocation.scrapeProgress;
 
-    if (status === 'scraping' && progress) {
-      return progress.message || 'Scraping Reviews...';
+    if (status === "scraping" && progress) {
+      return progress.message || "Scraping Reviews...";
     }
-    if (status === 'pending') {
-      return 'Initializing scraper...';
+    if (status === "pending") {
+      return "Initializing scraper...";
     }
-    return 'Loading Reviews...';
+    return "Loading Reviews...";
   };
 
-  const isScrapingInProgress = selectedLocation.scrapeStatus === 'pending' ||
-                                 selectedLocation.scrapeStatus === 'scraping';
+  const isScrapingInProgress =
+    selectedLocation.scrapeStatus === "pending" ||
+    selectedLocation.scrapeStatus === "scraping";
 
   const isLoading = loadingReviews || isScrapingInProgress;
 
@@ -44,7 +53,7 @@ const ReviewSidebarHeader = ({
   };
 
   return (
-    <div className="bg-gradient-to-r from-[#2F4B4E] to-[#42676B] p-6 text-white shrink-0">
+    <div className="bg-linear-to-r from-[#2F4B4E] to-[#42676B] p-6 text-white shrink-0">
       <div className="flex justify-between items-start gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3 mb-2">
@@ -59,8 +68,7 @@ const ReviewSidebarHeader = ({
             ) : null}
 
             {/* Location Name */}
-            <div className="flex items-center gap-2 flex-1 min-w-0">
-              <MapPin className="w-5 h-5 shrink-0" />
+            <div className="flex flex-1 items-center gap-2 min-w-0">
               <h2 className="font-bold text-xl truncate">
                 {selectedLocation.businessName}
               </h2>
@@ -79,13 +87,18 @@ const ReviewSidebarHeader = ({
       </div>
 
       {/* Timestamps - Show if reviews exist or have been analyzed */}
-      {(hasReviews || selectedLocation.lastScraped || selectedLocation.lastAnalyzedAt) && (
-        <div className="mt-3 space-y-1 text-xs text-white/80">
+      {(hasReviews ||
+        selectedLocation.lastScraped ||
+        selectedLocation.lastAnalyzedAt) && (
+        <div className="space-y-1 mt-3 text-white/80 text-xs">
           {selectedLocation.lastScraped && (
             <div className="flex items-center gap-1.5">
               <Clock className="w-3.5 h-3.5" />
               <span>
-                Last scraped: {formatDistanceToNow(new Date(selectedLocation.lastScraped), { addSuffix: true })}
+                Last scraped:{" "}
+                {formatDistanceToNow(new Date(selectedLocation.lastScraped), {
+                  addSuffix: true,
+                })}
               </span>
             </div>
           )}
@@ -93,7 +106,11 @@ const ReviewSidebarHeader = ({
             <div className="flex items-center gap-1.5">
               <BrainCircuit className="w-3.5 h-3.5" />
               <span>
-                Last analyzed: {formatDistanceToNow(new Date(selectedLocation.lastAnalyzedAt), { addSuffix: true })}
+                Last analyzed:{" "}
+                {formatDistanceToNow(
+                  new Date(selectedLocation.lastAnalyzedAt),
+                  { addSuffix: true },
+                )}
               </span>
             </div>
           )}
@@ -102,14 +119,14 @@ const ReviewSidebarHeader = ({
 
       {/* Action buttons for locations with reviews */}
       {hasReviews && !isScrapingInProgress && (
-        <div className="mt-4 flex gap-2">
+        <div className="flex gap-2 mt-4">
           {/* Rescrape button - always show when reviews exist */}
           <motion.button
             onClick={onRescrape}
             disabled={isRescraping}
             whileHover={!isRescraping ? { scale: 1.02 } : {}}
             whileTap={!isRescraping ? { scale: 0.98 } : {}}
-            className="flex-1 flex justify-center items-center gap-2 bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed backdrop-blur-sm px-3 py-2 rounded-lg text-sm font-medium text-white transition-colors"
+            className="flex flex-1 justify-center items-center gap-2 bg-white/10 hover:bg-white/20 disabled:opacity-50 backdrop-blur-sm px-3 py-2 rounded-lg font-medium text-white text-sm transition-colors disabled:cursor-not-allowed"
           >
             {isRescraping ? (
               <>
@@ -131,7 +148,7 @@ const ReviewSidebarHeader = ({
               disabled={isReanalyzing}
               whileHover={!isReanalyzing ? { scale: 1.02 } : {}}
               whileTap={!isReanalyzing ? { scale: 0.98 } : {}}
-              className="flex-1 flex justify-center items-center gap-2 bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed backdrop-blur-sm px-3 py-2 rounded-lg text-sm font-medium text-white transition-colors"
+              className="flex flex-1 justify-center items-center gap-2 bg-white/10 hover:bg-white/20 disabled:opacity-50 backdrop-blur-sm px-3 py-2 rounded-lg font-medium text-white text-sm transition-colors disabled:cursor-not-allowed"
             >
               {isReanalyzing ? (
                 <>
@@ -150,13 +167,13 @@ const ReviewSidebarHeader = ({
       )}
 
       {!hasReviews && (
-        <div className="mt-4 space-y-2">
+        <div className="space-y-2 mt-4">
           <motion.button
             onClick={() => onLoadReviews(selectedLocation.id)}
             disabled={isLoading}
             whileHover={!isLoading ? { scale: 1.02 } : {}}
             whileTap={!isLoading ? { scale: 0.98 } : {}}
-            className="flex justify-center items-center gap-2 bg-white hover:bg-[#FAF6E9] disabled:opacity-50 disabled:cursor-not-allowed shadow-md px-4 py-2.5 rounded-lg w-full font-medium text-[#2F4B4E] transition-colors"
+            className="flex justify-center items-center gap-2 bg-white hover:bg-[#FAF6E9] disabled:opacity-50 shadow-md px-4 py-2.5 rounded-lg w-full font-medium text-[#2F4B4E] transition-colors disabled:cursor-not-allowed"
           >
             {isLoading ? (
               <>
@@ -173,19 +190,21 @@ const ReviewSidebarHeader = ({
 
           {/* Progress Bar and Details */}
           {isScrapingInProgress && selectedLocation.scrapeProgress && (
-            <div className="bg-white/10 backdrop-blur-sm p-3 rounded-lg space-y-2">
+            <div className="space-y-2 bg-white/10 backdrop-blur-sm p-3 rounded-lg">
               {/* Progress Bar */}
-              <div className="w-full bg-white/20 rounded-full h-2 overflow-hidden">
+              <div className="bg-white/20 rounded-full w-full h-2 overflow-hidden">
                 <motion.div
-                  className="bg-[#CED7B0] h-full rounded-full"
+                  className="bg-[#CED7B0] rounded-full h-full"
                   initial={{ width: 0 }}
-                  animate={{ width: `${selectedLocation.scrapeProgress.percentage || 0}%` }}
+                  animate={{
+                    width: `${selectedLocation.scrapeProgress.percentage || 0}%`,
+                  }}
                   transition={{ duration: 0.3 }}
                 />
               </div>
 
               {/* Progress Info */}
-              <div className="flex justify-between items-center text-xs text-white/90">
+              <div className="flex justify-between items-center text-white/90 text-xs">
                 <span>
                   {selectedLocation.scrapeProgress.current || 0} reviews scraped
                 </span>
@@ -196,10 +215,12 @@ const ReviewSidebarHeader = ({
 
               {/* Time Estimation */}
               {selectedLocation.scrapeProgress.estimatedTimeRemaining > 0 && (
-                <div className="flex items-center gap-1.5 text-xs text-white/80">
+                <div className="flex items-center gap-1.5 text-white/80 text-xs">
                   <Clock className="w-3.5 h-3.5" />
                   <span>
-                    {formatTimeRemaining(selectedLocation.scrapeProgress.estimatedTimeRemaining)}
+                    {formatTimeRemaining(
+                      selectedLocation.scrapeProgress.estimatedTimeRemaining,
+                    )}
                   </span>
                 </div>
               )}

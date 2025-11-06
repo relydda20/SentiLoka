@@ -441,7 +441,7 @@ export const getLocations = async (req, res) => {
     })
       .populate({
         path: 'locationId',
-        select: 'name placeId address coordinates phoneNumber googleData googleMapsUrl status scrapeStatus scrapeConfig scrapeProgress overallSentiment createdAt updatedAt'
+        select: 'name placeId address coordinates phoneNumber googleData googleMapsUrl status scrapeStatus scrapeConfig scrapeProgress overallSentiment lastAnalyzedAt createdAt updatedAt'
       })
       .sort({ addedAt: -1 }) // Sort by when user added the location
       .lean();

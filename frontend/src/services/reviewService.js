@@ -12,20 +12,37 @@ const REVIEWS_PER_PAGE = 5;
 /**
  * Map review data from backend to frontend format
  */
-const mapReviewToFrontend = (review, reviewSource) => ({
-  id: review._id,
-  reviewId: review.reviewId,
-  author: review.authorName || review.author || "Anonymous",
-  rating: review.rating,
-  text: review.text || review.reviewText || "",
-  date: review.publishedAt,
-  sentiment: review.sentiment || null,
-  sentimentScore: review.sentimentScore || null,
-  summary: review.summary || null,
-  sentimentKeywords: review.sentimentKeywords || [],
-  contextualTopics: review.contextualTopics || [],
-  isAnalyzed: reviewSource === "analyzed",
-});
+const mapReviewToFrontend = (review, reviewSource) => {
+  // ReviewSummary model fields: author, rating, text, publishedAt, sentiment, sentimentScore, etc.
+  // Raw Review model fields: authorName, rating, reviewText, publishedAt (no sentiment data)
+  const mapped = {
+    id: review._id,
+    reviewId: review.reviewId,
+    author: review.author || review.authorName || "Anonymous",
+    rating: review.rating,
+    text: review.text || review.reviewText || "",
+    date: review.publishedAt,
+    sentiment: review.sentiment || null,
+    sentimentScore: review.sentimentScore || null,
+    summary: review.summary || null,
+    sentimentKeywords: review.sentimentKeywords || [],
+    contextualTopics: review.contextualTopics || [],
+    isAnalyzed: reviewSource === "analyzed",
+  };
+
+  // Debug log for first few reviews to verify data
+  if (review._id && Math.random() < 0.1) { // Log ~10% of reviews for debugging
+    console.log('📋 Mapped review:', {
+      id: review._id,
+      author: mapped.author,
+      sentiment: mapped.sentiment,
+      reviewSource,
+      hasRawSentiment: !!review.sentiment
+    });
+  }
+
+  return mapped;
+};
 
 /**
  * Get total review count (unfiltered)
@@ -150,18 +167,34 @@ export const fetchExistingReviews = async (locationId, options = {}) => {
         `/review-sentiments/location/${locationId}?${analyzedParams.toString()}`,
       );
 
-      if (analyzedResponse.data?.success && analyzedResponse.data.data?.reviews?.length > 0) {
-        reviews = analyzedResponse.data.data.reviews || [];
-        pagination = analyzedResponse.data.data.pagination;
+      if (analyzedResponse.data?.success) {
+        reviews = analyzedResponse.data.data?.reviews || [];
+        pagination = analyzedResponse.data.data?.pagination || null;
         reviewSource = "analyzed";
         hasAnalyzedReviews = true;
         console.log(`✅ Fetched ${reviews.length} ANALYZED reviews`);
       }
     } catch (analyzedError) {
       console.log("⚠️ Error fetching analyzed reviews:", analyzedError.response?.status);
+      // Only continue to fallback if the error is NOT a filter-related issue
+      // If it's a 404 or 500, we can try raw reviews
+      // But if sentiment filter was applied and failed, don't fall back to raw reviews (they don't have sentiment)
+      if (sentiment !== "all") {
+        console.log("⚠️ Sentiment filter applied but analyzed reviews unavailable - returning empty");
+        reviews = [];
+        pagination = {
+          currentPage: page,
+          totalPages: 0,
+          totalItems: 0,
+          limit,
+          hasNext: false,
+          hasPrev: false,
+        };
+        hasAnalyzedReviews = true; // Prevent fallback to raw reviews
+      }
     }
 
-    // Fallback to raw reviews if no analyzed reviews found
+    // Fallback to raw reviews if no analyzed reviews found AND no sentiment filter applied
     if (!hasAnalyzedReviews) {
       console.log("⚠️ No analyzed reviews found, trying raw reviews...");
       try {
