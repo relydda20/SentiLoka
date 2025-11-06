@@ -660,6 +660,11 @@ class MapsReviewsSpider(scrapy.Spider):
             if review_text_elem:
                 review_text = await review_text_elem.inner_text()
 
+            # If review text is empty or just whitespace, skip this review
+            if not review_text or not review_text.strip():
+                self.logger.debug(f"Skipping review with empty text by {reviewer_name}")
+                return None
+
             # Review date - extract actual timestamp from DOM
             review_date = 'Unknown'
             review_timestamp = None

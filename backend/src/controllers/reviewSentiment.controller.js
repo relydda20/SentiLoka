@@ -6,6 +6,7 @@ import { CONFIG } from "../config/sentiment-analysis-config.js";
 import ReviewSummary from "../models/ReviewSummary.model.js";
 import Review from "../models/Review.model.js";
 import Location from "../models/Location.model.js";
+import UserLocation from "../models/UserLocation.model.js";
 import { invalidateCacheForLocation } from "../services/chatbot-cache.service.js";
 import {
   getCachedLocationReviews,
@@ -21,6 +22,30 @@ import {
   saveAnalysisResults,
   getAnalysisStatistics,
 } from "../services/review-analysis.service.js";
+
+/**
+ * Helper function to verify user has access to a location
+ * @param {string} locationId - The location ID
+ * @param {string} userId - The user ID
+ * @returns {Promise<{location: Object, hasAccess: boolean}>}
+ */
+async function verifyLocationAccess(locationId, userId) {
+  // Check if user has access to this location via UserLocation
+  const userLocation = await UserLocation.findOne({
+    userId,
+    locationId,
+    status: 'active'
+  });
+
+  if (!userLocation) {
+    return { location: null, hasAccess: false };
+  }
+
+  // Get the location
+  const location = await Location.findById(locationId);
+
+  return { location, hasAccess: !!location };
+}
 
 /**
  * Analyze sentiment of a single review
@@ -387,10 +412,10 @@ export const analyzeLocationReviews = async (req, res) => {
     const { locationId } = req.params;
     const userId = req.user._id;
 
-    // Verify the location belongs to the user
-    const location = await Location.findOne({ _id: locationId, userId });
+    // Verify the user has access to this location
+    const { location, hasAccess } = await verifyLocationAccess(locationId, userId);
 
-    if (!location) {
+    if (!hasAccess || !location) {
       return res.status(404).json({
         success: false,
         error: "Location not found or you don't have access to it",
@@ -473,6 +498,10 @@ export const analyzeLocationReviews = async (req, res) => {
     // Recalculate location sentiment statistics
     await location.calculateSentiment();
 
+    // Set lastAnalyzedAt timestamp
+    location.lastAnalyzedAt = new Date();
+    await location.save();
+
     // Invalidate caches since new reviews were analyzed
     await invalidateCacheForLocation(userId.toString(), locationId);
     console.log(`🗑️ Invalidated chatbot cache for location ${locationId}`);
@@ -541,10 +570,10 @@ export const getLocationAnalysisStats = async (req, res) => {
     const { locationId } = req.params;
     const userId = req.user._id;
 
-    // Verify the location belongs to the user
-    const location = await Location.findOne({ _id: locationId, userId });
+    // Verify the user has access to this location
+    const { location, hasAccess } = await verifyLocationAccess(locationId, userId);
 
-    if (!location) {
+    if (!hasAccess || !location) {
       return res.status(404).json({
         success: false,
         error: "Location not found or you don't have access to it",
@@ -600,10 +629,10 @@ export const recalculateSentimentStatistics = async (req, res) => {
     const { locationId } = req.params;
     const userId = req.user._id;
 
-    // Verify the location belongs to the user
-    const location = await Location.findOne({ _id: locationId, userId });
+    // Verify the user has access to this location
+    const { location, hasAccess } = await verifyLocationAccess(locationId, userId);
 
-    if (!location) {
+    if (!hasAccess || !location) {
       return res.status(404).json({
         success: false,
         error: "Location not found or you don't have access to it",
@@ -686,10 +715,10 @@ export const getLocationSentiments = async (req, res) => {
 
     const skip = (page - 1) * limit;
 
-    // Verify the location belongs to the user
-    const location = await Location.findOne({ _id: locationId, userId });
+    // Verify the user has access to this location
+    const { location, hasAccess } = await verifyLocationAccess(locationId, userId);
 
-    if (!location) {
+    if (!hasAccess || !location) {
       return res.status(404).json({
         success: false,
         error: "Location not found or you don't have access to it",
@@ -717,9 +746,12 @@ export const getLocationSentiments = async (req, res) => {
       ];
     }
 
-    // Build sort object
+    // Build sort object with secondary sort by _id for consistency
     const sortField = sortBy === 'date' ? 'publishedAt' : 'rating';
-    const sort = { [sortField]: sortOrder === 'asc' ? 1 : -1 };
+    const sort = {
+      [sortField]: sortOrder === 'asc' ? 1 : -1,
+      _id: -1 // Secondary sort for consistent pagination
+    };
 
     // Get total count for pagination with filters
     const totalItems = await ReviewSummary.countDocuments(query);
@@ -777,6 +809,87 @@ export const getLocationSentiments = async (req, res) => {
     return res.status(500).json({
       success: false,
       error: "Failed to get location sentiments",
+      details: error.message,
+    });
+  }
+};
+
+
+/**
+ * Reanalyze sentiment - Keep reviews, delete and redo sentiment analysis
+ * @route POST /api/reviews/reanalyze/:locationId
+ * @access Private
+ */
+export const reanalyzeSentiment = async (req, res) => {
+  try {
+    const { locationId } = req.params;
+    const userId = req.user._id;
+
+    // Verify user has access
+    const { location, hasAccess } = await verifyLocationAccess(locationId, userId);
+
+    if (!hasAccess || !location) {
+      return res.status(404).json({
+        success: false,
+        error: "Location not found or you don't have access to it",
+      });
+    }
+
+    // Delete all existing sentiment analysis
+    await ReviewSummary.deleteMany({ locationId });
+
+    // Reset sentiment data and timestamp
+    location.overallSentiment = {
+      positive: 0,
+      neutral: 0,
+      negative: 0,
+      averageRating: 0,
+      totalReviews: 0
+    };
+    location.lastAnalyzedAt = null;
+    await location.save();
+
+    // Get all reviews to reanalyze
+    const reviews = await Review.find({ locationId });
+
+    if (reviews.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "No reviews found to analyze. Please scrape reviews first.",
+      });
+    }
+
+    // Start reanalysis (this will set lastAnalyzedAt when complete)
+    const transformedReviews = await transformReviewsForAnalysis(reviews);
+    const analysisResults = await analyzeReviews(transformedReviews);
+    await saveAnalysisResults(analysisResults, locationId);
+
+    // Recalculate overall sentiment
+    await location.calculateSentiment();
+
+    // Set lastAnalyzedAt
+    location.lastAnalyzedAt = new Date();
+    await location.save();
+
+    // Invalidate caches
+    await invalidateLocationCache(locationId);
+    await invalidateCacheForLocation(locationId);
+
+    return res.status(200).json({
+      success: true,
+      message: `Reanalyzed ${reviews.length} reviews successfully`,
+      data: {
+        totalReviews: reviews.length,
+        analyzedCount: analysisResults.length,
+        sentiment: location.overallSentiment,
+        lastAnalyzedAt: location.lastAnalyzedAt
+      }
+    });
+  } catch (error) {
+    console.error('Error reanalyzing sentiment:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to reanalyze sentiment',
       details: error.message,
     });
   }

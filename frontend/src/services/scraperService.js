@@ -134,3 +134,39 @@ export const subscribeScrapeProgress = (jobId, callbacks = {}) => {
     };
   });
 };
+
+/**
+ * Rescrape a location - Delete all existing reviews and sentiment, start fresh scrape
+ * POST /api/scraper/rescrape/:locationId
+ */
+export const rescrapeLocation = async (locationId) => {
+  try {
+    console.log("🔄 Rescraping location:", locationId);
+
+    const response = await apiClient.post(`/scraper/rescrape/${locationId}`);
+
+    if (!response.data || !response.data.success) {
+      throw new Error(response.data?.message || "Failed to start rescraping");
+    }
+
+    console.log(`✅ Rescrape job started: ${response.data.data.jobId}`);
+
+    return {
+      success: true,
+      jobId: response.data.data.jobId,
+      message: response.data.message,
+    };
+  } catch (error) {
+    console.error(
+      `❌ Error rescraping location ${locationId}:`,
+      error,
+    );
+
+    const backendMessage = error.response?.data?.message || error.message;
+    const enhancedError = new Error(backendMessage);
+    enhancedError.originalError = error;
+    enhancedError.statusCode = error.response?.status;
+
+    throw enhancedError;
+  }
+};

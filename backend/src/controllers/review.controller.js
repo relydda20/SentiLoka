@@ -42,8 +42,11 @@ const reviewController = {
         ];
       }
 
-      // Build sort object
-      const sort = { [sortBy]: sortOrder === 'asc' ? 1 : -1 };
+      // Build sort object with secondary sort by _id for consistency
+      const sort = {
+        [sortBy]: sortOrder === 'asc' ? 1 : -1,
+        _id: -1 // Secondary sort for consistent pagination
+      };
 
       // Debug: Log the query being executed
       console.log('🔍 MongoDB Query:', JSON.stringify(query));

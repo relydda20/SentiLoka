@@ -1,6 +1,7 @@
 import { addScrapeJob, getJobStatus, getLocationJobs } from '../services/job.service.js';
 import { validateGoogleMapsUrl } from '../services/scraper.service.js';
 import Location from '../models/Location.model.js';
+import UserLocation from '../models/UserLocation.model.js';
 import { scraperQueue } from '../config/queue.config.js';
 import {
   getCachedReviewCount,
@@ -36,21 +37,27 @@ export const startScrape = async (req, res) => {
       });
     }
 
-    // Find location and verify ownership
+    // Verify user has access to this location via UserLocation
+    const userLocation = await UserLocation.findOne({
+      userId: req.user._id,
+      locationId,
+      status: 'active'
+    });
+
+    if (!userLocation) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have permission to scrape this location',
+      });
+    }
+
+    // Find location
     const location = await Location.findById(locationId);
 
     if (!location) {
       return res.status(404).json({
         success: false,
         message: 'Location not found',
-      });
-    }
-
-    // Verify user owns this location
-    if (location.userId.toString() !== req.user._id.toString()) {
-      return res.status(403).json({
-        success: false,
-        message: 'You do not have permission to scrape this location',
       });
     }
 
@@ -741,6 +748,92 @@ export const getAllScraperCacheStats = async (req, res) => {
   }
 };
 
+/**
+ * Rescrape location - Delete all reviews and sentiment, start fresh scrape
+ * @route POST /api/scraper/rescrape/:locationId
+ * @access Private
+ */
+export const rescrapeLocation = async (req, res) => {
+  try {
+    const { locationId } = req.params;
+
+    // Verify user has access
+    const userLocation = await UserLocation.findOne({
+      userId: req.user._id,
+      locationId,
+      status: 'active'
+    });
+
+    if (!userLocation) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have permission to rescrape this location',
+      });
+    }
+
+    const location = await Location.findById(locationId);
+    if (!location) {
+      return res.status(404).json({
+        success: false,
+        message: 'Location not found',
+      });
+    }
+
+    // Check if already scraping
+    if (location.scrapeStatus === 'scraping' || location.scrapeStatus === 'pending') {
+      return res.status(409).json({
+        success: false,
+        message: 'Location is already being scraped',
+      });
+    }
+
+    // Import Review and ReviewSummary models
+    const Review = (await import('../models/Review.model.js')).default;
+    const ReviewSummary = (await import('../models/ReviewSummary.model.js')).default;
+
+    // Delete all reviews and sentiment for this location
+    await Review.deleteMany({ locationId });
+    await ReviewSummary.deleteMany({ locationId });
+
+    // Reset sentiment and analysis timestamp
+    location.overallSentiment = {
+      positive: 0,
+      neutral: 0,
+      negative: 0,
+      averageRating: 0,
+      totalReviews: 0
+    };
+    location.lastAnalyzedAt = null;
+    await location.save();
+
+    // Start fresh scrape
+    const jobResult = await addScrapeJob({
+      locationId: locationId,
+      url: location.googleMapsUrl,
+      userId: req.user._id.toString(),
+    });
+
+    console.log(`Rescrape job created: ${jobResult.jobId} for location ${locationId}`);
+
+    return res.status(201).json({
+      success: true,
+      message: 'Rescraping started - old data deleted',
+      data: {
+        jobId: jobResult.jobId,
+        locationId: jobResult.locationId,
+        status: jobResult.status,
+      },
+    });
+  } catch (error) {
+    console.error('Error rescraping location:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to rescrape location',
+      error: error.message,
+    });
+  }
+};
+
 export default {
   startScrape,
   getJobProgress,
@@ -752,4 +845,5 @@ export default {
   flushScraperCache,
   clearScraperCache,
   getAllScraperCacheStats,
+  rescrapeLocation,
 };

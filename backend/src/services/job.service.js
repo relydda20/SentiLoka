@@ -128,7 +128,7 @@ export const getLocationJobs = async (locationId) => {
  * @param {Object} job - Bull job object
  */
 export const processScrapeJob = async (job) => {
-  const { locationId, url } = job.data;
+  const { locationId, url, userId } = job.data;
 
   console.log(
     `Processing scrape job ${job.id} for location ${locationId} - scraping ALL available reviews`
@@ -138,15 +138,18 @@ export const processScrapeJob = async (job) => {
     // Check if this is a test job
     const isTestJob = locationId.startsWith('test-');
 
-    // Fetch location to get userId (skip if test location)
+    // Fetch location (skip if test location)
     let location = null;
-    let userId = null;
     if (!isTestJob) {
       location = await Location.findById(locationId);
       if (!location) {
         throw new Error('Location not found');
       }
-      userId = location.userId;
+
+      // Verify userId is provided
+      if (!userId) {
+        throw new Error('User ID is required for scraping');
+      }
 
       // Start scraping with progress tracking
       await location.startScraping();
@@ -253,10 +256,26 @@ export const processScrapeJob = async (job) => {
 
         await location.save();
 
-        // Invalidate old caches (they're now stale)
-        await invalidateCacheForLocation(userId.toString(), locationId);
-        await invalidateLocationCache(locationId, userId.toString());
-        console.log(`🗑️ Invalidated old caches for location ${locationId}`);
+        // Invalidate old caches for ALL users tracking this location
+        // Since locations are now shared between users, we need to invalidate caches for all
+        try {
+          const UserLocation = (await import('../models/UserLocation.model.js')).default;
+          const userLocations = await UserLocation.find({
+            locationId,
+            status: 'active'
+          }).select('userId');
+
+          // Invalidate cache for each user tracking this location
+          for (const userLoc of userLocations) {
+            await invalidateCacheForLocation(userLoc.userId.toString(), locationId);
+            await invalidateLocationCache(locationId, userLoc.userId.toString());
+          }
+
+          console.log(`🗑️ Invalidated caches for ${userLocations.length} user(s) tracking location ${locationId}`);
+        } catch (cacheError) {
+          console.error('Error invalidating caches:', cacheError);
+          // Don't fail the job if cache invalidation fails
+        }
 
         // Note: Reviews will be cached on-demand when frontend fetches them
         // Sentiment calculation will be done after batch analysis
