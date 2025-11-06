@@ -1,5 +1,6 @@
 import Review from '../models/Review.model.js';
 import Location from '../models/Location.model.js';
+import { generateReply, regenerateReply } from '../services/replyGenerator.service.js';
 
 const reviewController = {
   // Get reviews for a specific location with pagination (RAW reviews before sentiment analysis)
@@ -415,6 +416,121 @@ const reviewController = {
       res.status(500).json({
         success: false,
         message: error.message
+      });
+    }
+  },
+
+  // Generate AI-powered reply for a review
+  generateAIReply: async (req, res) => {
+    try {
+      const { reviewText, rating, sentiment, tone, style, length } = req.body;
+
+      // Validate required fields
+      if (!reviewText || rating === undefined || !sentiment) {
+        return res.status(400).json({
+          success: false,
+          message: 'reviewText, rating, and sentiment are required fields'
+        });
+      }
+
+      // Validate rating range
+      if (rating < 1 || rating > 5) {
+        return res.status(400).json({
+          success: false,
+          message: 'Rating must be between 1 and 5'
+        });
+      }
+
+      // Validate sentiment value
+      if (!['positive', 'neutral', 'negative'].includes(sentiment)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Sentiment must be: positive, neutral, or negative'
+        });
+      }
+
+      // Generate the reply
+      const reply = await generateReply({
+        reviewText,
+        rating,
+        sentiment,
+        tone: tone || 'Professional',
+        style: style || 'Formal',
+        length: length || 'Medium'
+      });
+
+      res.status(200).json({
+        success: true,
+        reply: reply,
+        parameters: {
+          tone: tone || 'Professional',
+          style: style || 'Formal',
+          length: length || 'Medium'
+        }
+      });
+    } catch (error) {
+      console.error('Error in generateAIReply:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Failed to generate AI reply'
+      });
+    }
+  },
+
+  // Regenerate AI-powered reply for a review
+  regenerateAIReply: async (req, res) => {
+    try {
+      const { reviewText, rating, sentiment, previousReply, tone, style, length } = req.body;
+
+      // Validate required fields
+      if (!reviewText || rating === undefined || !sentiment) {
+        return res.status(400).json({
+          success: false,
+          message: 'reviewText, rating, and sentiment are required fields'
+        });
+      }
+
+      // Validate rating range
+      if (rating < 1 || rating > 5) {
+        return res.status(400).json({
+          success: false,
+          message: 'Rating must be between 1 and 5'
+        });
+      }
+
+      // Validate sentiment value
+      if (!['positive', 'neutral', 'negative'].includes(sentiment)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Sentiment must be: positive, neutral, or negative'
+        });
+      }
+
+      // Regenerate the reply
+      const reply = await regenerateReply({
+        reviewText,
+        rating,
+        sentiment,
+        previousReply: previousReply || null,
+        tone: tone || 'Professional',
+        style: style || 'Formal',
+        length: length || 'Medium'
+      });
+
+      res.status(200).json({
+        success: true,
+        reply: reply,
+        parameters: {
+          tone: tone || 'Professional',
+          style: style || 'Formal',
+          length: length || 'Medium'
+        }
+      });
+    } catch (error) {
+      console.error('Error in regenerateAIReply:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Failed to regenerate AI reply'
       });
     }
   }

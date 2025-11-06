@@ -14,8 +14,9 @@ export const registerUser = createAsyncThunk(
   'auth/registerUser',
   async (userData, { rejectWithValue }) => {
     try {
-      const { data } = await authService.register(userData);
-      return data.user; // Assuming backend returns { user: {...} }
+      const response = await authService.register(userData);
+      // Backend returns { success: true, data: { user: {...} } }
+      return response.data.data.user;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || error.message);
     }
@@ -27,8 +28,9 @@ export const loginUser = createAsyncThunk(
   'auth/loginUser',
   async (credentials, { rejectWithValue }) => {
     try {
-      const { data } = await authService.login(credentials);
-      return data.user; // Assuming backend returns { user: {...} }
+      const response = await authService.login(credentials);
+      // Backend returns { success: true, data: { user: {...} } }
+      return response.data.data.user;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || error.message);
     }
@@ -55,8 +57,9 @@ export const checkAuth = createAsyncThunk(
     try {
       // This endpoint should use the httpOnly refresh token
       // to get a new access token and return user data.
-      const { data } = await authService.refreshToken();
-      return data.user; // Assuming refresh endpoint returns new user data
+      const response = await authService.refreshToken();
+      // Backend returns { success: true, data: { user: {...} } }
+      return response.data.data.user;
     } catch (error) {
       return rejectWithValue('Session expired');
     }
