@@ -18,6 +18,7 @@ const ReviewList = ({
   reviews = [],
   pagination = null,
   hasReviews, // This prop means "reviews exist for this location"
+  sentiment = null, // Sentiment summary (if exists, reviews are analyzed)
   loadingReviews, // For initial skeleton
   isFetchingReviews, // For subsequent fetches
   onGenerateReply,
@@ -78,8 +79,10 @@ const ReviewList = ({
     reviewFilters.sentiment !== "all" ||
     reviewFilters.rating !== 0;
 
-  // Check if reviews have been analyzed (have sentiment data)
-  const hasAnalyzedReviews = reviews.length > 0 && reviews.some(review => review.sentiment);
+  // Check if reviews have been analyzed
+  // Use sentiment summary if available (more reliable than checking current filtered reviews)
+  // This ensures sentiment filters stay enabled even when filter returns 0 results
+  const hasAnalyzedReviews = sentiment && sentiment.totalReviews > 0;
 
   return (
     <div className="flex flex-col flex-1 p-6 overflow-y-auto">
@@ -167,6 +170,7 @@ const ReviewList = ({
                     rating={star}
                     active={reviewFilters.rating}
                     onClick={handleRatingChange}
+                    disabled={!hasReviews}
                   />
                 ))}
               </div>
@@ -303,20 +307,28 @@ const SentimentButton = ({ sentiment, active, onClick, disabled = false }) => {
   );
 };
 
-const RatingButton = ({ rating, active, onClick }) => {
+const RatingButton = ({ rating, active, onClick, disabled = false }) => {
   const isActive = active === rating;
+
+  // Determine button style based on state
+  const buttonClass = disabled
+    ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+    : isActive
+      ? "bg-[#4B7069] text-white"
+      : "bg-white hover:bg-gray-50 text-[#42676B]";
+
   return (
     <button
-      onClick={() => onClick(rating)}
-      className={`flex items-center justify-center gap-0.5 w-10 px-2 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-        isActive
-          ? "bg-[#4B7069] text-white"
-          : "bg-white hover:bg-gray-50 text-[#42676B]"
-      }`}
+      onClick={() => !disabled && onClick(rating)}
+      disabled={disabled}
+      className={`flex items-center justify-center gap-0.5 w-10 px-2 py-1.5 rounded-lg text-sm font-medium transition-colors ${buttonClass}`}
+      title={disabled ? "No reviews available for this location" : ""}
     >
       {rating}
       <Star
-        className={`w-3.5 h-3.5 ${isActive ? "text-white" : "text-yellow-500"}`}
+        className={`w-3.5 h-3.5 ${
+          disabled ? "text-gray-400" : isActive ? "text-white" : "text-yellow-500"
+        }`}
       />
     </button>
   );

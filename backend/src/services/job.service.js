@@ -210,14 +210,14 @@ export const processScrapeJob = async (job) => {
       message: 'Caching scraped reviews to Redis...',
     });
 
-    // Cache reviews to Redis first (fast operation)
+    // Cache reviews to Redis first (fast operation) - reviews are now shared across users
     let cachedCount = 0;
     if (!isTestJob) {
-      cachedCount = await cacheScrapedReviews(locationId, userId, transformedReviews);
+      cachedCount = await cacheScrapedReviews(locationId, transformedReviews);
       console.log(`✓ Cached ${cachedCount} reviews to Redis for location ${locationId}`);
-      
+
       // Check if we should auto-flush (if cache is getting large)
-      await autoFlushIfNeeded(locationId, userId, 500);
+      await autoFlushIfNeeded(locationId, 500);
     }
 
     // Update progress
@@ -227,10 +227,10 @@ export const processScrapeJob = async (job) => {
       message: 'Flushing cached reviews to database...',
     });
 
-    // Flush cached reviews to database in batches (efficient bulk operation)
+    // Flush cached reviews to database in batches (efficient bulk operation) - reviews are now shared
     let flushResult = { inserted: 0, updated: 0, failed: 0 };
     if (!isTestJob) {
-      flushResult = await flushScrapedReviewsToDatabase(locationId, userId, 100);
+      flushResult = await flushScrapedReviewsToDatabase(locationId, 100);
       console.log(`✓ Flushed reviews to database:`, flushResult);
     }
 

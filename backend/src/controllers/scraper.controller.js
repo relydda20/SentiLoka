@@ -628,9 +628,9 @@ export const flushScraperCache = async (req, res) => {
 
     const userId = req.user._id.toString();
     
-    // Check if there are reviews in cache
-    const cachedCount = await getCachedReviewCount(locationId, userId);
-    
+    // Check if there are reviews in cache (reviews are now shared across users)
+    const cachedCount = await getCachedReviewCount(locationId);
+
     if (cachedCount === 0) {
       return res.status(404).json({
         success: false,
@@ -640,8 +640,8 @@ export const flushScraperCache = async (req, res) => {
 
     console.log(`Manually flushing ${cachedCount} cached reviews for location ${locationId}`);
 
-    // Flush to database
-    const result = await flushScrapedReviewsToDatabase(locationId, userId, batchSize);
+    // Flush to database (reviews are now shared across users)
+    const result = await flushScrapedReviewsToDatabase(locationId, batchSize);
 
     return res.status(200).json({
       success: true,

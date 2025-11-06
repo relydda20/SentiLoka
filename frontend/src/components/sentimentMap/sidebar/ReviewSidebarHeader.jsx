@@ -1,4 +1,3 @@
-import React from "react";
 import { motion } from "framer-motion";
 import { X, MapPin, Star, RefreshCw, Loader2, Clock, RotateCcw, BrainCircuit } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
@@ -48,11 +47,24 @@ const ReviewSidebarHeader = ({
     <div className="bg-gradient-to-r from-[#2F4B4E] to-[#42676B] p-6 text-white shrink-0">
       <div className="flex justify-between items-start gap-3">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-2">
-            <MapPin className="w-5 h-5 shrink-0" />
-            <h2 className="font-bold text-xl truncate">
-              {selectedLocation.businessName}
-            </h2>
+          <div className="flex items-center gap-3 mb-2">
+            {/* Star Rating */}
+            {selectedLocation.averageRating ? (
+              <div className="flex items-center gap-1.5 shrink-0">
+                <Star className="fill-[#CED7B0] w-5 h-5 text-[#CED7B0]" />
+                <span className="font-bold text-lg">
+                  {selectedLocation.averageRating.toFixed(1)}
+                </span>
+              </div>
+            ) : null}
+
+            {/* Location Name */}
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <MapPin className="w-5 h-5 shrink-0" />
+              <h2 className="font-bold text-xl truncate">
+                {selectedLocation.businessName}
+              </h2>
+            </div>
           </div>
           <p className="text-[#E1E6C3] text-sm line-clamp-2">
             {selectedLocation.address}
@@ -66,21 +78,8 @@ const ReviewSidebarHeader = ({
         </button>
       </div>
 
-      <div className="flex items-center gap-4 mt-4">
-        {selectedLocation.averageRating ? (
-          <div className="flex items-center gap-2">
-            <Star className="fill-[#CED7B0] w-5 h-5 text-[#CED7B0]" />
-            <span className="font-bold text-2xl">
-              {selectedLocation.averageRating.toFixed(1)}
-            </span>
-          </div>
-        ) : (
-          <p className="text-[#E1E6C3] text-sm">No rating data</p>
-        )}
-      </div>
-
-      {/* Timestamps */}
-      {hasReviews && (
+      {/* Timestamps - Show if reviews exist or have been analyzed */}
+      {(hasReviews || selectedLocation.lastScraped || selectedLocation.lastAnalyzedAt) && (
         <div className="mt-3 space-y-1 text-xs text-white/80">
           {selectedLocation.lastScraped && (
             <div className="flex items-center gap-1.5">
@@ -104,6 +103,7 @@ const ReviewSidebarHeader = ({
       {/* Action buttons for locations with reviews */}
       {hasReviews && !isScrapingInProgress && (
         <div className="mt-4 flex gap-2">
+          {/* Rescrape button - always show when reviews exist */}
           <motion.button
             onClick={onRescrape}
             disabled={isRescraping}
@@ -124,25 +124,28 @@ const ReviewSidebarHeader = ({
             )}
           </motion.button>
 
-          <motion.button
-            onClick={onReanalyze}
-            disabled={isReanalyzing}
-            whileHover={!isReanalyzing ? { scale: 1.02 } : {}}
-            whileTap={!isReanalyzing ? { scale: 0.98 } : {}}
-            className="flex-1 flex justify-center items-center gap-2 bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed backdrop-blur-sm px-3 py-2 rounded-lg text-sm font-medium text-white transition-colors"
-          >
-            {isReanalyzing ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Reanalyzing...
-              </>
-            ) : (
-              <>
-                <BrainCircuit className="w-4 h-4" />
-                Reanalyze
-              </>
-            )}
-          </motion.button>
+          {/* Reanalyze button - only show if location has been analyzed before */}
+          {selectedLocation.lastAnalyzedAt && (
+            <motion.button
+              onClick={onReanalyze}
+              disabled={isReanalyzing}
+              whileHover={!isReanalyzing ? { scale: 1.02 } : {}}
+              whileTap={!isReanalyzing ? { scale: 0.98 } : {}}
+              className="flex-1 flex justify-center items-center gap-2 bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed backdrop-blur-sm px-3 py-2 rounded-lg text-sm font-medium text-white transition-colors"
+            >
+              {isReanalyzing ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Reanalyzing...
+                </>
+              ) : (
+                <>
+                  <BrainCircuit className="w-4 h-4" />
+                  Reanalyze
+                </>
+              )}
+            </motion.button>
+          )}
         </div>
       )}
 

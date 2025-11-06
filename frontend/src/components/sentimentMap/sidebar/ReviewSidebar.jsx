@@ -89,6 +89,7 @@ const ReviewSidebar = ({
             reviews={reviews} // Pass paginated reviews
             pagination={pagination} // Pass pagination info
             hasReviews={hasReviews} // *** THIS IS THE FIX: Pass hasReviews ***
+            sentiment={sentiment} // Pass sentiment summary to determine if analyzed
             loadingReviews={loadingReviews} // For initial load skeleton
             isFetchingReviews={isFetchingReviews} // For filter/page loading
             onGenerateReply={onGenerateReply}

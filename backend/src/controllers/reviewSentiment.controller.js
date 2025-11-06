@@ -424,9 +424,9 @@ export const analyzeLocationReviews = async (req, res) => {
 
     console.log(`\n🔍 Checking reviews for location: ${location.name}`);
 
-    // Get unanalyzed reviews using the service
+    // Get unanalyzed reviews using the service (reviews are now shared across users)
     const { allReviews, unanalyzedReviews, analyzedCount } =
-      await getUnanalyzedReviews(locationId, userId.toString());
+      await getUnanalyzedReviews(locationId);
 
     if (allReviews.length === 0) {
       return res.status(404).json({
@@ -441,8 +441,8 @@ export const analyzeLocationReviews = async (req, res) => {
         `✅ All ${allReviews.length} reviews have already been analyzed!`
       );
 
-      // Get current statistics
-      const stats = await getAnalysisStatistics(locationId, userId.toString());
+      // Get current statistics (reviews are now shared across users)
+      const stats = await getAnalysisStatistics(locationId);
 
       return res.status(200).json({
         success: true,
@@ -486,12 +486,11 @@ export const analyzeLocationReviews = async (req, res) => {
       CONFIG.CONCURRENT_BATCHES
     );
 
-    // Save the analysis results
+    // Save the analysis results (summaries are now shared across users)
     const saveStats = await saveAnalysisResults(
       result.results,
       reviewsToAnalyze,
       locationId,
-      userId.toString(),
       location.placeId
     );
 
@@ -509,11 +508,8 @@ export const analyzeLocationReviews = async (req, res) => {
     await invalidateLocationCache(locationId, userId.toString());
     console.log(`🗑️ Invalidated review cache for location ${locationId}`);
 
-    // Get updated statistics
-    const finalStats = await getAnalysisStatistics(
-      locationId,
-      userId.toString()
-    );
+    // Get updated statistics (reviews are now shared across users)
+    const finalStats = await getAnalysisStatistics(locationId);
 
     console.log(
       `✅ Analysis complete! Analyzed ${saveStats.inserted} new reviews, updated ${saveStats.updated}, failed ${saveStats.failed}`
@@ -580,8 +576,8 @@ export const getLocationAnalysisStats = async (req, res) => {
       });
     }
 
-    // Get analysis statistics
-    const stats = await getAnalysisStatistics(locationId, userId.toString());
+    // Get analysis statistics (reviews are now shared across users)
+    const stats = await getAnalysisStatistics(locationId);
 
     // Determine if analysis is needed
     const needsAnalysis = stats.unanalyzedReviews > 0;
@@ -641,10 +637,9 @@ export const recalculateSentimentStatistics = async (req, res) => {
 
     console.log(`Recalculating sentiment statistics for location: ${location.name}`);
 
-    // Check if there are any summaries
+    // Check if there are any summaries (summaries are now shared across users)
     const summaryCount = await ReviewSummary.countDocuments({
       locationId,
-      userId,
       sentiment: { $ne: 'error' }
     });
 
@@ -730,7 +725,7 @@ export const getLocationSentiments = async (req, res) => {
     
     // Add sentiment filter
     if (sentiment && sentiment !== 'all') {
-      query.sentiment = sentiment.charAt(0).toUpperCase() + sentiment.slice(1).toLowerCase();
+      query.sentiment = sentiment.toLowerCase();
     }
 
     // Add rating filter
@@ -763,23 +758,6 @@ export const getLocationSentiments = async (req, res) => {
       .limit(limit)
       .lean();
 
-    if (summaries.length === 0 && page === 1) {
-      // Determine appropriate error message based on filters
-      let errorMessage = "No reviews found for this location.";
-      if (sentiment && sentiment !== 'all') {
-        errorMessage = `No ${sentiment} reviews found. Try different filters.`;
-      } else if (searchTerm || rating) {
-        errorMessage = "No reviews found matching your search or filter criteria.";
-      } else {
-        errorMessage = "No analyzed reviews found. Please analyze reviews first.";
-      }
-      
-      return res.status(404).json({
-        success: false,
-        error: errorMessage,
-      });
-    }
-
     // Calculate pagination metadata
     const totalPages = Math.ceil(totalItems / limit);
     const hasNext = page < totalPages;
@@ -798,9 +776,23 @@ export const getLocationSentiments = async (req, res) => {
       },
     };
 
+    // Determine appropriate message based on results
+    let message = `Found ${summaries.length} reviews`;
+    if (summaries.length === 0) {
+      if (sentiment && sentiment !== 'all') {
+        message = `No ${sentiment} reviews found. Try different filters.`;
+      } else if (searchTerm || rating) {
+        message = "No reviews found matching your search or filter criteria.";
+      } else {
+        message = "No analyzed reviews found. Please analyze reviews first.";
+      }
+    } else {
+      message = `Found ${summaries.length} reviews (page ${page}/${totalPages})`;
+    }
+
     return res.status(200).json({
       success: true,
-      message: `Found ${summaries.length} reviews (page ${page}/${totalPages})`,
+      message,
       data: responseData,
     });
   } catch (error) {

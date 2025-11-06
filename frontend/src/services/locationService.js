@@ -64,6 +64,8 @@ export const fetchBusinessLocations = async () => {
         sentiment: sentimentData,
         reviews: [],
         pagination: { currentPage: 0, totalPages: 0, totalReviews: 0 },
+        lastScraped: loc.scrapeConfig?.lastScraped,
+        lastAnalyzedAt: loc.lastAnalyzedAt,
         cacheStatus: {
           isCached: false,
           lastScrapedAt: loc.scrapeConfig?.lastScraped,
@@ -145,6 +147,8 @@ export const registerBusinessLocation = async (businessData) => {
         sentiment: null,
         reviews: [],
         pagination: { currentPage: 0, totalPages: 0, totalReviews: 0 },
+        lastScraped: null,
+        lastAnalyzedAt: null,
         cacheStatus: {
           isCached: false,
           lastScrapedAt: null,
