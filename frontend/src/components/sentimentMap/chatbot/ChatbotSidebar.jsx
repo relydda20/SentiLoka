@@ -129,18 +129,36 @@ const ChatbotSidebar = ({ isOpen, onClose }) => {
     try {
       console.log("🔄 Refreshing conversation sessions...");
       const response = await getConversations({ limit: 50, skip: 0 });
-      
+
       // Validate and filter sessions
       const conversationData = response?.data || [];
-      const validSessions = Array.isArray(conversationData) 
+      const validSessions = Array.isArray(conversationData)
         ? conversationData.filter(s => s && s.sessionId)
         : [];
-      
+
       setSessions(validSessions);
       console.log(`✅ Refreshed ${validSessions.length} conversation sessions`);
     } catch (error) {
       console.error("❌ Failed to refresh conversation sessions:", error);
     }
+  };
+
+  // Function to add or update a session in the list
+  const handleSessionUpdate = (sessionData) => {
+    setSessions((prevSessions) => {
+      // Check if session already exists
+      const existingIndex = prevSessions.findIndex(s => s.sessionId === sessionData.sessionId);
+
+      if (existingIndex >= 0) {
+        // Update existing session
+        const updated = [...prevSessions];
+        updated[existingIndex] = { ...updated[existingIndex], ...sessionData };
+        return updated;
+      } else {
+        // Add new session at the beginning
+        return [sessionData, ...prevSessions];
+      }
+    });
   };
 
   // Handle location selection changes
@@ -193,6 +211,7 @@ const ChatbotSidebar = ({ isOpen, onClose }) => {
                 onBack={handleGoBack}
                 onClose={onClose}
                 onSessionCreated={refetchSessions}
+                onSessionUpdate={handleSessionUpdate}
                 // Location attachment props
                 availableLocations={availableLocations}
                 selectedLocationIds={selectedLocationIds}

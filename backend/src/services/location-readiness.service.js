@@ -1,4 +1,5 @@
 import Location from '../models/Location.model.js';
+import UserLocation from '../models/UserLocation.model.js';
 import Review from '../models/Review.model.js';
 import ReviewSummary from '../models/ReviewSummary.model.js';
 
@@ -22,10 +23,9 @@ import ReviewSummary from '../models/ReviewSummary.model.js';
  */
 export async function checkLocationReadiness(locationId, userId) {
   try {
-    // Step 1: Verify location exists and belongs to user
+    // Step 1: Verify location exists
     const location = await Location.findOne({
       _id: locationId,
-      userId: userId,
       status: { $ne: 'deleted' }, // Exclude deleted locations
     }).lean();
 
@@ -35,24 +35,39 @@ export async function checkLocationReadiness(locationId, userId) {
         status: 'not_found',
         ready: false,
         error: true,
-        message: 'Location not found or does not belong to you',
+        message: 'Location not found',
       };
     }
 
-    // Step 2: Count total scraped reviews
+    // Step 2: Verify user has access to this location through UserLocation junction table
+    const userLocation = await UserLocation.findOne({
+      userId,
+      locationId,
+      status: 'active',
+    }).lean();
+
+    if (!userLocation) {
+      return {
+        locationId,
+        status: 'no_access',
+        ready: false,
+        error: true,
+        message: 'You do not have access to this location',
+      };
+    }
+
+    // Step 3: Count total scraped reviews (reviews are shared, no userId filter)
     const totalReviews = await Review.countDocuments({
       locationId,
-      userId,
     });
 
-    // Step 3: Count analyzed reviews (with sentiment)
+    // Step 4: Count analyzed reviews (summaries are shared, no userId filter)
     const analyzedReviews = await ReviewSummary.countDocuments({
       locationId,
-      userId,
       sentiment: { $ne: 'error' }, // Exclude failed analyses
     });
 
-    // Step 4: Determine readiness status
+    // Step 5: Determine readiness status
     let status, ready, message, action;
 
     if (totalReviews === 0) {
