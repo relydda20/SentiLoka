@@ -1,0 +1,66 @@
+/* OurTeamSection Animations */
+
+@keyframes wave-loop {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-25%); }
+}
+
+@keyframes wave-loop-slow {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-25%); }
+}
+
+@keyframes wave-loop-slower {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-25%); }
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.9);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(0.9);
+    opacity: 1;
+  }
+}
+
+@keyframes gradient-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+.animate-wave-loop {
+  animation: wave-loop 20s linear infinite;
+}
+
+.animate-wave-loop-slow {
+  animation: wave-loop-slow 35s linear infinite;
+}
+
+.animate-wave-loop-slower {
+  animation: wave-loop-slower 50s linear infinite;
+}
+
+.animate-pulse-ring {
+  animation: pulse-ring 3s ease-in-out infinite;
+}
+
+.animate-gradient {
+  background-size: 200% 200%;
+  animation: gradient-shift 8s ease infinite;
+}
+
+.card-hover-effect {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card-hover-effect:hover {
+  transform: translateY(-8px) scale(1.05) rotate(0deg) !important;
+  filter: brightness(1.1);
+}
