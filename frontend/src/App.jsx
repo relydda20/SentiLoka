@@ -1,11 +1,10 @@
-// frontend/src/App.jsx
 import { BrowserRouter } from 'react-router-dom';
 import AppRoutes from './routes/AppRoutes';
 import { useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { checkAuth } from './store/auth/authSlice';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+// import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { queryClient } from './config/queryClient';
 
 function App() {
@@ -31,8 +30,6 @@ function App() {
       <BrowserRouter>
         <AppRoutes />
       </BrowserRouter>
-      {/* React Query Devtools - only visible in development */}
-      <ReactQueryDevtools initialIsOpen={false} />
     </QueryClientProvider>
   );
 }

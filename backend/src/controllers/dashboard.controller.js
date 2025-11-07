@@ -1,6 +1,7 @@
 import Location from '../models/Location.model.js';
 import ReviewSummary from '../models/ReviewSummary.model.js';
 import User from '../models/User.model.js';
+import UserLocation from '../models/UserLocation.model.js';
 
 const dashboardController = {
   // Get all analytics data in one call
@@ -14,19 +15,18 @@ const dashboardController = {
         return res.status(404).json({ message: 'User not found' });
       }
 
-      // Get user's locations
-      const userLocations = await Location.find({ 
+      // Get user's locations through UserLocation junction table
+      const userLocations = await UserLocation.find({ 
         userId, 
-        status: { $ne: 'deleted' } 
-      });
-      const locationIds = userLocations.map(loc => loc._id);
+        status: 'active' 
+      }).distinct('locationId');
 
       // Get all data in parallel
       const [stats, sentimentDistribution, ratingDistribution, sentimentTrends] = await Promise.all([
-        dashboardController._getStats(userId, locationIds),
-        dashboardController._getSentimentDistribution(locationIds),
-        dashboardController._getRatingDistribution(locationIds),
-        dashboardController._getSentimentTrends(locationIds)
+        dashboardController._getStats(userId, userLocations),
+        dashboardController._getSentimentDistribution(userLocations),
+        dashboardController._getRatingDistribution(userLocations),
+        dashboardController._getSentimentTrends(userLocations)
       ]);
 
       res.status(200).json({
@@ -57,15 +57,14 @@ const dashboardController = {
 
       console.log('✅ User found:', { id: user._id, name: user.name });
 
-      // Get user's locations
-      const userLocations = await Location.find({ 
+      // Get user's locations through UserLocation junction table
+      const locationIds = await UserLocation.find({ 
         userId, 
-        status: { $ne: 'deleted' } 
-      });
-      const locationIds = userLocations.map(loc => loc._id);
+        status: 'active' 
+      }).distinct('locationId');
 
       console.log('📍 Locations found:', {
-        count: userLocations.length,
+        count: locationIds.length,
         locationIds: locationIds.map(id => id.toString())
       });
 
@@ -91,38 +90,11 @@ const dashboardController = {
         return res.status(404).json({ message: 'User not found' });
       }
 
-      // Get user's locations
-      const userLocations = await Location.find({ 
+      // Get user's locations through UserLocation junction table
+      const locationIds = await UserLocation.find({ 
         userId, 
-        status: { $ne: 'deleted' } 
-      });
-      const locationIds = userLocations.map(loc => loc._id);
-
-      const stats = await dashboardController._getStats(userId, locationIds);
-
-      res.status(200).json(stats);
-    } catch (error) {
-      console.error('Error fetching dashboard stats:', error);
-      res.status(500).json({ message: 'Failed to fetch dashboard stats', error: error.message });
-    }
-  },
-
-  // Get sentiment distribution
-  getSentimentDistribution: async (req, res) => {
-    try {
-      const { userId } = req.params;
-
-      // Verify user exists
-      const user = await User.findById(userId);
-      if (!user) {
-        return res.status(404).json({ message: 'User not found' });
-      }
-
-      // Get user's locations
-      const locationIds = await Location.find({ 
-        userId, 
-        status: { $ne: 'deleted' } 
-      }).distinct('_id');
+        status: 'active' 
+      }).distinct('locationId');
 
       const distribution = await dashboardController._getSentimentDistribution(locationIds);
 
@@ -144,11 +116,11 @@ const dashboardController = {
         return res.status(404).json({ message: 'User not found' });
       }
 
-      // Get user's locations
-      const locationIds = await Location.find({ 
+      // Get user's locations through UserLocation junction table
+      const locationIds = await UserLocation.find({ 
         userId, 
-        status: { $ne: 'deleted' } 
-      }).distinct('_id');
+        status: 'active' 
+      }).distinct('locationId');
 
       const distribution = await dashboardController._getRatingDistribution(locationIds);
 
@@ -171,11 +143,11 @@ const dashboardController = {
         return res.status(404).json({ message: 'User not found' });
       }
 
-      // Get user's locations
-      const locationIds = await Location.find({ 
+      // Get user's locations through UserLocation junction table
+      const locationIds = await UserLocation.find({ 
         userId, 
-        status: { $ne: 'deleted' } 
-      }).distinct('_id');
+        status: 'active' 
+      }).distinct('locationId');
 
       const trends = await dashboardController._getSentimentTrends(locationIds, startDate, endDate);
 
@@ -197,11 +169,11 @@ const dashboardController = {
         return res.status(404).json({ message: 'User not found' });
       }
 
-      // Get user's locations
-      const locationIds = await Location.find({ 
+      // Get user's locations through UserLocation junction table
+      const locationIds = await UserLocation.find({ 
         userId, 
-        status: { $ne: 'deleted' } 
-      }).distinct('_id');
+        status: 'active' 
+      }).distinct('locationId');
 
       if (locationIds.length === 0) {
         return res.status(200).json([]);

@@ -2,3 +2,284 @@
 @theme {
   --font-mate: "Mate SC", serif;
 }
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================ */
+/* SCROLL SNAP & SMOOTHNESS */
+/* ============================================ */
+
+.scroll-container {
+  scroll-behavior: smooth;
+  scroll-snap-type: y mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: #5F7F7A #f1f1f1;
+}
+
+.scroll-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.scroll-container::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+.scroll-container::-webkit-scrollbar-thumb {
+  background: #5F7F7A;
+  border-radius: 4px;
+}
+
+.scroll-container::-webkit-scrollbar-thumb:hover {
+  background: #4a6660;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+* {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .scroll-container {
+    scroll-behavior: smooth;
+    scroll-snap-type: y mandatory;
+    scroll-padding: 0;
+  }
+  
+  .snap-start {
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
+  }
+}
+
+/* ============================================ */
+/* MINIMAL WAVE ANIMATION - Just 1 subtle wave */
+/* ============================================ */
+
+@keyframes wave-animate {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(-25%);
+  }
+}
+
+.wave-animate {
+  animation: wave-animate 20s ease-in-out infinite;
+}
+
+/* ============================================ */
+/* ANIMATED GRADIENT SHIFT - For CTA blink-blink */
+/* ============================================ */
+
+@keyframes gradient-shift {
+  0%, 100% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.05);
+  }
+}
+
+.animate-gradient-shift {
+  animation: gradient-shift 8s ease-in-out infinite;
+}
+
+/* ============================================ */
+/* TWINKLE ANIMATION - For CTA dots */
+/* ============================================ */
+
+@keyframes twinkle {
+  0%, 100% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.5);
+  }
+}
+
+.animate-twinkle {
+  animation: twinkle 3s ease-in-out infinite;
+}
+
+.animate-twinkle-delay-1 {
+  animation: twinkle 3s ease-in-out infinite;
+  animation-delay: 0.5s;
+}
+
+.animate-twinkle-delay-2 {
+  animation: twinkle 3s ease-in-out infinite;
+  animation-delay: 1s;
+}
+
+.animate-twinkle-delay-3 {
+  animation: twinkle 3s ease-in-out infinite;
+  animation-delay: 1.5s;
+}
+
+/* ============================================ */
+/* PULSE RING - For How It Works step numbers */
+/* ============================================ */
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+  50%, 100% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}
+
+.animate-pulse-ring {
+  animation: pulse-ring 2s ease-out infinite;
+}
+
+/* ============================================ */
+/* MOVING DOT - Animated dot along the line */
+/* ============================================ */
+
+@keyframes move-along-line {
+  0% {
+    left: 0%;
+  }
+  100% {
+    left: 100%;
+  }
+}
+
+.animate-move-along-line {
+  animation: move-along-line 3s ease-in-out infinite;
+}
+
+/* ============================================ */
+/* SIMPLE FADE IN ANIMATIONS */
+/* ============================================ */
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in-up {
+  animation: fade-in-up 0.6s ease-out forwards;
+  opacity: 0;
+}
+
+.delay-1 {
+  animation-delay: 0.2s;
+}
+
+.delay-2 {
+  animation-delay: 0.4s;
+}
+
+/* ============================================ */
+/* RESPONSIVE UTILITIES */
+/* ============================================ */
+
+@layer utilities {
+  .xs\:text-4xl {
+    @media (min-width: 375px) {
+      font-size: 2.25rem;
+      line-height: 2.5rem;
+    }
+  }
+}
+
+/* ============================================ */
+/* BASE OPTIMIZATIONS */
+/* ============================================ */
+
+body {
+  overflow-x: hidden;
+  width: 100%;
+}
+
+body,
+main {
+  -webkit-overflow-scrolling: touch;
+}
+
+@supports (-webkit-touch-callout: none) {
+  .h-screen {
+    height: -webkit-fill-available;
+  }
+  .min-h-screen {
+    min-height: -webkit-fill-available;
+  }
+}
+
+@media (max-width: 640px) {
+  section {
+    scroll-margin-top: 4rem;
+  }
+  
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+}
+
+/* ============================================ */
+/* PERFORMANCE OPTIMIZATIONS */
+/* ============================================ */
+
+.wave-animate,
+.fade-in-up,
+.animate-gradient-shift,
+.animate-twinkle,
+.animate-pulse-ring,
+.animate-move-along-line {
+  will-change: transform, opacity;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* ============================================ */
+/* REDUCE MOTION */
+/* ============================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  
+  .wave-animate,
+  .fade-in-up,
+  .animate-gradient-shift,
+  .animate-twinkle,
+  .animate-pulse-ring,
+  .animate-move-along-line {
+    animation: none !important;
+  }
+}
+
+@keyframes wave-sway {
+  0% { transform: translateX(0); }
+  50% { transform: translateX(-50px); }
+  100% { transform: translateX(0); }
+}
+
+.animate-wave-sway {
+  animation: wave-sway 6s ease-in-out infinite;
+}
