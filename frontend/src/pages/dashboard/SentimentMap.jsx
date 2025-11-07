@@ -1,112 +1,541 @@
-import { useState } from "react";
+import React, { useState } from "react";
+import { GoogleMap, useJsApiLoader } from "@react-google-maps/api";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  X,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  Loader2,
+  AlertCircle,
+} from "lucide-react";
+
+// Panel Components
+import LocationsPanel from "../../components/sentimentMap/LocationsPanel";
+import SearchLocation from "../../components/sentimentMap/SearchLocation";
+import MapLegend from "../../components/sentimentMap/MapLegend";
+import AnalyticsPanel from "../../components/sentimentMap/AnalyticsPanel";
+import ChatbotFab from "../../components/sentimentMap/chatbot/ChatbotFab";
+
+// Sidebar Components
+import ReviewSidebar from "../../components/sentimentMap/sidebar/ReviewSidebar.jsx";
+import ChatbotSidebar from "../../components/sentimentMap/chatbot/ChatbotSidebar";
+
+// Modal Components
+import GenerateReplyModal from "../../components/sentimentMap/modal/GenerateReplyModal.jsx";
+
+// Marker Components
+import LocationMarker from "../../components/sentimentMap/marker/LocationMarker";
+import SelectedMarker from "../../components/sentimentMap/marker/SelectedMarker";
+
+// Utils
+import { getMarkerColor } from "../../utils/sentimentUtils";
+
+// Custom Hooks
+import { useLocationData } from "../../hooks/useLocationData";
+import { useMapControls } from "../../hooks/useMapControls";
+import { useReviewManagement } from "../../hooks/useReviewManagement";
+import { useSentimentMap } from "../../hooks/useSentimentMap";
+
+const libraries = ["places"];
+
+const mapContainerStyle = {
+  width: "100%",
+  height: "100vh",
+};
+
+const defaultCenter = {
+  lat: -6.2088,
+  lng: 106.8456,
+};
 
 const SentimentMap = () => {
-  const [text, setText] = useState("");
-  const [sentiment, setSentiment] = useState(null);
+  // Location data hook
+  const { locations, setLocations, loading, setLoading, error, setError } =
+    useLocationData();
 
-  const analyzeSentiment = () => {
-    // Replace with your actual sentiment analysis API call
-    const mockSentiment = {
-      score: Math.random() * 2 - 1, // -1 to 1
-      label: "",
-      confidence: Math.random(),
-    };
+  // Main state management hook
+  const {
+    selectedLocation,
+    setSelectedLocation,
+    sidebarOpen,
+    setSidebarOpen,
+    isReplyModalOpen,
+    selectedReview,
+    isChatbotOpen,
+    setIsChatbotOpen,
+    handleGenerateReply,
+    handleCloseReplyModal,
+    createMarkerClickHandler,
+    createAddLocationHandler,
+  } = useSentimentMap();
 
-    if (mockSentiment.score > 0.3) {
-      mockSentiment.label = "Positive";
-    } else if (mockSentiment.score < -0.3) {
-      mockSentiment.label = "Negative";
-    } else {
-      mockSentiment.label = "Neutral";
+  // Review management hook (now powered by React Query)
+  const {
+    reviewPage,
+    reviewFilters,
+    reviewData,
+    isFetchingReviews,
+    loadingReviews,
+    loadingSentiment,
+    isRescraping,
+    rescrapeMutation,
+    handleInitialLoadReviews,
+    handleInitialAnalyzeSentiment,
+    handleFilterOrPageChange,
+  } = useReviewManagement(selectedLocation?.id);
+
+  // Spiderfied marker click handler
+  const handleSpiderfiedMarkerClick = async (location) => {
+    const latestLocation =
+      locations.find((loc) => loc.id === location.id) || location;
+    setSelectedLocation(latestLocation);
+    setSidebarOpen(true);
+
+    // React Query will automatically fetch reviews when selectedLocation changes
+    // The useReviewManagement hook listens to selectedLocation?.id
+  };
+
+  // Map controls hook
+  const {
+    map,
+    onMapLoad,
+    selectedPlace,
+    setSelectedPlace,
+    poiVisible,
+    togglePOI,
+    hoveredMarker,
+    setHoveredMarker,
+    handleMarkerLoad,
+    onAutocompleteLoad,
+    onPlaceChanged,
+    omsRef,
+  } = useMapControls(locations, handleSpiderfiedMarkerClick);
+
+  // Create handlers with dependencies
+  const handleMarkerClick = createMarkerClickHandler(
+    locations,
+    map,
+    setSelectedLocation,
+    setSidebarOpen,
+  );
+
+  const handleAddLocationToAnalysis = createAddLocationHandler(
+    selectedPlace,
+    setSelectedPlace,
+    setLocations,
+    setLoading,
+    setError,
+  );
+
+  const handleLoadReviews = async (locationId) => {
+    try {
+      const onScrapeProgress = (status) => {
+        console.log("📊 Scrape progress:", status.state, status.progress);
+
+        // Update both locations array and selectedLocation
+        setLocations((prev) =>
+          prev.map((loc) =>
+            loc.id === locationId
+              ? {
+                  ...loc,
+                  scrapeStatus: status.state,
+                  scrapeProgress: status.progress || {
+                    percentage: 0,
+                    current: 0,
+                    total: 0,
+                    estimatedTimeRemaining: null,
+                    message: null,
+                  },
+                }
+              : loc,
+          ),
+        );
+
+        // Also update selectedLocation if it's the one being scraped
+        setSelectedLocation((prev) => {
+          if (prev && prev.id === locationId) {
+            return {
+              ...prev,
+              scrapeStatus: status.state,
+              scrapeProgress: status.progress || {
+                percentage: 0,
+                current: 0,
+                total: 0,
+                estimatedTimeRemaining: null,
+                message: null,
+              },
+            };
+          }
+          return prev;
+        });
+      };
+
+      const updatedBusiness = await handleInitialLoadReviews(locationId, onScrapeProgress);
+
+      // Update locations cache
+      setLocations((prev) =>
+        prev.map((loc) =>
+          loc.id === locationId ? { ...loc, ...updatedBusiness } : loc,
+        ),
+      );
+    } catch (error) {
+      setError(error.message || "Failed to load reviews");
     }
-
-    setSentiment(mockSentiment);
   };
 
-  const getSentimentColor = (score) => {
-    if (score > 0.3) return "text-green-600 bg-green-50";
-    if (score < -0.3) return "text-red-600 bg-red-50";
-    return "text-yellow-600 bg-yellow-50";
+  const handleAnalyzeSentiment = async (locationId) => {
+    try {
+      const { updatedBusiness, message } = await handleInitialAnalyzeSentiment(locationId);
+
+      // Update locations cache
+      setLocations((prev) =>
+        prev.map((loc) =>
+          loc.id === locationId ? { ...loc, ...updatedBusiness } : loc,
+        ),
+      );
+
+      alert(message);
+    } catch (error) {
+      setError(error.message || "Failed to analyze sentiment");
+      alert(`❌ Failed to analyze sentiment: ${error.message}`);
+    }
   };
 
-  return (
-    <div>
-      <h1 className="mb-2 font-bold text-gray-900 text-3xl">Sentiment Map</h1>
-      <p className="mb-8 text-gray-600">
-        Analyze the sentiment of your text content
-      </p>
+  // State for reanalyze operation
+  const [isReanalyzing, setIsReanalyzing] = useState(false);
 
-      <div className="bg-white shadow-md p-6 rounded-lg">
-        <div className="mb-4">
-          <label className="block mb-2 font-medium text-gray-700 text-sm">
-            Enter text to analyze
-          </label>
-          <textarea
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            className="px-4 py-3 border border-gray-300 focus:border-transparent rounded-lg focus:ring-2 focus:ring-indigo-500 w-full resize-none"
-            rows="6"
-            placeholder="Type or paste your text here..."
-          />
-        </div>
+  const handleRescrape = async () => {
+    if (!selectedLocation?.id) return;
 
-        <button
-          onClick={analyzeSentiment}
-          disabled={!text.trim()}
-          className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 px-6 py-2 rounded-lg text-white transition disabled:cursor-not-allowed"
+    const locationId = selectedLocation.id;
+
+    try {
+      // Progress callback to update UI while scraping
+      const onScrapeProgress = (status) => {
+        console.log("📊 Rescrape progress:", status.state, status.progress);
+
+        // Update both locations array and selectedLocation with progress
+        setLocations((prev) =>
+          prev.map((loc) =>
+            loc.id === locationId
+              ? {
+                  ...loc,
+                  scrapeStatus: status.state,
+                  scrapeProgress: status.progress || {
+                    percentage: 0,
+                    current: 0,
+                    total: 0,
+                    estimatedTimeRemaining: null,
+                    message: null,
+                  },
+                }
+              : loc,
+          ),
+        );
+
+        setSelectedLocation((prev) => {
+          if (prev && prev.id === locationId) {
+            return {
+              ...prev,
+              scrapeStatus: status.state,
+              scrapeProgress: status.progress || {
+                percentage: 0,
+                current: 0,
+                total: 0,
+                estimatedTimeRemaining: null,
+                message: null,
+              },
+            };
+          }
+          return prev;
+        });
+      };
+
+      // Use the rescrape mutation from React Query
+      // This will keep old reviews visible during scraping
+      // and automatically refetch new data when complete
+      await rescrapeMutation.mutateAsync({
+        locationId,
+        onProgress: onScrapeProgress,
+      });
+
+      console.log("✅ Rescraping completed!");
+      alert("✅ Rescraping completed! New data is now available.");
+    } catch (error) {
+      console.error("❌ Error during rescrape:", error);
+      alert(`❌ Failed to rescrape: ${error.message}`);
+    }
+  };
+
+  const handleReanalyze = async () => {
+    if (!selectedLocation?.id) return;
+
+    const locationId = selectedLocation.id;
+    setIsReanalyzing(true);
+
+    try {
+      // Import service
+      const { reanalyzeSentiment } = await import("../../services/reviewService");
+
+      const result = await reanalyzeSentiment(locationId);
+      console.log("✅ Sentiment reanalysis completed:", result);
+
+      // Refresh the location data
+      const { getLocationScrapeStatus } = await import("../../services/locationService");
+      const updatedLocation = await getLocationScrapeStatus(locationId);
+
+      // Update locations cache
+      setLocations((prev) =>
+        prev.map((loc) =>
+          loc.id === locationId ? { ...loc, ...updatedLocation } : loc,
+        ),
+      );
+
+      // Update selected location
+      setSelectedLocation((prev) =>
+        prev?.id === locationId ? { ...prev, ...updatedLocation } : prev
+      );
+
+      setIsReanalyzing(false);
+      alert("✅ Sentiment reanalysis completed!");
+    } catch (error) {
+      console.error("❌ Error reanalyzing sentiment:", error);
+      setIsReanalyzing(false);
+      alert(`❌ Failed to reanalyze sentiment: ${error.message}`);
+    }
+  };
+
+  const getSentimentIcon = (sentiment) => {
+    if (!sentiment) return <Minus className="w-4 h-4" />;
+    const positivePercentage = sentiment.positivePercentage || 0;
+    const negativePercentage = sentiment.negativePercentage || 0;
+    if (positivePercentage > 60)
+      return <TrendingUp className="w-4 h-4 text-green-500" />;
+    if (negativePercentage > 40)
+      return <TrendingDown className="w-4 h-4 text-red-500" />;
+    return <Minus className="w-4 h-4 text-yellow-500" />;
+  };
+
+  const calculateAnalytics = () => {
+    const totalLocations = locations.length;
+    const totalReviews = locations.reduce(
+      (sum, loc) => sum + (loc.reviewsCount || 0),
+      0,
+    );
+    // This now reflects the *total* count from the objects, not just paginated length
+    const analyzedReviews = locations.reduce(
+      (sum, loc) => sum + (loc.sentiment?.totalReviews || 0),
+      0,
+    );
+    const avgRating =
+      locations.length > 0
+        ? (
+            locations.reduce((sum, loc) => sum + (loc.averageRating || 0), 0) /
+            locations.length
+          ).toFixed(1)
+        : "0.0";
+    const sentimentCounts = locations.reduce(
+      (acc, loc) => {
+        if (loc.sentiment) {
+          acc.positive += loc.sentiment.positive || 0;
+          acc.neutral += loc.sentiment.neutral || 0;
+          acc.negative += loc.sentiment.negative || 0;
+        }
+        return acc;
+      },
+      { positive: 0, neutral: 0, negative: 0 },
+    );
+    return {
+      totalLocations,
+      totalReviews,
+      analyzedReviews,
+      avgRating,
+      sentimentCounts,
+    };
+  };
+
+  const analytics = calculateAnalytics();
+
+  const { isLoaded, loadError } = useJsApiLoader({
+    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
+    libraries,
+  });
+
+  if (loadError) {
+    return (
+      <div className="flex justify-center items-center bg-[#FAF6E9] h-screen">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="bg-white shadow-xl p-8 rounded-xl max-w-md text-center"
         >
-          Analyze Sentiment
-        </button>
-
-        {sentiment && (
-          <div className="mt-6 p-6 border border-gray-200 rounded-lg">
-            <h3 className="mb-4 font-semibold text-lg">Analysis Results</h3>
-
-            <div className="gap-4 grid grid-cols-1 md:grid-cols-3">
-              <div
-                className={`p-4 rounded-lg ${getSentimentColor(sentiment.score)}`}
-              >
-                <p className="mb-1 font-medium text-sm">Sentiment</p>
-                <p className="font-bold text-2xl">{sentiment.label}</p>
-              </div>
-
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <p className="mb-1 font-medium text-gray-600 text-sm">Score</p>
-                <p className="font-bold text-gray-900 text-2xl">
-                  {sentiment.score.toFixed(2)}
-                </p>
-              </div>
-
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <p className="mb-1 font-medium text-gray-600 text-sm">
-                  Confidence
-                </p>
-                <p className="font-bold text-gray-900 text-2xl">
-                  {(sentiment.confidence * 100).toFixed(0)}%
-                </p>
-              </div>
-            </div>
-
-            {/* Sentiment Scale */}
-            <div className="mt-6">
-              <p className="mb-2 font-medium text-gray-700 text-sm">
-                Sentiment Scale
-              </p>
-              <div className="relative bg-gradient-to-r from-red-500 via-yellow-500 to-green-500 rounded-full h-4">
-                <div
-                  className="top-0 absolute bg-white border-2 border-gray-800 rounded-full w-4 h-4 -translate-x-1/2 transform"
-                  style={{ left: `${((sentiment.score + 1) / 2) * 100}%` }}
-                />
-              </div>
-              <div className="flex justify-between mt-1 text-gray-500 text-xs">
-                <span>Negative</span>
-                <span>Neutral</span>
-                <span>Positive</span>
-              </div>
-            </div>
-          </div>
-        )}
+          <AlertCircle className="mx-auto mb-4 w-16 h-16 text-red-500" />
+          <h2 className="mb-2 font-bold text-[#2F4B4E] text-xl">
+            Error Loading Google Maps
+          </h2>
+          <p className="text-[#42676B]">
+            Please check your API key configuration.
+          </p>
+        </motion.div>
       </div>
+    );
+  }
+
+  if (!isLoaded) {
+    return (
+      <div className="flex justify-center items-center bg-[#FAF6E9] h-screen">
+        <div className="text-center">
+          <Loader2 className="mx-auto mb-4 w-12 h-12 text-[#2F4B4E] animate-spin" />
+          <p className="text-[#42676B]">Loading Google Maps...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Rendered component
+  return (
+    <div className="relative w-full h-screen">
+      {/* Error Banner */}
+      <AnimatePresence>
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="top-28 left-4 z-50 absolute max-w-md"
+          >
+            <div className="flex items-start gap-3 bg-red-50 shadow-lg p-4 border border-red-200 rounded-xl">
+              <AlertCircle className="mt-0.5 w-5 h-5 text-red-600 shrink-0" />
+              <div className="flex-1">
+                <p className="text-red-800 text-sm">{error}</p>
+              </div>
+              <button
+                onClick={() => setError(null)}
+                className="text-red-400 hover:text-red-600 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      {/* Search Bar - Top Left */}
+      <SearchLocation
+        onAutocompleteLoad={onAutocompleteLoad}
+        onPlaceChanged={onPlaceChanged}
+        selectedPlace={selectedPlace}
+        onClearSelectedPlace={() => setSelectedPlace(null)}
+        onAddLocation={handleAddLocationToAnalysis}
+        loading={loading}
+      />
+      {/* Connected Locations Panel */}
+      <div className="top-56 left-4 z-10 absolute">
+        <LocationsPanel
+          locations={locations}
+          onLocationClick={handleMarkerClick}
+          title="Analysis Locations"
+        />
+      </div>
+      {/* Google Map */}
+      <GoogleMap
+        mapContainerStyle={mapContainerStyle}
+        center={defaultCenter}
+        zoom={11}
+        onLoad={onMapLoad}
+        options={{
+          zoomControl: false,
+          streetViewControl: false,
+          mapTypeControl: false,
+          fullscreenControl: false,
+          disableDefaultUI: true,
+          panControl: false,
+          gestureHandling: "greedy",
+        }}
+      >
+        {/* Location Markers */}
+        {locations.map((location) => (
+          <LocationMarker
+            key={location.id}
+            location={location}
+            isHovered={hoveredMarker === location.id}
+            onMouseOver={() => setHoveredMarker(location.id)}
+            onMouseOut={() => setHoveredMarker(null)}
+            onLoad={handleMarkerLoad}
+            getMarkerColor={getMarkerColor} // *** THIS IS THE FIX ***
+          />
+        ))}
+
+        {/* Selected Place Marker */}
+        {selectedPlace &&
+          !locations.find((loc) => loc.placeId === selectedPlace.placeId) && (
+            <SelectedMarker position={selectedPlace.coordinates} />
+          )}
+      </GoogleMap>
+      {/* Sidebar */}
+      <ReviewSidebar
+        isOpen={sidebarOpen}
+        selectedLocation={selectedLocation}
+        reviewData={reviewData}
+        loadingReviews={loadingReviews}
+        onClose={() => {
+          setSidebarOpen(false);
+        }}
+        onLoadReviews={handleLoadReviews}
+        onGenerateReply={handleGenerateReply}
+        getSentimentIcon={getSentimentIcon}
+        loadingSentiment={loadingSentiment}
+        onAnalyzeSentiment={handleAnalyzeSentiment}
+        reviewFilters={reviewFilters}
+        reviewPage={reviewPage}
+        onFilterOrPageChange={handleFilterOrPageChange}
+        onRescrape={handleRescrape}
+        onReanalyze={handleReanalyze}
+        isRescraping={isRescraping}
+        isReanalyzing={isReanalyzing}
+        isFetchingReviews={isFetchingReviews}
+      />
+      {/* Chatbot Sidebar */}
+      <ChatbotSidebar
+        isOpen={isChatbotOpen}
+        onClose={() => setIsChatbotOpen(false)}
+      />
+      {/* Reply Generator Modal */}
+      <GenerateReplyModal
+        isOpen={isReplyModalOpen}
+        onClose={handleCloseReplyModal}
+        review={selectedReview}
+      />
+      {/* Overlay when sidebar is open */}
+      <AnimatePresence>
+        {(sidebarOpen || isChatbotOpen) && ( // <-- Check for either state
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="z-40 fixed inset-0 bg-[#2F4B4E]/20 backdrop-blur-sm"
+            onClick={() => {
+              setSidebarOpen(false);
+              setIsChatbotOpen(false); // <-- Add this to close the chatbot
+              if (omsRef.current) {
+                omsRef.current.unspiderfy();
+              }
+            }}
+          />
+        )}
+      </AnimatePresence>
+      {/* Analytics Panel - Bottom Left */}
+      <div className="bottom-6 left-6 z-10 absolute">
+        <AnalyticsPanel
+          analytics={analytics}
+          poiVisible={poiVisible}
+          onTogglePOI={togglePOI}
+        />
+      </div>
+      {/* Senti AI Chatbot - Bottom Right Above legend */}
+      <ChatbotFab onClick={() => setIsChatbotOpen(true)} />{" "}
+      {/* Legend - Bottom Right */}
+      <MapLegend className="right-6 bottom-6 z-9 absolute bg-white/10 backdrop-blur-xs p-4 rounded-lg" />
     </div>
   );
 };

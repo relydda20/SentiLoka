@@ -1,0 +1,5 @@
+{
+  "watch": ["src"],
+  "ignore": ["temp/*", "*.json", "node_modules", "python_env"],
+  "ext": "js,mjs,cjs"
+}
