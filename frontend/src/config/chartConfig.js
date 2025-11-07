@@ -141,11 +141,19 @@ export const lineChartConfig = {
   },
   yaxis: { 
     title: { text: "Cumulative Review Count" },
+    forceNiceScale: false,
+    decimalsInFloat: 0,
     labels: {
       formatter: function(val) {
-        return Math.floor(val);
+        // Only return integer values to avoid duplicates
+        if (Number.isInteger(val)) {
+          return val;
+        }
+        return ''; // Hide non-integer labels
       }
-    }
+    },
+    tickAmount: undefined, // Let ApexCharts calculate optimal ticks
+    min: 0
   },
   xaxis: { 
     type: "datetime",
