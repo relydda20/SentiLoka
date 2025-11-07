@@ -52,7 +52,7 @@ const MessageBubble = ({ message }) => {
       >
         {isUser ? (
           // Render user content as plain text with proper wrapping
-          <div className="whitespace-pre-wrap break-words">
+          <div className="wrap-break-word whitespace-pre-wrap">
             {message.content}
           </div>
         ) : (
@@ -69,11 +69,12 @@ const MessageBubble = ({ message }) => {
 /**
  * The main chat view component.
  */
-const ChatView = ({ 
-  session, 
-  onBack, 
+const ChatView = ({
+  session,
+  onBack,
   onClose,
   onSessionCreated,
+  onSessionUpdate,
   // Location attachment props
   availableLocations = [],
   selectedLocationIds = [],
@@ -104,9 +105,7 @@ const ChatView = ({
   }, [session]);
 
   // Title for chat header
-  const title = messages.length > 0 
-    ? messages[0]?.content?.substring(0, 50) + (messages[0]?.content?.length > 50 ? "..." : "")
-    : "New Chat";
+  const title = messages.length > 0 ? session?.title : "New Chat";
 
   // Auto-scroll to the bottom when messages change
   const scrollToBottom = () => {
@@ -119,10 +118,10 @@ const ChatView = ({
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     // Validation
     if (!input.trim()) return;
-    
+
     if (selectedLocationIds.length === 0) {
       setError("Please attach at least one location before sending a message.");
       return;
@@ -160,8 +159,22 @@ const ChatView = ({
       // Update session ID if it's a new conversation
       if (!currentSessionId && response.sessionId) {
         setCurrentSessionId(response.sessionId);
-        
-        // Notify parent that a new session was created
+
+        // Update session list with new conversation data
+        if (onSessionUpdate && response.title) {
+          onSessionUpdate({
+            sessionId: response.sessionId,
+            title: response.title,
+            messages: [
+              { role: "user", content: userMessage },
+              { role: "assistant", content: response.response },
+            ],
+            lastActivity: new Date().toISOString(),
+            locationMetadata: response.attachedLocations || [],
+          });
+        }
+
+        // Notify parent that a new session was created (for backward compatibility)
         if (onSessionCreated) {
           onSessionCreated();
         }
@@ -181,15 +194,19 @@ const ChatView = ({
       if (isLocationDropdownOpen) {
         onToggleLocationDropdown();
       }
-
     } catch (error) {
       console.error("Failed to send message:", error);
-      
+
       // Remove optimistic user message on error
-      setMessages((prev) => prev.filter((msg) => msg._id !== optimisticUserMessage._id));
-      
+      setMessages((prev) =>
+        prev.filter((msg) => msg._id !== optimisticUserMessage._id),
+      );
+
       // Show error message
-      const errorMsg = error.response?.data?.error || error.message || "Failed to send message. Please try again.";
+      const errorMsg =
+        error.response?.data?.error ||
+        error.message ||
+        "Failed to send message. Please try again.";
       setError(errorMsg);
     } finally {
       setIsLoading(false);
@@ -199,7 +216,7 @@ const ChatView = ({
   return (
     <>
       {/* Header */}
-      <div className="flex justify-between items-center gap-3 bg-gradient-to-r from-[#2F4B4E] to-[#42676B] p-6 text-white shrink-0">
+      <div className="flex justify-between items-center gap-3 bg-linear from-[#2F4B4E] -to-r to-[#42676B] p-6 text-white shrink-0">
         <div className="flex items-center gap-2 min-w-0">
           <button
             onClick={onBack}
@@ -230,24 +247,37 @@ const ChatView = ({
         ) : (
           <div className="m-auto text-gray-500 text-center">
             <p>This is a new chat.</p>
-            <p className="text-sm">Attach locations and ask questions about customer reviews.</p>
+            <p className="text-sm">
+              Attach locations and ask questions about customer reviews.
+            </p>
           </div>
         )}
-        
+
         {/* Loading indicator */}
         {isLoading && (
           <div className="flex justify-start">
             <div className="flex items-center gap-2 bg-gray-100 shadow-md px-4 py-3 rounded-lg max-w-xs">
               <div className="flex gap-1">
-                <div className="bg-gray-400 rounded-full w-2 h-2 animate-bounce" style={{ animationDelay: "0ms" }}></div>
-                <div className="bg-gray-400 rounded-full w-2 h-2 animate-bounce" style={{ animationDelay: "150ms" }}></div>
-                <div className="bg-gray-400 rounded-full w-2 h-2 animate-bounce" style={{ animationDelay: "300ms" }}></div>
+                <div
+                  className="bg-gray-400 rounded-full w-2 h-2 animate-bounce"
+                  style={{ animationDelay: "0ms" }}
+                ></div>
+                <div
+                  className="bg-gray-400 rounded-full w-2 h-2 animate-bounce"
+                  style={{ animationDelay: "150ms" }}
+                ></div>
+                <div
+                  className="bg-gray-400 rounded-full w-2 h-2 animate-bounce"
+                  style={{ animationDelay: "300ms" }}
+                ></div>
               </div>
-              <span className="text-gray-600 text-sm">Analyzing reviews...</span>
+              <span className="text-gray-600 text-sm">
+                Analyzing reviews...
+              </span>
             </div>
           </div>
         )}
-        
+
         {/* Empty div for auto-scrolling */}
         <div ref={messagesEndRef} />
       </div>
@@ -277,7 +307,10 @@ const ChatView = ({
         />
 
         {/* Input Form */}
-        <form className="relative flex items-center gap-2" onSubmit={handleSubmit}>
+        <form
+          className="relative flex items-center gap-2"
+          onSubmit={handleSubmit}
+        >
           {/* Location Selector Dropdown */}
           <div className="relative">
             <LocationSelectorButton
@@ -286,7 +319,7 @@ const ChatView = ({
               isOpen={isLocationDropdownOpen}
               disabled={isLoading}
             />
-            
+
             <LocationSelectorDropdown
               locations={availableLocations}
               selectedIds={selectedLocationIds}
@@ -308,14 +341,16 @@ const ChatView = ({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             disabled={isLoading}
-            className="bg-white px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-[#4B7069] focus:ring-1 w-full disabled:opacity-50 disabled:cursor-not-allowed"
+            className="bg-white disabled:opacity-50 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-[#4B7069] focus:ring-1 w-full disabled:cursor-not-allowed"
           />
 
           {/* Send Button */}
           <button
             type="submit"
-            disabled={isLoading || !input.trim() || selectedLocationIds.length === 0}
-            className="bg-[#42676B] hover:bg-[#2F4B4E] disabled:opacity-50 disabled:cursor-not-allowed p-2 rounded-lg text-white transition-colors shrink-0"
+            disabled={
+              isLoading || !input.trim() || selectedLocationIds.length === 0
+            }
+            className="bg-[#42676B] hover:bg-[#2F4B4E] disabled:opacity-50 p-2 rounded-lg text-white transition-colors disabled:cursor-not-allowed shrink-0"
             title="Send Message"
           >
             <Send className="w-5 h-5" />
@@ -324,7 +359,7 @@ const ChatView = ({
 
         {/* Helper text */}
         {selectedLocationIds.length === 0 && (
-          <p className="mt-2 text-center text-gray-500 text-xs">
+          <p className="mt-2 text-gray-500 text-xs text-center">
             📎 Click the paperclip to attach locations for analysis
           </p>
         )}

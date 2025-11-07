@@ -179,28 +179,69 @@ export const getUserLocations = async (req, res) => {
 };
 
 /**
- * Helper function to generate a short conversation title from the first user message
+ * Helper function to generate a short conversation title from the first user message using AI
+ * @param {OpenAI} openaiClient - OpenAI client instance
  * @param {string} message - First user message
- * @returns {string} - Generated title (max 60 chars)
+ * @param {string[]} locationNames - Names of attached locations
+ * @returns {Promise<string>} - Generated title (max 60 chars)
  */
-function generateConversationTitle(message) {
-  // Remove extra whitespace and trim
-  const cleaned = message.trim().replace(/\s+/g, ' ');
+async function generateConversationTitle(openaiClient, message, locationNames = []) {
+  try {
+    // If message is very short, use it as-is
+    const cleaned = message.trim().replace(/\s+/g, ' ');
+    if (cleaned.length <= 30) {
+      return cleaned;
+    }
 
-  // If message is short enough, use it as-is
-  if (cleaned.length <= 60) {
-    return cleaned;
+    // Use AI to generate a concise, meaningful title
+    const locationContext = locationNames.length > 0
+      ? `\nContext: This conversation is about ${locationNames.join(', ')}.`
+      : '';
+
+    const response = await openaiClient.chat.completions.create({
+      model: "openai/gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: `You are a title generator. Create a short, clear title (max 50 characters) that captures the essence of the user's question or request. The title should be:
+- Concise and descriptive
+- In title case or sentence case
+- Without quotes or special formatting
+- Action-oriented when possible (e.g., "Review Analysis for...", "Compare locations", "Sentiment trends")${locationContext}`,
+        },
+        {
+          role: "user",
+          content: message,
+        },
+      ],
+      temperature: 0.5,
+      max_tokens: 20,
+    });
+
+    let title = response.choices[0].message.content.trim();
+
+    // Remove quotes if AI added them
+    title = title.replace(/^["']|["']$/g, '');
+
+    // Ensure max length of 60 chars
+    if (title.length > 60) {
+      title = title.substring(0, 57) + '...';
+    }
+
+    return title;
+  } catch (error) {
+    console.error('Error generating AI title:', error.message);
+
+    // Fallback: Simple truncation if AI fails
+    const cleaned = message.trim().replace(/\s+/g, ' ');
+    if (cleaned.length <= 60) return cleaned;
+
+    const truncated = cleaned.substring(0, 60);
+    const lastSpace = truncated.lastIndexOf(' ');
+    return (lastSpace > 40)
+      ? truncated.substring(0, lastSpace) + '...'
+      : truncated + '...';
   }
-
-  // Truncate to 60 chars at word boundary
-  const truncated = cleaned.substring(0, 60);
-  const lastSpace = truncated.lastIndexOf(' ');
-
-  if (lastSpace > 40) {
-    return truncated.substring(0, lastSpace) + '...';
-  }
-
-  return truncated + '...';
 }
 
 /**
@@ -548,6 +589,7 @@ TONE: Professional yet friendly, data-driven but conversational`,
     // STEP 9: Save conversation to database with location metadata
     let savedSessionId = sessionId;
     let isNewConversation = false;
+    let conversationTitle = null;
 
     // Check if this is a new conversation (no sessionId provided or session doesn't exist)
     if (!sessionId) {
@@ -593,8 +635,10 @@ TONE: Professional yet friendly, data-driven but conversational`,
 
       // Only set title for new conversations (first message)
       if (isNewConversation) {
-        updateData.$set.title = generateConversationTitle(message);
-        console.log(`📝 Creating new conversation with title: "${updateData.$set.title}"`);
+        const locationNames = locations.map(loc => loc.name);
+        conversationTitle = await generateConversationTitle(openaiClient, message, locationNames);
+        updateData.$set.title = conversationTitle;
+        console.log(`📝 Creating new conversation with title: "${conversationTitle}"`);
       }
 
       await Conversation.findOneAndUpdate(
@@ -610,23 +654,30 @@ TONE: Professional yet friendly, data-driven but conversational`,
     }
 
     // STEP 10: Return comprehensive response with location context
+    const responseData = {
+      response: botReply,
+      conversationHistory: updatedHistory,
+      sessionId: savedSessionId,
+      attachedLocations: locationMetadata,
+      metadata: {
+        totalReviews: allReviews.length,
+        locationCount: locations.length,
+        averageRating: parseFloat(averageRating),
+        sentimentDistribution: sentimentCounts,
+        ratingDistribution: ratingCounts,
+        topKeywords: topKeywords.slice(0, 10),
+        topTopics: topTopics.slice(0, 5),
+      },
+    };
+
+    // Include title for new conversations
+    if (isNewConversation && conversationTitle) {
+      responseData.title = conversationTitle;
+    }
+
     return res.status(200).json({
       success: true,
-      data: {
-        response: botReply,
-        conversationHistory: updatedHistory,
-        sessionId: savedSessionId,
-        attachedLocations: locationMetadata,
-        metadata: {
-          totalReviews: allReviews.length,
-          locationCount: locations.length,
-          averageRating: parseFloat(averageRating),
-          sentimentDistribution: sentimentCounts,
-          ratingDistribution: ratingCounts,
-          topKeywords: topKeywords.slice(0, 10),
-          topTopics: topTopics.slice(0, 5),
-        },
-      },
+      data: responseData,
     });
   } catch (error) {
     console.error("❌ Error in chat:", error);
@@ -942,8 +993,9 @@ TONE: Professional, analytical, insightful, and constructive`,
 
       // Only set title for new conversations (first message)
       if (isNewConversation) {
-        const comparisonTitle = message || `Compare ${location1.name} vs ${location2.name}`;
-        updateData.$set.title = generateConversationTitle(comparisonTitle);
+        const comparisonMessage = message || `Compare ${location1.name} vs ${location2.name}`;
+        const locationNames = [location1.name, location2.name];
+        updateData.$set.title = await generateConversationTitle(openaiClient, comparisonMessage, locationNames);
         console.log(`📝 Creating new comparison conversation with title: "${updateData.$set.title}"`);
       }
 
