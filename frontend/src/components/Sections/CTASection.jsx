@@ -39,7 +39,7 @@ const CTASection = () => {
   return (
     <section 
       ref={sectionRef}
-      className="min-h-screen snap-start bg-white flex items-center py-12 sm:py-16 lg:py-20 relative overflow-hidden"
+      className="min-h-screen snap-start bg-gray-50 flex items-center py-12 sm:py-16 lg:py-20 relative overflow-hidden"
     >
       {/* Animated gradient background with blink-blink effect */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">

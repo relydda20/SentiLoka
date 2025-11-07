@@ -273,3 +273,13 @@ main {
     animation: none !important;
   }
 }
+
+@keyframes wave-sway {
+  0% { transform: translateX(0); }
+  50% { transform: translateX(-50px); }
+  100% { transform: translateX(0); }
+}
+
+.animate-wave-sway {
+  animation: wave-sway 6s ease-in-out infinite;
+}
