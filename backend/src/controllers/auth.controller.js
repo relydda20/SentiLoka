@@ -336,3 +336,38 @@ export const verifyToken = async (req, res) => {
     });
   }
 };
+
+/**
+ * Controller: Google OAuth Callback
+ * @route GET /api/auth/google/callback
+ * Called by Passport after Google authentication
+ */
+export const googleCallback = async (req, res) => {
+  try {
+    // req.user is set by passport after successful authentication
+    const user = req.user;
+
+    if (!user) {
+      console.error('❌ No user found in Google OAuth callback');
+      return res.redirect(`${process.env.FRONTEND_URL}/login?error=authentication_failed`);
+    }
+
+    // Generate JWT tokens
+    const accessToken = generateAccessToken({ userId: user._id, email: user.email });
+    const refreshToken = generateRefreshToken({ userId: user._id });
+
+    // Set both tokens in HTTP-only cookies
+    res.cookie('accessToken', accessToken, jwtConfig.accessTokenCookieOptions);
+    res.cookie('refreshToken', refreshToken, jwtConfig.refreshTokenCookieOptions);
+
+    console.log('✅ Google OAuth successful for user:', user.email);
+    console.log('🔐 Access token set in HTTP-only cookie (15m expiry)');
+    console.log('🔐 Refresh token set in HTTP-only cookie (7d expiry)');
+
+    // Redirect to frontend dashboard
+    res.redirect(`${process.env.FRONTEND_URL}/dashboard`);
+  } catch (error) {
+    console.error('❌ Google OAuth callback error:', error);
+    res.redirect(`${process.env.FRONTEND_URL}/login?error=authentication_failed`);
+  }
+};

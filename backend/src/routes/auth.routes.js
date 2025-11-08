@@ -5,9 +5,11 @@ import {
   logout,
   refreshToken,
   getCurrentUser,
-  verifyToken
+  verifyToken,
+  googleCallback
 } from '../controllers/auth.controller.js';
 import { authenticate } from '../middleware/auth.middleware.js';
+import passport from '../config/passport.config.js';
 
 const router = express.Router();
 
@@ -52,5 +54,28 @@ router.get('/me', authenticate, getCurrentUser);
  * @access  Private (requires authentication)
  */
 router.get('/verify', authenticate, verifyToken);
+
+/**
+ * @route   GET /api/auth/google
+ * @desc    Initiate Google OAuth flow
+ * @access  Public
+ */
+router.get('/google', passport.authenticate('google', {
+  scope: ['profile', 'email'],
+  session: false
+}));
+
+/**
+ * @route   GET /api/auth/google/callback
+ * @desc    Google OAuth callback
+ * @access  Public
+ */
+router.get('/google/callback',
+  passport.authenticate('google', {
+    session: false,
+    failureRedirect: `${process.env.FRONTEND_URL}/login?error=authentication_failed`
+  }),
+  googleCallback
+);
 
 export default router;
