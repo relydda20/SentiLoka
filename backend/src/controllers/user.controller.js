@@ -1,7 +1,6 @@
 import User from '../models/User.model.js';
 import Location from '../models/Location.model.js';
 import UserLocation from '../models/UserLocation.model.js';
-import bcrypt from 'bcryptjs';
 
 /**
  * Controller: Get user profile by slug (Public)
@@ -157,19 +156,29 @@ export const updateUserProfile = async (req, res) => {
       });
     }
 
-    // Update user
-    const updatedUser = await User.findByIdAndUpdate(
-      userId,
-      updateData,
-      { new: true, runValidators: true }
-    ).select('-password');
+    // Get user first to check if name is changing
+    const user = await User.findById(userId);
 
-    if (!updatedUser) {
+    if (!user) {
       return res.status(404).json({
         success: false,
         message: 'User not found'
       });
     }
+
+    // If name is changing, regenerate slug
+    if (name && name !== user.name) {
+      Object.assign(user, updateData);
+      await user.regenerateSlug();
+    } else {
+      // Otherwise just update the fields
+      Object.assign(user, updateData);
+      await user.save();
+    }
+
+    // Remove password field from response
+    const updatedUser = user.toObject();
+    delete updatedUser.password;
 
     res.status(200).json({
       success: true,
