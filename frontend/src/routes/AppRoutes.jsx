@@ -49,9 +49,8 @@ const AppRoutes = () => {
         <Route index element={<Dashboard />} />
         <Route path="sentiment-map" element={<SentimentMap />} />
         <Route path="ai-reply" element={<AIReplyGenerator />} />
-        <Route path="profile" element={<Profile />} />
+        <Route path="profile/:slug" element={<Profile />} />
       </Route>
-
 
       {/* Catch all - redirect to landing */}
       <Route path="*" element={<Navigate to="/" replace />} />

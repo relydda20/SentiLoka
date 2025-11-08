@@ -6,29 +6,27 @@ import apiClient from "../utils/apiClient";
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * Fetch user profile data
+ * Fetch user profile data with stats and locations
  */
 export const fetchUserProfile = async () => {
   try {
     console.log("Loading user profile...");
-    await delay(800);
 
-    // const response = await apiClient.get('/api/user/profile');
-    // return response.data.data;
+    // First get the basic user info to get the slug
+    const meResponse = await apiClient.get('/auth/me');
+    const user = meResponse.data.data.user;
 
-    console.log("✅User profile loaded!");
-    // Mock data
-    return {
-      id: 1,
-      name: "Maxwell",
-      email: "maxwell@petstore.com",
-      bio: "Hey, I'm Maxwell! I run a cozy pet store where every furry, feathery, and scaly friend is welcome. I started the shop out of my love for animals and a passion for helping people care for their pets. When I'm not at the store, you'll probably find me playing fetch with my dog, Luna, or trying to stop my cat from knocking things off the counter (again).",
-      avatar: null,
-      createdAt: "2023-01-15T00:00:00Z",
-    };
+    console.log("✅ Basic user info loaded!", user);
+
+    // Then fetch the full profile with stats and locations using the slug
+    const profileResponse = await apiClient.get(`/users/${user.slug}`);
+
+    console.log("✅ Full user profile loaded!", profileResponse.data);
+    // Backend returns { success: true, data: { ...user, stats: {...}, locations: [...] } }
+    return profileResponse.data.data;
   } catch (error) {
     console.error("❌ Error fetching user profile:", error);
-    throw error;
+    throw new Error(error.response?.data?.message || "Failed to fetch profile");
   }
 };
 
@@ -38,24 +36,14 @@ export const fetchUserProfile = async () => {
 export const updateUserProfile = async (profileData) => {
   try {
     console.log("Updating user profile...", profileData);
-    await delay(1000);
 
-    // const response = await apiClient.put('/api/user/profile', profileData);
-    // return response.data.data;
+    const response = await apiClient.put('/users/profile', profileData);
 
     console.log("✅ User profile updated!");
-    // Mock response
-    return {
-      success: true,
-      message: "Profile updated successfully",
-      data: {
-        ...profileData,
-        updatedAt: new Date().toISOString(),
-      },
-    };
+    return response.data.data;
   } catch (error) {
     console.error("❌ Error updating user profile:", error);
-    throw error;
+    throw new Error(error.response?.data?.message || "Failed to update profile");
   }
 };
 
@@ -65,89 +53,39 @@ export const updateUserProfile = async (profileData) => {
 export const changePassword = async (passwordData) => {
   try {
     console.log("Changing password...");
-    await delay(1200);
 
-    // const response = await apiClient.post('/api/user/change-password', passwordData);
-    // return response.data;
+    const response = await apiClient.post('/users/change-password', passwordData);
 
     console.log("✅ Password changed!");
-    // Mock response
-    return {
-      success: true,
-      message: "Password changed successfully",
-    };
+    return response.data;
   } catch (error) {
     console.error("❌ Error changing password:", error);
-    throw error;
+    throw new Error(error.response?.data?.message || "Failed to change password");
   }
 };
 
 /**
  * Fetch user stores/locations
+ * Note: This is now handled by fetchUserProfile which returns locations in the response
+ * Keeping this function for backwards compatibility but it now fetches from the same endpoint
  */
 export const fetchUserStores = async () => {
   try {
     console.log("Loading user stores...");
-    await delay(1000);
 
-    // const response = await apiClient.get('/api/user/stores');
-    // return response.data.data;
+    // First get the basic user info to get the slug
+    const meResponse = await apiClient.get('/auth/me');
+    const user = meResponse.data.data.user;
 
-    console.log("✅ User stores loaded!");
-    // Mock data
-    return [
-      {
-        id: 1,
-        name: "Maxwell Urban Pet House",
-        address: "Jl. Mampang Prapatan Raya",
-        sentiment: "Good",
-        reviews: 4,
-        reviewCount: 67,
-      },
-      {
-        id: 2,
-        name: "Maxwell Pet House Tebet",
-        address: "Jl. Tebet Barat Dalam",
-        sentiment: "Bad",
-        reviews: 2,
-        reviewCount: 45,
-      },
-      {
-        id: 3,
-        name: "Maxwell Pet House Bintaro",
-        address: "Jl. Bintaro Utama Sektor 9",
-        sentiment: "Neutral",
-        reviews: 3,
-        reviewCount: 44,
-      },
-      {
-        id: 4,
-        name: "Maxwell Pet House Senopati",
-        address: "Jl. Senopati Raya No. 12",
-        sentiment: "Good",
-        reviews: 4,
-        reviewCount: 52,
-      },
-      {
-        id: 5,
-        name: "Maxwell Pet House Kemang",
-        address: "Jl. Kemang Raya No. 8",
-        sentiment: "Neutral",
-        reviews: 3,
-        reviewCount: 38,
-      },
-      {
-        id: 6,
-        name: "Maxwell Pet House Pondok Indah",
-        address: "Jl. Metro Pondok Indah",
-        sentiment: "Good",
-        reviews: 5,
-        reviewCount: 78,
-      },
-    ];
+    // Then fetch the full profile with locations using the slug
+    const profileResponse = await apiClient.get(`/users/${user.slug}`);
+
+    console.log("✅ User stores loaded!", profileResponse.data.data.locations);
+    // Return just the locations array from the backend response
+    return profileResponse.data.data.locations || [];
   } catch (error) {
     console.error("❌ Error fetching user stores:", error);
-    throw error;
+    throw new Error(error.response?.data?.message || "Failed to fetch user stores");
   }
 };
 

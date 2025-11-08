@@ -5,6 +5,7 @@ import cookieParser from "cookie-parser";
 
 // API routes
 import authRoutes from "./routes/auth.routes.js";
+import userRoutes from "./routes/user.routes.js";
 import sentimentRoutes from "./routes/sentiment.routes.js";
 import reviewSentimentRoutes from "./routes/reviewSentiment.routes.js";
 import chatbotRoutes from "./routes/chatbot.routes.js";
@@ -49,6 +50,7 @@ app.get("/health", (req, res) => {
 
 // Register routes
 app.use("/api/auth", authRoutes);
+app.use("/api/users", userRoutes);
 app.use("/api/sentiment", sentimentRoutes);
 app.use("/api/review-sentiments", reviewSentimentRoutes);
 app.use("/api/reviews", reviewRoutes);

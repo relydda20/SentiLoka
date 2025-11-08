@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { MapPin, Smile, Frown, Meh, Lock, Edit3, Settings, Search, Star } from "lucide-react";
-import maxwellAvatar from "../../assets/maxwell.png";
+import { MapPin, Lock, Edit3, Settings, Search, Star } from "lucide-react";
 import fullStar from "../../assets/full-star.png";
 import emptyStar from "../../assets/not-full-star.png";
 import { motion, AnimatePresence } from "framer-motion";
@@ -14,8 +14,15 @@ import {
   fetchUserStores,
 } from "../../services/profileService";
 
+// Redux Imports
+import { useDispatch } from 'react-redux';
+import { updateUserProfile as updateReduxProfile } from '../../store/auth/authSlice';
+
 const Profile = () => {
+  const { slug } = useParams();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const dispatch = useDispatch();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -32,6 +39,13 @@ const Profile = () => {
     queryKey: ["userProfile"],
     queryFn: fetchUserProfile,
   });
+
+  // Redirect to correct slug URL if slug doesn't match
+  useEffect(() => {
+    if (userProfile?.slug && slug !== userProfile.slug) {
+      navigate(`/dashboard/profile/${userProfile.slug}`, { replace: true });
+    }
+  }, [userProfile, slug, navigate]);
 
   // Fetch user stores
   const {
@@ -52,7 +66,7 @@ const Profile = () => {
   } = useForm({
     defaultValues: {
       name: "",
-      bio: "",
+      description: "",
     },
   });
 
@@ -75,7 +89,17 @@ const Profile = () => {
   const updateProfileMutation = useMutation({
     mutationFn: updateUserProfile,
     onSuccess: (data) => {
+      // Update Redux state so the header updates immediately
+      dispatch(updateReduxProfile(data));
+
+      // Invalidate queries to refetch profile data
       queryClient.invalidateQueries(["userProfile"]);
+
+      // If slug changed, navigate to new URL
+      if (data.slug && data.slug !== slug) {
+        navigate(`/dashboard/profile/${data.slug}`, { replace: true });
+      }
+
       setIsEditing(false);
       alert("Profile updated successfully!");
     },
@@ -102,7 +126,7 @@ const Profile = () => {
     if (userProfile) {
       resetProfile({
         name: userProfile.name,
-        bio: userProfile.bio,
+        description: userProfile.description || "",
       });
     }
   }, [userProfile, resetProfile]);
@@ -141,29 +165,29 @@ const Profile = () => {
 
   const sentimentCounts = {
     all: stores.length,
-    good: stores.filter((s) => s.sentiment === "Good").length,
+    positive: stores.filter((s) => s.sentiment === "Positive").length,
     neutral: stores.filter((s) => s.sentiment === "Neutral").length,
     bad: stores.filter((s) => s.sentiment === "Bad").length,
+    noData: stores.filter((s) => s.sentiment === "No Data").length,
   };
 
-  // Calculate stats
-  const totalLocations = stores.length;
-  const totalReviews = stores.reduce((sum, store) => sum + store.reviewCount, 0);
-  const avgRating =
-    stores.length > 0
-      ? (stores.reduce((sum, store) => sum + store.reviews, 0) / stores.length).toFixed(1)
-      : "0.0";
+  // Use stats from backend if available, otherwise calculate from stores
+  const totalLocations = userProfile?.stats?.totalLocations ?? stores.length;
+  const totalReviews = userProfile?.stats?.totalReviews ?? stores.reduce((sum, store) => sum + (store.totalReviews || 0), 0);
+  const avgRating = userProfile?.stats?.averageRating?.toFixed(1) ?? "0.0";
 
   const getSentimentBadge = (sentiment) => {
     switch (sentiment) {
-      case "Good":
-        return { bg: "bg-emerald-100", text: "text-emerald-700", emoji: "😊" };
+      case "Positive":
+        return { bg: "bg-emerald-100", text: "text-emerald-700" };
       case "Neutral":
-        return { bg: "bg-yellow-100", text: "text-yellow-700", emoji: "😐" };
+        return { bg: "bg-yellow-100", text: "text-yellow-700" };
       case "Bad":
-        return { bg: "bg-red-100", text: "text-red-700", emoji: "😢" };
+        return { bg: "bg-red-100", text: "text-red-700" };
+      case "No Data":
+        return { bg: "bg-gray-100", text: "text-gray-700" };
       default:
-        return { bg: "bg-gray-100", text: "text-gray-700", emoji: "😶" };
+        return { bg: "bg-gray-100", text: "text-gray-700" };
     }
   };
 
@@ -281,13 +305,25 @@ const Profile = () => {
             <div className="flex md:flex-row flex-col items-start gap-6">
               {/* Avatar & Basic Info */}
               <div className="flex flex-1 items-start gap-4 w-full">
-                <motion.img
-                  src={maxwellAvatar}
-                  alt="User Avatar"
-                  className="rounded-2xl ring-[#E8E5D5] ring-4 w-16 md:w-20 h-16 md:h-20 object-cover shrink-0"
-                  whileHover={{ scale: 1.05 }}
-                  transition={{ duration: 0.2 }}
-                />
+                {userProfile?.image && userProfile.image !== 'https://via.placeholder.com/150.jpg' ? (
+                  <motion.img
+                    src={userProfile.image}
+                    alt="User Avatar"
+                    className="rounded-full ring-[#E8E5D5] ring-4 w-16 md:w-20 h-16 md:h-20 object-cover shrink-0"
+                    whileHover={{ scale: 1.05 }}
+                    transition={{ duration: 0.2 }}
+                  />
+                ) : (
+                  <motion.div
+                    className="flex justify-center items-center bg-[#D9D9D9] rounded-full ring-[#E8E5D5] ring-4 w-16 md:w-20 h-16 md:h-20 shrink-0"
+                    whileHover={{ scale: 1.05 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <span className="font-semibold text-[#2F4B4E] text-2xl md:text-3xl">
+                      {userProfile?.name ? userProfile.name[0].toUpperCase() : 'U'}
+                    </span>
+                  </motion.div>
+                )}
 
                 <div className="flex-1 min-w-0">
                   {isEditing ? (
@@ -318,19 +354,19 @@ const Profile = () => {
 
                       <div className="mb-3">
                         <textarea
-                          {...registerProfile("bio", {
+                          {...registerProfile("description", {
                             maxLength: {
-                              value: 500,
-                              message: "Bio must be less than 500 characters",
+                              value: 1000,
+                              message: "Description must be less than 1000 characters",
                             },
                           })}
                           rows={5}
                           className="bg-gray-50 p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-[#2F4B4E] focus:ring-2 w-full text-gray-700 text-sm resize-none"
                           placeholder="Write something about yourself..."
                         />
-                        {profileErrors.bio && (
+                        {profileErrors.description && (
                           <p className="mt-1 text-red-500 text-xs">
-                            {profileErrors.bio.message}
+                            {profileErrors.description.message}
                           </p>
                         )}
                       </div>
@@ -363,16 +399,22 @@ const Profile = () => {
                         {userProfile?.name}
                       </h2>
                       <p className="max-w-3xl text-gray-700 text-sm leading-relaxed">
-                        {showFullBio
-                          ? userProfile?.bio
-                          : `${userProfile?.bio?.substring(0, 150)}...`}
-                        {userProfile?.bio && userProfile.bio.length > 150 && (
-                          <button
-                            onClick={() => setShowFullBio(!showFullBio)}
-                            className="ml-1 font-medium text-[#2F4B4E] hover:underline"
-                          >
-                            {showFullBio ? "Show less" : "Read more"}
-                          </button>
+                        {userProfile?.description ? (
+                          <>
+                            {showFullBio
+                              ? userProfile.description
+                              : `${userProfile.description.substring(0, 150)}${userProfile.description.length > 150 ? '...' : ''}`}
+                            {userProfile.description.length > 150 && (
+                              <button
+                                onClick={() => setShowFullBio(!showFullBio)}
+                                className="ml-1 font-medium text-[#2F4B4E] hover:underline"
+                              >
+                                {showFullBio ? "Show less" : "Read more"}
+                              </button>
+                            )}
+                          </>
+                        ) : (
+                          <span className="text-gray-500 italic">No description added yet.</span>
                         )}
                       </p>
                     </>
@@ -506,14 +548,14 @@ const Profile = () => {
                 All ({sentimentCounts.all})
               </motion.button>
               <motion.button
-                onClick={() => setFilterSentiment("good")}
+                onClick={() => setFilterSentiment("positive")}
                 className={`px-4 py-2 rounded-xl font-medium whitespace-nowrap ${
-                  filterSentiment === "good"
+                  filterSentiment === "positive"
                     ? "bg-emerald-500 text-white shadow-md"
                     : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                 }`}
               >
-                😊 Good ({sentimentCounts.good})
+                Positive ({sentimentCounts.positive})
               </motion.button>
               <motion.button
                 onClick={() => setFilterSentiment("neutral")}
@@ -523,7 +565,7 @@ const Profile = () => {
                     : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                 }`}
               >
-                😐 Neutral ({sentimentCounts.neutral})
+                Neutral ({sentimentCounts.neutral})
               </motion.button>
               <motion.button
                 onClick={() => setFilterSentiment("bad")}
@@ -533,7 +575,17 @@ const Profile = () => {
                     : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                 }`}
               >
-                😢 Bad ({sentimentCounts.bad})
+                Bad ({sentimentCounts.bad})
+              </motion.button>
+              <motion.button
+                onClick={() => setFilterSentiment("no data")}
+                className={`px-4 py-2 rounded-xl font-medium whitespace-nowrap ${
+                  filterSentiment === "no data"
+                    ? "bg-gray-500 text-white shadow-md"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                }`}
+              >
+                No Data ({sentimentCounts.noData})
               </motion.button>
             </div>
           </div>
@@ -556,7 +608,7 @@ const Profile = () => {
                 const badge = getSentimentBadge(store.sentiment);
                 return (
                   <motion.div
-                    key={store.id}
+                    key={store._id || store.id}
                     className="group bg-white hover:shadow-xl p-5 border border-gray-200 rounded-2xl hover:-translate-y-1 duration-300 cursor-pointer"
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -580,9 +632,8 @@ const Profile = () => {
 
                     {/* Sentiment Badge */}
                     <div
-                      className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full ${badge.bg} ${badge.text} text-sm font-medium mb-3`}
+                      className={`inline-flex items-center px-3 py-1.5 rounded-full ${badge.bg} ${badge.text} text-sm font-medium mb-3`}
                     >
-                      <span>{badge.emoji}</span>
                       <span>{store.sentiment}</span>
                     </div>
 
@@ -592,17 +643,17 @@ const Profile = () => {
                         {Array.from({ length: 5 }).map((_, i) => (
                           <img
                             key={i}
-                            src={i < store.reviews ? fullStar : emptyStar}
+                            src={i < Math.floor(store.averageRating || 0) ? fullStar : emptyStar}
                             alt="star"
                             className="w-4 h-4"
                           />
                         ))}
                         <span className="ml-2 font-semibold text-gray-900 text-sm">
-                          {store.reviews}.0
+                          {(store.averageRating || 0).toFixed(1)}
                         </span>
                       </div>
                       <span className="text-gray-600 text-sm">
-                        {store.reviewCount} reviews
+                        {store.totalReviews || 0} reviews
                       </span>
                     </div>
 
