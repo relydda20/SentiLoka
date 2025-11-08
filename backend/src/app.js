@@ -25,9 +25,10 @@ configurePassport();
 app.use(
   cors({
     origin: [
-      process.env.FRONTEND_URL || "http://localhost:5173",
-      "https://your-app.vercel.app", // Add after frontend deployment
-      /\.vercel\.app$/, // Allow all Vercel preview deployments
+      "http://localhost:5173", // Local development
+      "https://sentiloka.app", // Production
+      "https://www.sentiloka.app", // Production www
+      /\.vercel\.app$/, // Vercel preview deployments
     ],
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
