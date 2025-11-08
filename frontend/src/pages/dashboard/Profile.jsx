@@ -305,25 +305,15 @@ const Profile = () => {
             <div className="flex md:flex-row flex-col items-start gap-6">
               {/* Avatar & Basic Info */}
               <div className="flex flex-1 items-start gap-4 w-full">
-                {userProfile?.image && userProfile.image !== 'https://via.placeholder.com/150.jpg' ? (
-                  <motion.img
-                    src={userProfile.image}
-                    alt="User Avatar"
-                    className="rounded-full ring-[#E8E5D5] ring-4 w-16 md:w-20 h-16 md:h-20 object-cover shrink-0"
-                    whileHover={{ scale: 1.05 }}
-                    transition={{ duration: 0.2 }}
-                  />
-                ) : (
-                  <motion.div
-                    className="flex justify-center items-center bg-[#D9D9D9] rounded-full ring-[#E8E5D5] ring-4 w-16 md:w-20 h-16 md:h-20 shrink-0"
-                    whileHover={{ scale: 1.05 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    <span className="font-semibold text-[#2F4B4E] text-2xl md:text-3xl">
-                      {userProfile?.name ? userProfile.name[0].toUpperCase() : 'U'}
-                    </span>
-                  </motion.div>
-                )}
+                <motion.div
+                  className="flex justify-center items-center bg-[#D9D9D9] rounded-full ring-[#E8E5D5] ring-4 w-16 md:w-20 h-16 md:h-20 shrink-0"
+                  whileHover={{ scale: 1.05 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <span className="font-semibold text-[#2F4B4E] text-2xl md:text-3xl">
+                    {userProfile?.name ? userProfile.name[0].toUpperCase() : 'U'}
+                  </span>
+                </motion.div>
 
                 <div className="flex-1 min-w-0">
                   {isEditing ? (
