@@ -138,7 +138,7 @@ const Login = () => {
             <button
               type="button"
               onClick={() => {
-                window.location.href = `${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/auth/google`;
+                window.location.href = `${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/auth/google`;
               }}
               className="flex justify-center items-center bg-white hover:bg-gray-100 py-2 rounded-full w-[80%] text-gray-700 transition"
             >
