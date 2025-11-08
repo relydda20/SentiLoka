@@ -56,7 +56,7 @@ export const subscribeScrapeProgress = (jobId, callbacks = {}) => {
   } = callbacks;
 
   return new Promise((resolve, reject) => {
-    const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+    const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
     const eventSource = new EventSource(`${baseURL}/scraper/progress/${jobId}`, {
       withCredentials: true,
     });
