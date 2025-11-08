@@ -25,7 +25,11 @@ RUN apk add --no-cache \
     freetype \
     harfbuzz \
     ca-certificates \
-    ttf-freefont
+    ttf-freefont \
+    scrapy \
+    scrapy-playwright \
+    python-dateutil \
+    playwright
 
 # Copy Python environment from builder
 COPY --from=python-builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
