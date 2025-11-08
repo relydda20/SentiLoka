@@ -1,5 +1,6 @@
 import User from '../models/User.model.js';
 import Location from '../models/Location.model.js';
+import UserLocation from '../models/UserLocation.model.js';
 import bcrypt from 'bcryptjs';
 
 /**
@@ -24,25 +25,72 @@ export const getUserBySlug = async (req, res) => {
       });
     }
 
-    // Get locations count for this user
-    const locationsCount = await Location.countDocuments({ userId: user._id });
+    // Get user's locations through the UserLocation junction table
+    const userLocations = await UserLocation.find({
+      userId: user._id,
+      status: 'active'
+    }).select('locationId').lean();
 
-    // Get user's locations with aggregated stats
-    const locations = await Location.find({ userId: user._id })
-      .select('name address slug averageRating totalReviews sentiment')
+    console.log('📍 UserLocations found:', userLocations.length);
+    console.log('📍 UserLocation records:', userLocations);
+
+    const locationIds = userLocations.map(ul => ul.locationId);
+    const locationsCount = locationIds.length;
+
+    console.log('📍 Location IDs:', locationIds);
+    console.log('📍 Locations count:', locationsCount);
+
+    // Get locations with their sentiment data
+    const locations = await Location.find({
+      _id: { $in: locationIds },
+      status: 'active'
+    })
+      .select('name address slug overallSentiment')
       .lean();
 
+    console.log('📍 Locations from DB:', locations.length);
+    console.log('📍 Locations data:', JSON.stringify(locations, null, 2));
+
+    // Map locations to include the data in the expected format
+    const mappedLocations = locations.map(loc => {
+      // Determine sentiment category based on overallSentiment percentages
+      let sentiment = 'No Data';
+      const { positive = 0, negative = 0, neutral = 0, totalReviews = 0 } = loc.overallSentiment || {};
+
+      // Only categorize if location has been analyzed (has reviews)
+      if (totalReviews > 0) {
+        if (positive > negative && positive > neutral) {
+          sentiment = 'Positive';
+        } else if (negative > positive && negative > neutral) {
+          sentiment = 'Bad';
+        } else {
+          sentiment = 'Neutral';
+        }
+      }
+
+      return {
+        _id: loc._id,
+        name: loc.name,
+        address: loc.address,
+        slug: loc.slug,
+        averageRating: loc.overallSentiment?.averageRating || 0,
+        totalReviews: loc.overallSentiment?.totalReviews || 0,
+        sentiment
+      };
+    });
+
     // Calculate statistics
-    const totalReviews = locations.reduce((sum, loc) => sum + (loc.totalReviews || 0), 0);
-    const avgRating = locations.length > 0
-      ? (locations.reduce((sum, loc) => sum + (loc.averageRating || 0), 0) / locations.length).toFixed(1)
+    const totalReviews = mappedLocations.reduce((sum, loc) => sum + (loc.totalReviews || 0), 0);
+    const avgRating = mappedLocations.length > 0
+      ? (mappedLocations.reduce((sum, loc) => sum + (loc.averageRating || 0), 0) / mappedLocations.length).toFixed(1)
       : '0.0';
 
     // Count sentiment distribution
     const sentimentCounts = {
-      good: locations.filter(loc => loc.sentiment === 'Good').length,
-      neutral: locations.filter(loc => loc.sentiment === 'Neutral').length,
-      bad: locations.filter(loc => loc.sentiment === 'Bad').length
+      positive: mappedLocations.filter(loc => loc.sentiment === 'Positive').length,
+      neutral: mappedLocations.filter(loc => loc.sentiment === 'Neutral').length,
+      bad: mappedLocations.filter(loc => loc.sentiment === 'Bad').length,
+      noData: mappedLocations.filter(loc => loc.sentiment === 'No Data').length
     };
 
     // Prepare response data
@@ -60,15 +108,7 @@ export const getUserBySlug = async (req, res) => {
         averageRating: parseFloat(avgRating),
         sentimentCounts
       },
-      locations: locations.map(loc => ({
-        _id: loc._id,
-        name: loc.name,
-        address: loc.address,
-        slug: loc.slug,
-        averageRating: loc.averageRating,
-        totalReviews: loc.totalReviews,
-        sentiment: loc.sentiment
-      }))
+      locations: mappedLocations
     };
 
     res.status(200).json({
