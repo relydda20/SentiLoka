@@ -14,10 +14,15 @@ import {
   fetchUserStores,
 } from "../../services/profileService";
 
+// Redux Imports
+import { useDispatch } from 'react-redux';
+import { updateUserProfile as updateReduxProfile } from '../../store/auth/authSlice';
+
 const Profile = () => {
   const { slug } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const dispatch = useDispatch();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -84,7 +89,17 @@ const Profile = () => {
   const updateProfileMutation = useMutation({
     mutationFn: updateUserProfile,
     onSuccess: (data) => {
+      // Update Redux state so the header updates immediately
+      dispatch(updateReduxProfile(data));
+
+      // Invalidate queries to refetch profile data
       queryClient.invalidateQueries(["userProfile"]);
+
+      // If slug changed, navigate to new URL
+      if (data.slug && data.slug !== slug) {
+        navigate(`/dashboard/profile/${data.slug}`, { replace: true });
+      }
+
       setIsEditing(false);
       alert("Profile updated successfully!");
     },

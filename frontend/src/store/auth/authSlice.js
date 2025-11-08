@@ -70,7 +70,15 @@ const authSlice = createSlice({
   name: 'auth',
   initialState,
   reducers: {
-    // Standard reducers can go here if needed
+    // Update user profile (for when user updates their name, description, etc.)
+    updateUserProfile: (state, action) => {
+      if (state.user) {
+        state.user = {
+          ...state.user,
+          ...action.payload
+        };
+      }
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -132,4 +140,5 @@ const authSlice = createSlice({
   },
 });
 
+export const { updateUserProfile } = authSlice.actions;
 export default authSlice.reducer;
