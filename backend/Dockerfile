@@ -15,8 +15,17 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Install Python runtime (needed for scraper)
-RUN apk add --no-cache python3 py3-pip chromium chromium-chromedriver
+# Install Python runtime and dependencies
+RUN apk add --no-cache \
+    python3 \
+    py3-pip \
+    chromium \
+    chromium-chromedriver \
+    nss \
+    freetype \
+    harfbuzz \
+    ca-certificates \
+    ttf-freefont
 
 # Copy Python environment from builder
 COPY --from=python-builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
@@ -27,13 +36,18 @@ COPY --from=python-builder /root/.cache/ms-playwright /root/.cache/ms-playwright
 COPY package*.json ./
 
 # Install Node.js dependencies
-RUN npm ci --only=production
+# Use npm install instead of npm ci for flexibility
+RUN npm install --omit=dev
 
 # Copy backend source
 COPY . .
 
 # Create temp directory for scraper outputs
-RUN mkdir -p temp
+RUN mkdir -p temp && chmod 777 temp
+
+# Set environment for Playwright
+ENV PLAYWRIGHT_BROWSERS_PATH=/root/.cache/ms-playwright
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 
 # Expose port
 EXPOSE 8080
