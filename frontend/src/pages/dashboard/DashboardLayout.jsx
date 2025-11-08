@@ -1,0 +1,213 @@
+import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useState } from 'react';
+import logo from '../../assets/sentiloka_logo.png';
+
+// Redux Imports
+import { useDispatch, useSelector } from 'react-redux';
+import { logoutUser } from '../../store/auth/authSlice';
+
+import NavItem from '../../components/NavItem';
+import DropdownItem from '../../components/DropdownItem';
+import {
+  hoverScale,
+  hoverScaleTap,
+  springTransition,
+  dropdownMotion,
+} from '../../utils/motionConfig';
+
+const DashboardLayout = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
+  // Get user and dispatch from Redux
+  const dispatch = useDispatch();
+  const { user } = useSelector((state) => state.auth);
+
+  // Use user's profile picture if available, otherwise null
+  const profileUrl = user?.profilePicture || null;
+
+  const navItems = [
+    { path: '/dashboard', label: 'Dashboard' },
+    { path: '/dashboard/sentiment-map', label: 'Sentiment Map' },
+    { path: '/dashboard/ai-reply', label: 'Reply Generator' },
+  ];
+
+  const handleLogout = () => {
+    // Dispatch the logout action
+    // The ProtectedRoute will automatically redirect
+    // when 'isAuthenticated' becomes false.
+    dispatch(logoutUser());
+  };
+
+  const isLinkActive = (path) =>
+    path === '/dashboard'
+      ? location.pathname === '/dashboard'
+      : location.pathname.startsWith(path);
+
+  return (
+    <div className="bg-[#FAFAFA] min-h-screen">
+      {/* Floating Fixed Navbar */}
+      <div className="top-4 left-1/2 z-30 fixed w-full max-w-[1440px] -translate-x-1/2">
+        <nav className="flex justify-between items-center bg-[#2F4B4E] shadow-md mx-auto px-6 py-2 rounded-full w-[97%] h-21">
+          {/* Logo */}
+          <motion.div
+            className="flex items-center gap-3 cursor-pointer"
+            {...hoverScale}
+          >
+            <img src={logo} alt="SentiLoka Logo" className="w-16 h-16" />
+            <h1 className="font-mate font-medium text-white text-2xl leading-8 [text-shadow:0_0_2px_#CCD5AE]">
+              SentiLoka
+            </h1>
+          </motion.div>
+
+          {/* Desktop Links */}
+          <div className="hidden md:flex gap-6 font-semibold text-[#FAF6E9] lg:text-lg">
+            {navItems.map((item) => (
+              <NavLink key={item.path} to={item.path}>
+                <NavItem active={isLinkActive(item.path)}>{item.label}</NavItem>
+              </NavLink>
+            ))}
+          </div>
+
+          {/* Profile + Dropdown Trigger */}
+          <div className="relative flex items-center gap-2">
+            {/* Profile Avatar */}
+            {profileUrl ? (
+              <motion.img
+                src={profileUrl}
+                alt="Profile"
+                className="rounded-full w-10 h-10 object-cover cursor-pointer"
+                whileHover={{ scale: 1.1 }}
+                transition={springTransition}
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+              />
+            ) : (
+              <motion.div
+                className="flex justify-center items-center bg-[#D9D9D9] rounded-full w-10 h-10 cursor-pointer"
+                whileHover={{ scale: 1.1, backgroundColor: '#C9C9C9' }}
+                transition={springTransition}
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+              >
+                {/* Fallback Icon/Initials */}
+                <span className="font-semibold text-[#2F4B4E] text-lg">
+                  {user?.name ? user.name[0].toUpperCase() : 'U'}
+                </span>
+              </motion.div>
+            )}
+
+            {/* Arrow (only on small screens) */}
+            <motion.svg
+              width="32"
+              height="32"
+              viewBox="0 0 24 24"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              className="md:hidden cursor-pointer"
+              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+              animate={{ rotate: isDropdownOpen ? 180 : 0 }}
+              transition={springTransition}
+            >
+              <path
+                d="M6 9l6 6 6-6"
+                stroke="#ECE8D9"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </motion.svg>
+
+            {/* Dropdown */}
+            <AnimatePresence>
+              {isDropdownOpen && (
+                <motion.div
+                  {...dropdownMotion}
+                  className="top-12 right-0 absolute bg-white shadow-lg mt-2 rounded-2xl w-56 overflow-hidden"
+                  // Close dropdown if clicking outside
+                  onBlur={() => setIsDropdownOpen(false)}
+                >
+                  {/* User Info Header */}
+                  <div className="px-4 py-3 border-gray-200 border-b">
+                    <p className="font-medium text-gray-900 text-sm">
+                      Signed in as
+                    </p>
+                    <p className="text-gray-700 text-sm truncate">
+                      {user?.name || 'SentiLoka User'}
+                    </p>
+                  </div>
+
+                  {/* On small screens: nav + profile actions */}
+                  <div className="md:hidden flex flex-col">
+                    {/* Label for pages */}
+                    <div className="px-4 py-2 font-semibold text-gray-500 text-xs uppercase tracking-wide">
+                      Pages
+                    </div>
+                    {navItems.map((item) => (
+                      <DropdownItem
+                        key={item.path}
+                        onClick={() => {
+                          setIsDropdownOpen(false);
+                          navigate(item.path);
+                        }}
+                        className="hover:bg-[#FAF6E9] text-[#2F4B4E]"
+                      >
+                        {item.label}
+                      </DropdownItem>
+                    ))}
+                    <div className="my-1 border-gray-200 border-t" />
+                  </div>
+
+                  {/* Profile actions (always) */}
+                  <div className="flex flex-col py-1">
+                    {' '}
+                    {/* Added py-1 for spacing */}
+                    {/* Label for account */}
+                    <div className="md:hidden px-4 py-2 font-semibold text-gray-500 text-xs uppercase tracking-wide">
+                      Account
+                    </div>
+                    <DropdownItem
+                      onClick={() => {
+                        setIsDropdownOpen(false);
+                        navigate(`/dashboard/profile/${user?.slug || 'me'}`);
+                      }}
+                      className="hover:bg-[#FAF6E9] text-[#2F4B4E]"
+                    >
+                      Profile
+                    </DropdownItem>
+                    <DropdownItem
+                      onClick={() => {
+                        setIsDropdownOpen(false);
+                        navigate('/dashboard/settings');
+                      }}
+                      className="hover:bg-[#FAF6E9] text-[#2F4B4E]"
+                    >
+                      Settings
+                    </DropdownItem>
+                    <div className="bg-gray-200 mx-4 my-1 h-px" />
+                    <DropdownItem
+                      onClick={() => {
+                        setIsDropdownOpen(false);
+                        handleLogout(); // Use Redux logout
+                      }}
+                      className="hover:bg-red-50 text-red-600"
+                    >
+                      Logout
+                    </DropdownItem>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </nav>
+      </div>
+
+      {/* Main Content */}
+      <main className="flex-1">
+          <Outlet />
+      </main>
+    </div>
+  );
+};
+
+export default DashboardLayout;

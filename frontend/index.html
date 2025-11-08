@@ -2,12 +2,43 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>frontend</title>
+    <title>SentiLoka</title>
+    <!-- Dialogflow Default Styles -->
+    <link
+      rel="stylesheet"
+      href="https://www.gstatic.com/dialogflow-console/fast/df-messenger/prod/v1/themes/df-messenger-default.css"
+    />
+    <!-- Dialogflow Custom Styles -->
+    <link rel="stylesheet" href="/src/styles/dialogflow.css" />
+    <!-- App Styles -->
+    <link href="/src/styles/index.css" rel="stylesheet" />
+    <!-- Fonts -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Mate+SC&display=swap"
+      rel="stylesheet"
+    />
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
+
+    <!-- Dialogflow Script -->
+    <script src="https://www.gstatic.com/dialogflow-console/fast/df-messenger/prod/v1/df-messenger.js"></script>
+
+    <!-- Dialogflow Widget (hidden by default) -->
+    <df-messenger
+      id="df-messenger-widget"
+      project-id="loka-ai"
+      agent-id="c1b7a670-f33f-45a2-ac62-41a57e64c9e2"
+      language-code="en"
+      max-query-length="-1"
+    >
+      <df-messenger-chat-bubble chat-title="LokaAI"></df-messenger-chat-bubble>
+    </df-messenger>
+
+    <!-- Route Detection & Scroll Button Fix Script -->
+    <script src="src/scripts/dialogflowWidget.js"></script>
   </body>
 </html>
