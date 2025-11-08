@@ -7,10 +7,16 @@ import { Paperclip } from "lucide-react";
  * Shows badge with count when locations are selected
  */
 const LocationSelectorButton = ({ selectedCount, onToggle, isOpen, disabled }) => {
+  const handleClick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onToggle();
+  };
+
   return (
     <button
       type="button"
-      onClick={onToggle}
+      onClick={handleClick}
       disabled={disabled}
       className={`
         relative p-2 rounded-lg transition-colors shrink-0

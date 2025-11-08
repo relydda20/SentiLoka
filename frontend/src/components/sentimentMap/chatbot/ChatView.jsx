@@ -216,7 +216,7 @@ const ChatView = ({
   return (
     <>
       {/* Header */}
-      <div className="flex justify-between items-center gap-3 bg-linear from-[#2F4B4E] -to-r to-[#42676B] p-6 text-white shrink-0">
+      <div className="flex justify-between items-center gap-3 bg-gradient-to-r from-[#2F4B4E] to-[#42676B] p-6 text-white shrink-0">
         <div className="flex items-center gap-2 min-w-0">
           <button
             onClick={onBack}
@@ -317,7 +317,7 @@ const ChatView = ({
               selectedCount={selectedLocationIds.length}
               onToggle={onToggleLocationDropdown}
               isOpen={isLocationDropdownOpen}
-              disabled={isLoading}
+              disabled={false}
             />
 
             <LocationSelectorDropdown
@@ -327,6 +327,7 @@ const ChatView = ({
               maxSelections={10}
               isOpen={isLocationDropdownOpen}
               loading={locationsLoading}
+              disabled={isLoading}
             />
           </div>
 

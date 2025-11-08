@@ -13,6 +13,7 @@ const LocationSelectorDropdown = ({
   maxSelections = 10,
   isOpen,
   loading = false,
+  disabled = false,
 }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const dropdownRef = useRef(null);
@@ -37,6 +38,9 @@ const LocationSelectorDropdown = ({
 
   // Handle checkbox click
   const handleToggleLocation = (locationId) => {
+    // Prevent changes when disabled (e.g., during message sending)
+    if (disabled) return;
+
     if (selectedIds.includes(locationId)) {
       // Deselect
       onSelect(selectedIds.filter((id) => id !== locationId));
@@ -84,6 +88,7 @@ const LocationSelectorDropdown = ({
           />
           {searchTerm && (
             <button
+              type="button"
               onClick={() => setSearchTerm("")}
               className="top-1/2 right-3 absolute text-gray-400 hover:text-gray-600 text-sm transform -translate-y-1/2"
             >
@@ -96,14 +101,16 @@ const LocationSelectorDropdown = ({
       {/* Selection Counter */}
       <div className="flex justify-between items-center bg-gray-50 px-3 py-2 border-gray-200 border-b text-xs text-gray-600">
         <span>
-          {selectedIds.length === 0 
-            ? "No locations selected" 
+          {selectedIds.length === 0
+            ? "No locations selected"
             : `${selectedIds.length} of ${maxSelections} selected`
           }
         </span>
-        {selectedIds.length >= maxSelections && (
+        {disabled ? (
+          <span className="text-blue-600 font-medium">Sending message...</span>
+        ) : selectedIds.length >= maxSelections ? (
           <span className="text-amber-600 font-medium">Maximum reached</span>
-        )}
+        ) : null}
       </div>
 
       {/* Location List */}
@@ -130,17 +137,18 @@ const LocationSelectorDropdown = ({
               <div className="py-2">
                 {readyLocations.map((location) => {
                   const isSelected = selectedIds.includes(location.locationId);
-                  const isDisabled = !isSelected && selectedIds.length >= maxSelections;
+                  const isDisabled = disabled || (!isSelected && selectedIds.length >= maxSelections);
 
                   return (
                     <button
+                      type="button"
                       key={location.locationId}
                       onClick={() => !isDisabled && handleToggleLocation(location.locationId)}
                       disabled={isDisabled}
                       className={`
                         w-full px-3 py-2.5 text-left transition-colors flex items-start gap-3
-                        ${isSelected 
-                          ? "bg-[#E1E6C3]/30 hover:bg-[#E1E6C3]/50" 
+                        ${isSelected
+                          ? "bg-[#E1E6C3]/30 hover:bg-[#E1E6C3]/50"
                           : "hover:bg-gray-50"
                         }
                         ${isDisabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}
