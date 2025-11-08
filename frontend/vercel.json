@@ -9,6 +9,6 @@
     }
   ],
   "env": {
-    "VITE_API_URL": "@api_url"
+    "VITE_API_URL": "https://sentiloka-app-sseq2.ondigitalocean.app/api/"
   }
 }
