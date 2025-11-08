@@ -3,7 +3,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 export const config = {
-  env: process.env.NODE_ENV || 'development',
+  env: process.env.NODE_ENV || 'production',
   port: process.env.PORT || 8080,
   mongoUri: process.env.MONGODB_URI,
   frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
