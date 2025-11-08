@@ -22,3 +22,12 @@ export const getCurrentUser = () => {
   // Get current user profile (requires valid access token in cookie)
   return apiClient.get('/auth/me');
 };
+
+/**
+ * Initiate Google OAuth flow
+ * Redirects user to Google OAuth consent screen
+ */
+export const loginWithGoogle = () => {
+  const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+  window.location.href = `${backendUrl}/api/auth/google`;
+};
