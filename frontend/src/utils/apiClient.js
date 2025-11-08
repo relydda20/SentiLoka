@@ -3,8 +3,9 @@ import axios from 'axios';
 import { store } from '../store/store'; // Import store directly
 import { logoutUser } from '../store/auth/authSlice'; // Import logout action
 
+
 const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api',
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8080/api',
   withCredentials: true, // This is essential for sending httpOnly cookies
 });
 

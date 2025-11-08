@@ -1,0 +1,16 @@
+node_modules
+npm-debug.log
+.env
+.env.local
+.git
+.gitignore
+README.md
+.vscode
+coverage
+*.test.js
+temp/*
+python_env
+python_env_backup_old
+__pycache__
+*.pyc
+.scrapy
