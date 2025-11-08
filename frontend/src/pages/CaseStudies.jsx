@@ -1,7 +1,7 @@
 import React from "react";
 import Header from '../components/Sections/Header';
 import CaseHeader from "../components/CaseStudies/CaseHeader";
-import CaseAbout from "../components/CaseStudies/CaseABout"
+import CaseAbout from "../components/CaseStudies/CaseAbout";
 import CaseSection from "../components/CaseStudies/CaseSection";
 
 const CaseStudies = () => {
