@@ -9,6 +9,7 @@ import GuestRoute from "./GuestRoute";
 import DashboardLayout from "../pages/dashboard/DashboardLayout";
 import Dashboard from "../pages/dashboard/Dashboard";
 import Profile from "../pages/dashboard/Profile";
+import CaseStudies from "../pages/CaseStudies";
 
 const AppRoutes = () => {
   return (
@@ -33,6 +34,8 @@ const AppRoutes = () => {
           </GuestRoute>
         }
       />
+
+      <Route path="/case-studies" element={<CaseStudies />} /> 
 
       {/* Protected Dashboard Routes */}
       <Route

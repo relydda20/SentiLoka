@@ -54,12 +54,19 @@ const HistoryView = ({
           </div>
         ) : Array.isArray(sessions) && sessions.length > 0 ? (
           sessions.map((session) => {
-            // Safely get first user message as title
-            const messages = Array.isArray(session.messages) ? session.messages : [];
-            const firstMessage = messages.find(m => m.role === 'user');
-            const title = firstMessage?.content?.substring(0, 60) || "New Chat";
-            const displayTitle = title.length > 60 ? title + "..." : title;
-            
+            // Use title from backend, fallback to first user message if no title
+            let displayTitle = session.title || "New Chat";
+
+            // Fallback: If no title and messages exist, use first user message
+            if (!session.title) {
+              const messages = Array.isArray(session.messages) ? session.messages : [];
+              const firstMessage = messages.find(m => m.role === 'user');
+              if (firstMessage?.content) {
+                const content = firstMessage.content.substring(0, 60);
+                displayTitle = content.length === 60 ? content + "..." : content;
+              }
+            }
+
             return (
               <button
                 key={session.sessionId || session._id}
