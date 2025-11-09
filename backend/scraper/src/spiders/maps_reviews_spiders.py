@@ -746,50 +746,106 @@ class MapsReviewsSpider(scrapy.Spider):
                 self.logger.debug(f"Skipping review with empty text by {reviewer_name}")
                 return None
 
-            # Detect original language - check for "See original" or translation indicators
+            # Detect original language and get translated text if available
             original_language = None
             is_translated = False
+            translated_text = None
 
             try:
-                # Look for "See original" button or translation indicators
-                # Google Maps shows these when a review is translated
+                # Look for translation toggle button
+                # Google Maps shows these when a review can be translated
                 translation_button_selectors = [
-                    'button[aria-label*="See original"]',
-                    'button[aria-label*="Lihat versi asli"]',  # Indonesian
+                    'button[aria-label*="Translated"]',  # English - "Translated by Google"
+                    'button[aria-label*="See original"]',  # English
+                    'button[aria-label*="Lihat terjemahan"]',  # Indonesian - "See translation"
+                    'button[aria-label*="Lihat versi asli"]',  # Indonesian - "See original"
                     'button[aria-label*="Lihat asli"]',  # Indonesian (alternative)
-                    'button[aria-label*="Ver original"]',  # Spanish
+                    'button[aria-label*="Diterjemahkan"]',  # Indonesian - "Translated"
+                    'button[aria-label*="Ver traducción"]',  # Spanish - "See translation"
+                    'button[aria-label*="Ver original"]',  # Spanish - "See original"
+                    'button[aria-label*="Voir la traduction"]',  # French
                     'button[aria-label*="Voir l\'original"]',  # French
+                    'button[aria-label*="Übersetzung ansehen"]',  # German
                     'button[aria-label*="Original ansehen"]',  # German
+                    'button[aria-label*="Vedi traduzione"]',  # Italian
                     'button[aria-label*="Vedi originale"]',  # Italian
-                    'button:has-text("See original")',
-                    'button:has-text("Lihat versi asli")',  # Indonesian
-                    'button:has-text("Lihat asli")',  # Indonesian (alternative)
+                    'button.kyuRq.fontTitleSmall',  # Class-based selector
                 ]
 
-                # Check if there's a translation button/indicator
+                translation_button = None
+                # Check if there's a translation button
                 for selector in translation_button_selectors:
                     translation_button = await review_elem.query_selector(selector)
                     if translation_button:
-                        is_translated = True
-                        # Try to extract the original language from aria-label or text
+                        # Get the button's aria-label to understand current state
                         aria_label = await translation_button.get_attribute('aria-label')
+                        button_text = await translation_button.inner_text()
+
+                        self.logger.debug(f"Found translation button: {aria_label or button_text}")
+
+                        # Try to extract the original language from aria-label
                         if aria_label:
-                            # Try to extract language name from aria-label
-                            # Examples: "See original (English)", "Lihat asli (Jepang)"
-                            lang_match = re.search(r'\(([^)]+)\)', aria_label)
+                            # Examples: "Translated by Google (Original in Japanese)", "Lihat asli (Jepang)"
+                            lang_match = re.search(r'\((?:Original in |Asli dalam )?([^)]+)\)', aria_label)
                             if lang_match:
                                 original_language = lang_match.group(1)
 
-                        self.logger.debug(f"Review is translated, original language: {original_language or 'Unknown'}")
+                        # Click the button to toggle translation
+                        try:
+                            # Get current text before clicking
+                            current_text = review_text
+
+                            # Click to toggle
+                            await translation_button.click()
+                            await translation_button.evaluate('el => el.blur()')  # Remove focus to prevent issues
+
+                            # Wait for translation to appear
+                            await review_elem.evaluate('el => new Promise(resolve => setTimeout(resolve, 300))')
+
+                            # Get the new text after clicking
+                            review_text_elem_after = await review_elem.query_selector('span.wiI7pd')
+                            if review_text_elem_after:
+                                toggled_text = await review_text_elem_after.inner_text()
+
+                                # Determine which is original and which is translated
+                                # Check button state after click
+                                aria_label_after = await translation_button.get_attribute('aria-label')
+
+                                # If button now says "See original", we're viewing translation
+                                if aria_label_after and any(phrase in aria_label_after.lower() for phrase in ['see original', 'lihat asli', 'lihat versi asli', 'ver original', 'voir l\'original']):
+                                    # Current view is translated
+                                    translated_text = toggled_text
+                                    is_translated = True
+                                    # Click again to get original
+                                    await translation_button.click()
+                                    await translation_button.evaluate('el => el.blur()')
+                                    await review_elem.evaluate('el => new Promise(resolve => setTimeout(resolve, 300))')
+                                    review_text_elem_final = await review_elem.query_selector('span.wiI7pd')
+                                    if review_text_elem_final:
+                                        review_text = await review_text_elem_final.inner_text()
+                                # If button now says "See translation", we're viewing original
+                                elif aria_label_after and any(phrase in aria_label_after.lower() for phrase in ['translated', 'diterjemahkan', 'traducido', 'traduit']):
+                                    # Current view is original, previous was translated
+                                    translated_text = current_text
+                                    review_text = toggled_text
+                                    is_translated = True
+                                else:
+                                    # Unable to determine, use current state
+                                    translated_text = toggled_text if toggled_text != current_text else None
+                                    is_translated = translated_text is not None
+
+                        except Exception as e:
+                            self.logger.debug(f"Error clicking translation button: {e}")
+
                         break
 
-                # If not translated, it's in the same language as the interface (Indonesian in this case)
-                if not is_translated:
-                    original_language = 'Indonesian'
+                # If no translation button found, review is in the interface language
+                if not translation_button:
+                    original_language = 'Same as interface language'
+                    is_translated = False
 
             except Exception as e:
-                self.logger.debug(f"Error detecting language: {e}")
-                # Default to unknown if we can't detect
+                self.logger.debug(f"Error handling translation: {e}")
                 original_language = 'Unknown'
                 is_translated = False
 
@@ -911,6 +967,7 @@ class MapsReviewsSpider(scrapy.Spider):
                 'reviewer_name': reviewer_name.strip() if reviewer_name else 'Anonymous',
                 'rating': rating,
                 'review_text': review_text.strip() if review_text else '',
+                'translated_text': translated_text.strip() if translated_text else None,
                 'review_date': review_date,
                 'original_language': original_language,
                 'is_translated': is_translated,
