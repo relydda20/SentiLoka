@@ -106,13 +106,17 @@ class MapsReviewsSpider(scrapy.Spider):
     async def start(self):
         """Generate initial requests for all URLs (async version for Scrapy 2.13+)"""
         for url in self.urls:
+            # Add Indonesian language parameter
+            if '?' in url:
+                if 'hl=' not in url:
+                    url = url + '&hl=id'
+            else:
+                url = url + '?hl=id'
+
             # Make sure we're on the reviews tab
             if 'reviews' not in url.lower():
                 # Add reviews filter to URL
-                if '?' in url:
-                    url = url + '&reviews=true'
-                else:
-                    url = url + '?reviews=true'
+                url = url + '&reviews=true'
 
             yield scrapy.Request(
                 url=url,

@@ -89,7 +89,7 @@ DOWNLOAD_HANDLERS = {
 PLAYWRIGHT_BROWSER_TYPE = "chromium"  # or "firefox" or "webkit"
 
 PLAYWRIGHT_LAUNCH_OPTIONS = {
-    "headless": True,  # Set to False for debugging
+    "headless": False,  # Set to False for debugging
     "timeout": 60000,  # 60 seconds
     # Uncomment below for debugging
     # "slowMo": 1000,  # Slow down by 1 second

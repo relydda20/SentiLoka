@@ -490,64 +490,76 @@ export const chatWithBot = async (req, res) => {
     // STEP 5: Build comprehensive context for AI (multi-location aware)
     const locationNames = locations.map((l) => l.name).join(", ");
     const comprehensiveContext = `
-=== COMPREHENSIVE REVIEW ANALYSIS ===
+## OVERVIEW
+      You are analyzing multi-location customer review data for a business.  
+      Below is a structured summary of all available review statistics and insights.
 
-🏢 LOCATIONS ANALYZED: ${locationNames}
-Total Locations: ${locations.length}
+      ## LOCATIONS
+      Total Locations: ${locations.length}
+      Location Names: ${locationNames}
 
-📊 OVERALL STATISTICS ACROSS ALL LOCATIONS:
-- Total Reviews Analyzed: ${allReviews.length}
-- Average Rating: ${averageRating}/5 stars
-- Sentiment Distribution:
-  * Positive: ${sentimentCounts.positive} reviews (${((sentimentCounts.positive / allReviews.length) * 100).toFixed(1)}%)
-  * Negative: ${sentimentCounts.negative} reviews (${((sentimentCounts.negative / allReviews.length) * 100).toFixed(1)}%)
-  * Neutral: ${sentimentCounts.neutral} reviews (${((sentimentCounts.neutral / allReviews.length) * 100).toFixed(1)}%)
+      ## GLOBAL REVIEW STATISTICS
+      - Total Reviews: ${allReviews.length}
+      - Average Rating: ${averageRating}/5
+      - Sentiment Breakdown:
+        - Positive: ${sentimentCounts.positive} reviews (${((sentimentCounts.positive / allReviews.length) * 100).toFixed(1)}%)
+        - Neutral: ${sentimentCounts.neutral} reviews (${((sentimentCounts.neutral / allReviews.length) * 100).toFixed(1)}%)
+        - Negative: ${sentimentCounts.negative} reviews (${((sentimentCounts.negative / allReviews.length) * 100).toFixed(1)}%)
 
-⭐ RATING BREAKDOWN:
-- 5 stars: ${ratingCounts[5] || 0} reviews
-- 4 stars: ${ratingCounts[4] || 0} reviews
-- 3 stars: ${ratingCounts[3] || 0} reviews
-- 2 stars: ${ratingCounts[2] || 0} reviews
-- 1 star: ${ratingCounts[1] || 0} reviews
+      ## RATING DISTRIBUTION
+      {
+        "5_stars": ${ratingCounts[5] || 0},
+        "4_stars": ${ratingCounts[4] || 0},
+        "3_stars": ${ratingCounts[3] || 0},
+        "2_stars": ${ratingCounts[2] || 0},
+        "1_star": ${ratingCounts[1] || 0}
+      }
 
-📝 COMBINED SUMMARY OF ALL REVIEWS:
-${combinedSummary}
+      ## REVIEW SUMMARY
+      ${combinedSummary}
 
-🔑 TOP KEYWORDS MENTIONED:
-${topKeywords.join(", ")}
+      ## KEY INSIGHTS
+      - Top Keywords: [${topKeywords.map(k => `"${k}"`).join(", ")}]
+      - Main Topics: [${topTopics.map(t => `"${t}"`).join(", ")}]
 
-📌 MAIN TOPICS DISCUSSED:
-${topTopics.join(", ")}
+      ## NOTE
+      This structured context represents aggregated insights across all analyzed locations.  
+      Use it as factual reference when generating insights, identifying trends, or answering questions about customer sentiment, performance, or business strategy.
+
 `;
 
     // STEP 6: Create AI messages with full context (multi-location aware)
     const messages = [
       {
         role: "system",
-        content: `You are an intelligent customer insights chatbot with deep knowledge of customer reviews.
+        content: `You are an intelligent customer insights chatbot acting as a business consultant with deep expertise in analyzing customer reviews and behavior. 
 
-You have analyzed ${allReviews.length} customer reviews from ${locations.length} location(s): ${locationNames}
+          ## General 
+          - Your task is to interpret and analyze customer review data to provide actionable business insights. 
+          - You have analyzed ${allReviews.length} customer reviews from ${locations.length} location(s): ${locationNames} and have access to: 
+            - Combined summary of all reviews - Sentiment analysis (positive/negative/neutral breakdown) 
+            - Rating statistics (1-5 stars) 
+            - Most frequently mentioned keywords 
+            - Common topics and emerging themes 
+          - Use the knowledge base below to guide your answers. 
+          - Respond conversationally and insightfully, but always grounded in the actual review data. 
+          - Be data-driven and strategic — think like a consultant helping a company improve customer satisfaction and retention. 
 
-You have access to:
-- Combined summary of all reviews
-- Sentiment analysis (positive/negative/neutral breakdown)
-- Rating statistics (1-5 stars)
-- Most frequently mentioned keywords
-- Common topics and themes
+          ## Your Knowledge Base 
+          ${comprehensiveContext} 
 
-YOUR KNOWLEDGE BASE:
-${comprehensiveContext}
+          ## Guidelines for Responses 
+          - Always ground your answers in the provided review data 
+          - Use specific statistics and insights whenever possible 
+          - Keep responses conversational, helpful, and insight-driven 
+          - Provide strategic recommendations supported by data 
+          - When discussing trends, highlight observable patterns in sentiment, ratings, or keywords 
+          - If information is insufficient, state that clearly and suggest what additional data would help 
+          - Avoid assumptions not supported by the review data 
+          - Maintain a tone that is professional yet approachable, analytical but easy to understand 
 
-GUIDELINES FOR RESPONSES:
-- Answer questions based on the review data provided
-- Use specific statistics and numbers when relevant
-- Be conversational, helpful, and insightful
-- If asked about trends, identify patterns from the data
-- If asked for recommendations, base them on the review insights
-- If you don't have enough information, say so honestly
-- Always ground your responses in the actual review data
-
-TONE: Professional yet friendly, data-driven but conversational`,
+          ## Output Tone 
+          Professional, friendly, and data-driven with a focus on actionable business insights.`,
       },
     ];
 
