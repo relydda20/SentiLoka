@@ -1,60 +1,79 @@
-# Stage 1: Python dependencies
-FROM python:3.12-slim as python-builder
+# Use Debian-based Node.js (NOT Alpine - Playwright doesn't work well on Alpine)
+FROM node:20-slim
 
 WORKDIR /app
 
-# Install Python dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Install Playwright and browsers
-RUN playwright install --with-deps chromium
-
-# Stage 2: Node.js application
-FROM node:20-alpine
-
-WORKDIR /app
-
-# Install Python runtime and dependencies
-RUN apk add --no-cache \
+# Install system dependencies for Python, Scrapy, and Playwright
+RUN apt-get update && apt-get install -y \
     python3 \
-    py3-pip \
-    chromium \
-    chromium-chromedriver \
-    nss \
-    freetype \
-    harfbuzz \
+    python3-pip \
+    python3-venv \
+    wget \
     ca-certificates \
-    ttf-freefont
+    fonts-liberation \
+    libasound2 \
+    libatk-bridge2.0-0 \
+    libatk1.0-0 \
+    libatspi2.0-0 \
+    libcairo2 \
+    libcups2 \
+    libdbus-1-3 \
+    libdrm2 \
+    libgbm1 \
+    libglib2.0-0 \
+    libgtk-3-0 \
+    libnspr4 \
+    libnss3 \
+    libpango-1.0-0 \
+    libx11-6 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxext6 \
+    libxfixes3 \
+    libxrandr2 \
+    xdg-utils \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy Python environment from builder
-COPY --from=python-builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
-COPY --from=python-builder /usr/local/bin /usr/local/bin
-COPY --from=python-builder /root/.cache/ms-playwright /root/.cache/ms-playwright
+# Create Python virtual environment (same name as local development)
+RUN python3 -m venv python_env
 
-# Copy package files
+# Copy requirements file
+COPY requirements.txt .
+
+# Install Python packages in virtual environment
+# Using the venv's pip directly to ensure packages are installed in the right place
+RUN python_env/bin/pip install --upgrade pip && \
+    python_env/bin/pip install --no-cache-dir -r requirements.txt
+
+# Install Playwright browsers in the virtual environment
+RUN python_env/bin/playwright install chromium && \
+    python_env/bin/playwright install-deps chromium
+
+# Update PATH to use virtual environment by default
+ENV PATH="/app/python_env/bin:$PATH"
+
+# Copy Node.js package files
 COPY package*.json ./
 
 # Install Node.js dependencies
-# Use npm install instead of npm ci for flexibility
 RUN npm install --omit=dev
 
-# Copy backend source
+# Copy all application source code
 COPY . .
 
 # Create temp directory for scraper outputs
 RUN mkdir -p temp && chmod 777 temp
 
-# Set environment for Playwright
+# Set Python environment variables
+ENV PYTHONUNBUFFERED=1
 ENV PLAYWRIGHT_BROWSERS_PATH=/root/.cache/ms-playwright
-ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 
-# Expose port
+# Expose application port
 EXPOSE 8080
 
-# Health check
+# Health check endpoint
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
   CMD node -e "require('http').get('http://localhost:8080/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
 
-# Start application
+# Start the application
 CMD ["node", "src/server.js"]
