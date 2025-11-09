@@ -18,18 +18,20 @@ import reviewRoutes from "./routes/review.routes.js";
 
 const app = express();
 
+// ============================================
+// TRUST PROXY CONFIGURATION (MUST BE FIRST)
+// ============================================
+// Trust DigitalOcean's proxy for rate limiting and IP detection
+app.set('trust proxy', 1);
+
 // Configure Passport strategies
 configurePassport();
 
 // CORS configuration (must be before other middleware)
 app.use(
   cors({
-    origin: [
-      process.env.FRONTEND_URL || "http://localhost:5173",
-      "https://your-app.vercel.app", // Add after frontend deployment
-      /\.vercel\.app$/, // Allow all Vercel preview deployments
-    ],
-    credentials: true,
+    origin: process.env.FRONTEND_URL || "http://localhost:5173",
+    credentials: true, // Allow cookies to be sent/received
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allowedHeaders: ["Content-Type", "Authorization"],
     exposedHeaders: ["set-cookie"],
