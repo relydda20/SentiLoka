@@ -2,6 +2,8 @@
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
+import passport from "./config/passport.config.js";
+import { configurePassport } from "./config/passport.config.js";
 
 // API routes
 import authRoutes from "./routes/auth.routes.js";
@@ -22,6 +24,9 @@ const app = express();
 // Trust DigitalOcean's proxy for rate limiting and IP detection
 app.set('trust proxy', 1);
 
+// Configure Passport strategies
+configurePassport();
+
 // CORS configuration (must be before other middleware)
 app.use(
   cors({
@@ -39,6 +44,9 @@ app.use(express.urlencoded({ extended: true }));
 
 // Cookie parser middleware
 app.use(cookieParser());
+
+// Initialize Passport middleware
+app.use(passport.initialize());
 
 // Request logger middleware (for debugging)
 app.use((req, res, next) => {
