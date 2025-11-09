@@ -2,7 +2,7 @@
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
-import passport from "passport";
+import passport from "./config/passport.config.js";
 import { configurePassport } from "./config/passport.config.js";
 
 // API routes
