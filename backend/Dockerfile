@@ -1,24 +1,17 @@
-# Stage 1: Python dependencies
-FROM python:3.12-slim as python-builder
-
-WORKDIR /app
-
-# Install Python dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Install Playwright and browsers
-RUN playwright install --with-deps chromium
-
-# Stage 2: Node.js application
+# Use Node.js as base (we'll install Python in the same image)
 FROM node:20-alpine
 
 WORKDIR /app
 
-# Install Python runtime and dependencies
+# Install system dependencies for Python, Scrapy, and Playwright
 RUN apk add --no-cache \
     python3 \
+    python3-dev \
     py3-pip \
+    gcc \
+    musl-dev \
+    libffi-dev \
+    openssl-dev \
     chromium \
     chromium-chromedriver \
     nss \
@@ -27,25 +20,30 @@ RUN apk add --no-cache \
     ca-certificates \
     ttf-freefont
 
-# Copy Python environment from builder
-COPY --from=python-builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
-COPY --from=python-builder /usr/local/bin /usr/local/bin
-COPY --from=python-builder /root/.cache/ms-playwright /root/.cache/ms-playwright
+# Copy Python requirements first
+COPY requirements.txt .
 
-# Copy package files
+# Install Python dependencies directly (not in a separate stage)
+RUN pip3 install --break-system-packages --no-cache-dir -r requirements.txt
+
+# Install Playwright browsers
+RUN pip3 install --break-system-packages playwright && \
+    playwright install chromium
+
+# Copy package files for Node.js
 COPY package*.json ./
 
 # Install Node.js dependencies
-# Use npm install instead of npm ci for flexibility
 RUN npm install --omit=dev
 
-# Copy backend source
+# Copy application source
 COPY . .
 
-# Create temp directory for scraper outputs
+# Create temp directory with proper permissions
 RUN mkdir -p temp && chmod 777 temp
 
-# Set environment for Playwright
+# Set Python environment variables
+ENV PYTHONUNBUFFERED=1
 ENV PLAYWRIGHT_BROWSERS_PATH=/root/.cache/ms-playwright
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 
