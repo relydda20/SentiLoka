@@ -1,36 +1,50 @@
-# Use Node.js as base (we'll install Python in the same image)
-FROM node:20-alpine
+# Use Debian-based Node.js (better compatibility with Playwright)
+FROM node:20-slim
 
 WORKDIR /app
 
-# Install system dependencies for Python, Scrapy, and Playwright
-RUN apk add --no-cache \
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
     python3 \
-    python3-dev \
-    py3-pip \
-    gcc \
-    musl-dev \
-    libffi-dev \
-    openssl-dev \
+    python3-pip \
+    python3-venv \
     chromium \
-    chromium-chromedriver \
-    nss \
-    freetype \
-    harfbuzz \
+    chromium-driver \
+    fonts-liberation \
+    libasound2 \
+    libatk-bridge2.0-0 \
+    libatk1.0-0 \
+    libatspi2.0-0 \
+    libcups2 \
+    libdbus-1-3 \
+    libdrm2 \
+    libgbm1 \
+    libgtk-3-0 \
+    libnspr4 \
+    libnss3 \
+    libwayland-client0 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxfixes3 \
+    libxkbcommon0 \
+    libxrandr2 \
+    xdg-utils \
+    wget \
     ca-certificates \
-    ttf-freefont
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy Python requirements first
+# Copy Python requirements
 COPY requirements.txt .
 
-# Install Python dependencies directly (not in a separate stage)
+# Install Python dependencies
 RUN pip3 install --break-system-packages --no-cache-dir -r requirements.txt
 
-# Install Playwright browsers
+# Install Playwright and browsers
 RUN pip3 install --break-system-packages playwright && \
-    playwright install chromium
+    playwright install chromium && \
+    playwright install-deps chromium
 
-# Copy package files for Node.js
+# Copy Node.js package files
 COPY package*.json ./
 
 # Install Node.js dependencies
@@ -39,13 +53,12 @@ RUN npm install --omit=dev
 # Copy application source
 COPY . .
 
-# Create temp directory with proper permissions
+# Create temp directory
 RUN mkdir -p temp && chmod 777 temp
 
-# Set Python environment variables
+# Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV PLAYWRIGHT_BROWSERS_PATH=/root/.cache/ms-playwright
-ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 
 # Expose port
 EXPOSE 8080
