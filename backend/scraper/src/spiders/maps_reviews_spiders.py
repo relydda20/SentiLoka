@@ -746,6 +746,53 @@ class MapsReviewsSpider(scrapy.Spider):
                 self.logger.debug(f"Skipping review with empty text by {reviewer_name}")
                 return None
 
+            # Detect original language - check for "See original" or translation indicators
+            original_language = None
+            is_translated = False
+
+            try:
+                # Look for "See original" button or translation indicators
+                # Google Maps shows these when a review is translated
+                translation_button_selectors = [
+                    'button[aria-label*="See original"]',
+                    'button[aria-label*="Lihat versi asli"]',  # Indonesian
+                    'button[aria-label*="Lihat asli"]',  # Indonesian (alternative)
+                    'button[aria-label*="Ver original"]',  # Spanish
+                    'button[aria-label*="Voir l\'original"]',  # French
+                    'button[aria-label*="Original ansehen"]',  # German
+                    'button[aria-label*="Vedi originale"]',  # Italian
+                    'button:has-text("See original")',
+                    'button:has-text("Lihat versi asli")',  # Indonesian
+                    'button:has-text("Lihat asli")',  # Indonesian (alternative)
+                ]
+
+                # Check if there's a translation button/indicator
+                for selector in translation_button_selectors:
+                    translation_button = await review_elem.query_selector(selector)
+                    if translation_button:
+                        is_translated = True
+                        # Try to extract the original language from aria-label or text
+                        aria_label = await translation_button.get_attribute('aria-label')
+                        if aria_label:
+                            # Try to extract language name from aria-label
+                            # Examples: "See original (English)", "Lihat asli (Jepang)"
+                            lang_match = re.search(r'\(([^)]+)\)', aria_label)
+                            if lang_match:
+                                original_language = lang_match.group(1)
+
+                        self.logger.debug(f"Review is translated, original language: {original_language or 'Unknown'}")
+                        break
+
+                # If not translated, it's in the same language as the interface (Indonesian in this case)
+                if not is_translated:
+                    original_language = 'Indonesian'
+
+            except Exception as e:
+                self.logger.debug(f"Error detecting language: {e}")
+                # Default to unknown if we can't detect
+                original_language = 'Unknown'
+                is_translated = False
+
             # Review date - extract actual timestamp from DOM
             review_date = 'Unknown'
             review_timestamp = None
@@ -865,6 +912,8 @@ class MapsReviewsSpider(scrapy.Spider):
                 'rating': rating,
                 'review_text': review_text.strip() if review_text else '',
                 'review_date': review_date,
+                'original_language': original_language,
+                'is_translated': is_translated,
                 'scraped_at': datetime.now().isoformat(),
             }
 
