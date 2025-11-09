@@ -21,13 +21,14 @@ const userSchema = new mongoose.Schema(
     },
     image: {
         type: String,
-        required: [true, 'Image URL is required'],
-        match: [/^https?:\/\/.+\.(jpg|jpeg|png|gif)$/, 'Please provide a valid image URL']
+        default: 'https://via.placeholder.com/150.jpg',
+        match: [/^https?:\/\/.+/, 'Please provide a valid image URL']
     },
     description: {
       type: String,
       trim: true,
-      maxlength: [1000, 'Description cannot exceed 1000 characters']
+      maxlength: [1000, 'Description cannot exceed 1000 characters'],
+      default: '',
     },
     email: {
       type: String,
@@ -38,13 +39,32 @@ const userSchema = new mongoose.Schema(
       match: [
         /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/,
         'Please provide a valid email'
-      ]
+      ],
+      index: true
     },
     password: {
       type: String,
-      required: [true, 'Password is required'],
+      required: function() {
+        // Password only required if using email/password auth
+        return this.authProviders.includes('local');
+      },
       minlength: [8, 'Password must be at least 8 characters'],
       select: false
+    },
+    authProviders: {
+      type: [String],
+      enum: ['local', 'google', 'facebook', 'apple'],
+      default: ['local'],
+      required: true
+    },
+    googleId: {
+      type: String,
+      sparse: true,  // Allows null but unique if exists
+      index: true
+    },
+    emailVerified: {
+      type: Boolean,
+      default: false
     },
     subscription: {
       plan: {
@@ -79,8 +99,7 @@ userSchema.virtual('totalLocations', {
 });
 
 
-userSchema.index({ email: 1 });
-userSchema.index({ slug: 1 });
+// Indexes are defined in the schema fields above for email and slug
 userSchema.index({ createdAt: -1 });
 
 

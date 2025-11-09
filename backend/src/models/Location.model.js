@@ -2,20 +2,26 @@ import mongoose from 'mongoose';
 
 const locationSchema = new mongoose.Schema(
   {
-    userId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: [true, 'User ID is required'],
+    slug: {
+      type: String,
+      lowercase: true,
+      trim: true,
       index: true
     },
     placeId: {
       type: String,
       required: [true, 'Place ID is required'],
+      unique: true, // Now globally unique since locations are shared
       index: true
     },
     name: {
       type: String,
       required: [true, 'Business name is required'],
+      trim: true
+    },
+    slug: {
+      type: String,
+      lowercase: true,
       trim: true
     },
     address: {
@@ -31,6 +37,33 @@ const locationSchema = new mongoose.Schema(
       lng: {
         type: Number,
         required: true
+      }
+    },
+    googleMapsUrl: {
+      type: String,
+      required: false,
+      trim: true,
+      validate: {
+        validator: function(v) {
+          // Allow empty string or null
+          if (!v) return true;
+          
+          // Accept all valid Google Maps URL formats:
+          // - https://maps.google.com/?cid=...
+          // - https://www.google.com/maps/place/...
+          // - https://google.com/maps/...
+          // - https://goo.gl/maps/...
+          // - https://maps.app.goo.gl/...
+          const googleMapsPatterns = [
+            /^https?:\/\/(www\.)?maps\.google\.[a-z.]+/i,           // maps.google.com
+            /^https?:\/\/(www\.)?google\.[a-z.]+\/maps/i,           // google.com/maps
+            /^https?:\/\/goo\.gl\/maps/i,                           // goo.gl/maps (shortened)
+            /^https?:\/\/maps\.app\.goo\.gl/i,                      // maps.app.goo.gl (new short URLs)
+          ];
+          
+          return googleMapsPatterns.some(pattern => pattern.test(v));
+        },
+        message: 'Invalid Google Maps URL format. Must be a valid Google Maps link.'
       }
     },
     googleData: {
@@ -94,6 +127,10 @@ const locationSchema = new mongoose.Schema(
       },
       lastCalculated: Date
     },
+    lastAnalyzedAt: {
+      type: Date,
+      default: null
+    },
     sentimentHistory: [
       {
         date: {
@@ -114,8 +151,30 @@ const locationSchema = new mongoose.Schema(
     },
     scrapeStatus: {
       type: String,
-      enum: ['pending', 'scraping', 'completed', 'failed'],
-      default: 'pending'
+      enum: ['idle', 'pending', 'scraping', 'completed', 'failed'],
+      default: 'idle'
+    },
+    scrapeProgress: {
+      percentage: {
+        type: Number,
+        default: 0,
+        min: 0,
+        max: 100
+      },
+      current: {
+        type: Number,
+        default: 0
+      },
+      total: {
+        type: Number,
+        default: 0
+      },
+      estimatedTimeRemaining: {
+        type: Number, // in seconds
+        default: null
+      },
+      startedAt: Date,
+      message: String
     },
     lastScrapeError: {
       message: String,
@@ -124,11 +183,6 @@ const locationSchema = new mongoose.Schema(
     isVerified: {
       type: Boolean,
       default: false
-    },
-    tags: [String],
-    notes: {
-      type: String,
-      maxlength: 1000
     }
   },
   {
@@ -138,9 +192,9 @@ const locationSchema = new mongoose.Schema(
   }
 );
 
-locationSchema.index({ userId: 1, placeId: 1 }, { unique: true });
-locationSchema.index({ userId: 1, slug: 1 }, { unique: true }); // Slug unique per user
-locationSchema.index({ userId: 1, status: 1 });
+// Slug should be globally unique, sparse to allow null values
+locationSchema.index({ slug: 1 }, { unique: true, sparse: true });
+locationSchema.index({ status: 1 });
 locationSchema.index({ 'coordinates.lat': 1, 'coordinates.lng': 1 });
 
 locationSchema.virtual('reviews', {
@@ -157,8 +211,8 @@ locationSchema.pre('save', async function (next) {
 });
 
 locationSchema.methods.generateUniqueSlug = async function () {
-  const name = this.customName || this.name;
-  
+  const name = this.name;
+
   let baseSlug = name
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
@@ -171,8 +225,8 @@ locationSchema.methods.generateUniqueSlug = async function () {
   let slug = baseSlug;
   let counter = 1;
 
-  while (await mongoose.model('Location').findOne({ 
-    userId: this.userId, 
+  // Slug is now globally unique, not per-user
+  while (await mongoose.model('Location').findOne({
     slug,
     _id: { $ne: this._id }
   })) {
@@ -190,11 +244,15 @@ locationSchema.methods.regenerateSlug = async function () {
 };
 
 locationSchema.methods.calculateSentiment = async function () {
-  const Review = mongoose.model('Review');
-  
-  const reviews = await Review.find({ locationId: this._id, isActive: true });
-  
-  if (reviews.length === 0) {
+  const ReviewSummary = mongoose.model('ReviewSummary');
+
+  // Get sentiment data from ReviewSummary model (analyzed reviews)
+  const summaries = await ReviewSummary.find({
+    locationId: this._id,
+    sentiment: { $ne: 'error' }
+  });
+
+  if (summaries.length === 0) {
     this.overallSentiment = {
       positive: 0,
       neutral: 0,
@@ -206,12 +264,12 @@ locationSchema.methods.calculateSentiment = async function () {
     return this.overallSentiment;
   }
 
-  const totalReviews = reviews.length;
-  const positiveCount = reviews.filter(r => r.sentiment === 'positive').length;
-  const negativeCount = reviews.filter(r => r.sentiment === 'negative').length;
-  const neutralCount = reviews.filter(r => r.sentiment === 'neutral').length;
-  
-  const totalRating = reviews.reduce((sum, r) => sum + (r.rating || 0), 0);
+  const totalReviews = summaries.length;
+  const positiveCount = summaries.filter(r => r.sentiment === 'positive').length;
+  const negativeCount = summaries.filter(r => r.sentiment === 'negative').length;
+  const neutralCount = summaries.filter(r => r.sentiment === 'neutral').length;
+
+  const totalRating = summaries.reduce((sum, r) => sum + (r.rating || 0), 0);
   const averageRating = totalRating / totalReviews;
 
   this.overallSentiment = {
@@ -245,13 +303,81 @@ locationSchema.methods.addSentimentHistory = async function () {
   await this.save();
 };
 
+// This method now requires checking the UserLocation junction table
 locationSchema.statics.findByUserAndSlug = async function (userSlug, locationSlug) {
   const User = mongoose.model('User');
+  const UserLocation = mongoose.model('UserLocation');
+
   const user = await User.findOne({ slug: userSlug });
-  
   if (!user) return null;
-  
-  return await this.findOne({ userId: user._id, slug: locationSlug });
+
+  const location = await this.findOne({ slug: locationSlug });
+  if (!location) return null;
+
+  // Check if user has access to this location
+  const userLocation = await UserLocation.findOne({
+    userId: user._id,
+    locationId: location._id,
+    status: 'active'
+  });
+
+  return userLocation ? location : null;
+};
+
+// Scraping progress methods
+locationSchema.methods.startScraping = async function(totalReviews = 0) {
+  this.scrapeStatus = 'scraping';
+  this.scrapeProgress = {
+    percentage: 0,
+    current: 0,
+    total: totalReviews,
+    estimatedTimeRemaining: null,
+    startedAt: new Date(),
+    message: 'Initializing scraper...'
+  };
+  await this.save();
+  return this.scrapeProgress;
+};
+
+locationSchema.methods.updateScrapeProgress = async function(current, total, message = null) {
+  this.scrapeProgress.current = current;
+  this.scrapeProgress.total = total;
+  this.scrapeProgress.percentage = total > 0 ? Math.round((current / total) * 100) : 0;
+
+  if (message) {
+    this.scrapeProgress.message = message;
+  }
+
+  // Calculate estimated time remaining
+  if (this.scrapeProgress.startedAt && current > 0) {
+    const elapsedMs = Date.now() - this.scrapeProgress.startedAt.getTime();
+    const msPerItem = elapsedMs / current;
+    const remainingItems = total - current;
+    this.scrapeProgress.estimatedTimeRemaining = Math.round((remainingItems * msPerItem) / 1000); // in seconds
+  }
+
+  await this.save();
+  return this.scrapeProgress;
+};
+
+locationSchema.methods.completeScraping = async function(message = 'Scraping completed successfully') {
+  this.scrapeStatus = 'completed';
+  this.scrapeConfig.lastScraped = new Date();
+  this.scrapeProgress.percentage = 100;
+  this.scrapeProgress.estimatedTimeRemaining = 0;
+  this.scrapeProgress.message = message;
+  await this.save();
+  return this.scrapeProgress;
+};
+
+locationSchema.methods.failScraping = async function(errorMessage) {
+  this.scrapeStatus = 'failed';
+  this.lastScrapeError = {
+    message: errorMessage,
+    timestamp: new Date()
+  };
+  this.scrapeProgress.message = `Error: ${errorMessage}`;
+  await this.save();
 };
 
 const Location = mongoose.model('Location', locationSchema);
