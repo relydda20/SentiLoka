@@ -89,7 +89,7 @@ DOWNLOAD_HANDLERS = {
 PLAYWRIGHT_BROWSER_TYPE = "chromium"  # or "firefox" or "webkit"
 
 PLAYWRIGHT_LAUNCH_OPTIONS = {
-    "headless": False,  # Headless is ~2-3x faster
+    "headless": True,  # Headless is ~2-3x faster
     "timeout": 60000,  # 60 seconds
     "args": [
         "--disable-blink-features=AutomationControlled",
