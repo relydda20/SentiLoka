@@ -106,13 +106,17 @@ class MapsReviewsSpider(scrapy.Spider):
     async def start(self):
         """Generate initial requests for all URLs (async version for Scrapy 2.13+)"""
         for url in self.urls:
+            # Add Indonesian language parameter
+            if '?' in url:
+                if 'hl=' not in url:
+                    url = url + '&hl=id'
+            else:
+                url = url + '?hl=id'
+
             # Make sure we're on the reviews tab
             if 'reviews' not in url.lower():
                 # Add reviews filter to URL
-                if '?' in url:
-                    url = url + '&reviews=true'
-                else:
-                    url = url + '?reviews=true'
+                url = url + '&reviews=true'
 
             yield scrapy.Request(
                 url=url,
@@ -133,12 +137,29 @@ class MapsReviewsSpider(scrapy.Spider):
         """Parse the Google Maps page and extract reviews"""
         page = response.meta['playwright_page']
         place_url = response.meta['place_url']
-        
+
         try:
+            # ANTI-POPUP: Prevent new tabs/windows from opening (profiles, images, etc.)
+            await page.evaluate('''
+                () => {
+                    // Override window.open to prevent popups
+                    window.open = function() { return null; };
+
+                    // Prevent all links from opening in new tabs
+                    document.addEventListener('click', function(e) {
+                        const target = e.target.closest('a');
+                        if (target && (target.target === '_blank' || target.hasAttribute('target'))) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                        }
+                    }, true);
+                }
+            ''')
+
             # Extract place name
             place_name = await page.query_selector('h1')
             place_name_text = await place_name.inner_text() if place_name else 'Unknown'
-            
+
             self.logger.info(f"Scraping reviews for: {place_name_text}")
             
             # Try to find and click on the reviews tab/button
@@ -169,7 +190,8 @@ class MapsReviewsSpider(scrapy.Spider):
                         if reviews_button:
                             self.logger.info(f"Using cached reviews button selector")
                             await reviews_button.click()
-                            await page.wait_for_timeout(3000)
+                            # SPEED UP: Reduced wait time from 3000ms to 800ms
+                            await page.wait_for_timeout(800)
                             self.logger.info("Clicked on reviews tab")
                     except Exception as e:
                         # Cached selector failed, clear it and try all
@@ -185,7 +207,8 @@ class MapsReviewsSpider(scrapy.Spider):
                                 # Cache the working selector
                                 self.cached_selectors['reviews_button'] = selector
                                 await reviews_button.click()
-                                await page.wait_for_timeout(3000)
+                                # SPEED UP: Reduced wait time from 3000ms to 800ms
+                                await page.wait_for_timeout(800)
                                 self.logger.info("Clicked on reviews tab")
                                 break
                         except Exception as e:
@@ -199,7 +222,8 @@ class MapsReviewsSpider(scrapy.Spider):
                         if len(tabs) >= 2:
                             # Usually: [0] = Overview/Ringkasan, [1] = Reviews/Ulasan, [2] = About/Tentang
                             await tabs[1].click()
-                            await page.wait_for_timeout(3000)
+                            # SPEED UP: Reduced wait time from 3000ms to 800ms
+                            await page.wait_for_timeout(800)
                             self.logger.info("Clicked on second tab (likely reviews)")
                         else:
                             self.logger.warning("Could not find tabs, assuming already on reviews")
@@ -208,8 +232,8 @@ class MapsReviewsSpider(scrapy.Spider):
             except Exception as e:
                 self.logger.warning(f"Error clicking reviews tab: {e}")
 
-            # Wait a bit for reviews to load
-            await page.wait_for_timeout(3000)
+            # SPEED UP: Reduced wait time from 3000ms to 500ms - reviews load fast
+            await page.wait_for_timeout(500)
 
             # Try to change sort order to "Newest" to get all reviews more reliably
             try:
@@ -224,13 +248,15 @@ class MapsReviewsSpider(scrapy.Spider):
                         sort_button = await page.query_selector(selector)
                         if sort_button:
                             await sort_button.click()
-                            await page.wait_for_timeout(1000)
+                            # SPEED UP: Reduced from 1000ms to 400ms
+                            await page.wait_for_timeout(400)
 
                             # Click "Newest" option
                             newest_option = await page.query_selector('div[data-index="1"]')
                             if newest_option:
                                 await newest_option.click()
-                                await page.wait_for_timeout(2000)
+                                # SPEED UP: Reduced from 2000ms to 600ms
+                                await page.wait_for_timeout(600)
                                 self.logger.info("Changed sort order to Newest")
                                 break
                     except:
@@ -298,6 +324,8 @@ class MapsReviewsSpider(scrapy.Spider):
         - Smart scroll detection to avoid unnecessary scrolls
         - Parallel review extraction using asyncio.gather
         - Cached selectors to avoid repeated selector attempts
+        - ONLY scrapes from the specific reviews container (blue highlighted area)
+        - Prevents accidental clicks on profiles/images
         """
         scrollable_selectors = [
             'div.m6QErb.DxyBCb.kA9KIf.dS8AEf.XiKgde',
@@ -316,23 +344,76 @@ class MapsReviewsSpider(scrapy.Spider):
         working_scrollable_selector = self.cached_selectors.get('scrollable_div')
         previous_scroll_height = 0
 
+        # ANTI-CLICK: Disable pointer events on profile images and links to prevent accidental navigation
+        await page.evaluate('''
+            () => {
+                // Add CSS to disable clicks on profile pictures and images
+                const style = document.createElement('style');
+                style.textContent = `
+                    img[role="img"],
+                    a[href*="/contrib/"],
+                    a[data-item-id*="authority"],
+                    div[role="img"],
+                    button[aria-label*="photo"],
+                    button[aria-label*="Photo"] {
+                        pointer-events: none !important;
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+        ''')
+
         while scroll_count < max_scrolls:
             try:
-                # Get current reviews on page
-                review_elements = await page.query_selector_all('div[data-review-id]')
-                if not review_elements:
-                    review_elements = await page.query_selector_all('div.jftiEf')
+                # IMPORTANT: Only get reviews from the specific scrollable container
+                # Find the scrollable container first
+                scrollable_container = None
+                for selector in scrollable_selectors:
+                    scrollable_container = await page.query_selector(selector)
+                    if scrollable_container:
+                        working_scrollable_selector = selector
+                        break
 
-                # OPTIMIZATION 2 & 3: Expand "More" buttons with reduced wait time (100ms instead of 200ms)
-                await page.evaluate('''
-                    () => {
-                        const buttons = Array.from(document.querySelectorAll('button[aria-label="See more"], button[aria-label*="more"], button[aria-label*="More"]'));
-                        buttons.forEach(btn => {
-                            try { btn.click(); } catch (e) {}
-                        });
-                    }
-                ''')
-                await page.wait_for_timeout(100)  # REDUCED: 200ms → 100ms
+                # Get current reviews on page - ONLY from within the scrollable container
+                review_elements = []
+                if scrollable_container:
+                    # Query reviews ONLY within the scrollable container
+                    review_elements = await scrollable_container.query_selector_all('div[data-review-id]')
+                    if not review_elements:
+                        review_elements = await scrollable_container.query_selector_all('div.jftiEf')
+                else:
+                    # Fallback: query from page but log warning
+                    self.logger.warning("Could not find scrollable container, using page-level query")
+                    review_elements = await page.query_selector_all('div[data-review-id]')
+                    if not review_elements:
+                        review_elements = await page.query_selector_all('div.jftiEf')
+
+                # OPTIMIZATION 2 & 3: Expand "More" buttons with reduced wait time
+                # IMPORTANT: Only expand buttons within the scrollable container
+                if scrollable_container:
+                    await page.evaluate(f'''
+                        () => {{
+                            const container = document.querySelector('{working_scrollable_selector}');
+                            if (container) {{
+                                const buttons = Array.from(container.querySelectorAll('button[aria-label="See more"], button[aria-label*="more"], button[aria-label*="More"]'));
+                                buttons.forEach(btn => {{
+                                    try {{ btn.click(); }} catch (e) {{}}
+                                }});
+                            }}
+                        }}
+                    ''')
+                else:
+                    # Fallback to page-level
+                    await page.evaluate('''
+                        () => {
+                            const buttons = Array.from(document.querySelectorAll('button[aria-label="See more"], button[aria-label*="more"], button[aria-label*="More"]'));
+                            buttons.forEach(btn => {
+                                try { btn.click(); } catch (e) {}
+                            });
+                        }
+                    ''')
+                # SPEED UP: Reduced from 100ms to 50ms
+                await page.wait_for_timeout(50)
 
                 # OPTIMIZATION 4: Parallel review extraction
                 # Collect new reviews first, then process them in parallel
@@ -426,8 +507,8 @@ class MapsReviewsSpider(scrapy.Spider):
                 # Fallback scroll
                 await page.evaluate('window.scrollTo(0, document.body.scrollHeight)')
 
-                # OPTIMIZATION 2: Reduced wait time (150ms instead of 300ms)
-                await page.wait_for_timeout(150)  # REDUCED: 300ms → 150ms
+                # SPEED UP: Reduced wait time to 80ms for faster scraping
+                await page.wait_for_timeout(80)  # REDUCED: 300ms → 150ms → 80ms
 
                 scroll_count += 1
 
@@ -665,6 +746,109 @@ class MapsReviewsSpider(scrapy.Spider):
                 self.logger.debug(f"Skipping review with empty text by {reviewer_name}")
                 return None
 
+            # Detect original language and get translated text if available
+            original_language = None
+            is_translated = False
+            translated_text = None
+
+            try:
+                # Look for translation toggle button
+                # Google Maps shows these when a review can be translated
+                translation_button_selectors = [
+                    'button[aria-label*="Translated"]',  # English - "Translated by Google"
+                    'button[aria-label*="See original"]',  # English
+                    'button[aria-label*="Lihat terjemahan"]',  # Indonesian - "See translation"
+                    'button[aria-label*="Lihat versi asli"]',  # Indonesian - "See original"
+                    'button[aria-label*="Lihat asli"]',  # Indonesian (alternative)
+                    'button[aria-label*="Diterjemahkan"]',  # Indonesian - "Translated"
+                    'button[aria-label*="Ver traducción"]',  # Spanish - "See translation"
+                    'button[aria-label*="Ver original"]',  # Spanish - "See original"
+                    'button[aria-label*="Voir la traduction"]',  # French
+                    'button[aria-label*="Voir l\'original"]',  # French
+                    'button[aria-label*="Übersetzung ansehen"]',  # German
+                    'button[aria-label*="Original ansehen"]',  # German
+                    'button[aria-label*="Vedi traduzione"]',  # Italian
+                    'button[aria-label*="Vedi originale"]',  # Italian
+                    'button.kyuRq.fontTitleSmall',  # Class-based selector
+                ]
+
+                translation_button = None
+                # Check if there's a translation button
+                for selector in translation_button_selectors:
+                    translation_button = await review_elem.query_selector(selector)
+                    if translation_button:
+                        # Get the button's aria-label to understand current state
+                        aria_label = await translation_button.get_attribute('aria-label')
+                        button_text = await translation_button.inner_text()
+
+                        self.logger.debug(f"Found translation button: {aria_label or button_text}")
+
+                        # Try to extract the original language from aria-label
+                        if aria_label:
+                            # Examples: "Translated by Google (Original in Japanese)", "Lihat asli (Jepang)"
+                            lang_match = re.search(r'\((?:Original in |Asli dalam )?([^)]+)\)', aria_label)
+                            if lang_match:
+                                original_language = lang_match.group(1)
+
+                        # Click the button to toggle translation
+                        try:
+                            # Get current text before clicking
+                            current_text = review_text
+
+                            # Click to toggle
+                            await translation_button.click()
+                            await translation_button.evaluate('el => el.blur()')  # Remove focus to prevent issues
+
+                            # Wait for translation to appear
+                            await review_elem.evaluate('el => new Promise(resolve => setTimeout(resolve, 300))')
+
+                            # Get the new text after clicking
+                            review_text_elem_after = await review_elem.query_selector('span.wiI7pd')
+                            if review_text_elem_after:
+                                toggled_text = await review_text_elem_after.inner_text()
+
+                                # Determine which is original and which is translated
+                                # Check button state after click
+                                aria_label_after = await translation_button.get_attribute('aria-label')
+
+                                # If button now says "See original", we're viewing translation
+                                if aria_label_after and any(phrase in aria_label_after.lower() for phrase in ['see original', 'lihat asli', 'lihat versi asli', 'ver original', 'voir l\'original']):
+                                    # Current view is translated
+                                    translated_text = toggled_text
+                                    is_translated = True
+                                    # Click again to get original
+                                    await translation_button.click()
+                                    await translation_button.evaluate('el => el.blur()')
+                                    await review_elem.evaluate('el => new Promise(resolve => setTimeout(resolve, 300))')
+                                    review_text_elem_final = await review_elem.query_selector('span.wiI7pd')
+                                    if review_text_elem_final:
+                                        review_text = await review_text_elem_final.inner_text()
+                                # If button now says "See translation", we're viewing original
+                                elif aria_label_after and any(phrase in aria_label_after.lower() for phrase in ['translated', 'diterjemahkan', 'traducido', 'traduit']):
+                                    # Current view is original, previous was translated
+                                    translated_text = current_text
+                                    review_text = toggled_text
+                                    is_translated = True
+                                else:
+                                    # Unable to determine, use current state
+                                    translated_text = toggled_text if toggled_text != current_text else None
+                                    is_translated = translated_text is not None
+
+                        except Exception as e:
+                            self.logger.debug(f"Error clicking translation button: {e}")
+
+                        break
+
+                # If no translation button found, review is in the interface language
+                if not translation_button:
+                    original_language = 'Same as interface language'
+                    is_translated = False
+
+            except Exception as e:
+                self.logger.debug(f"Error handling translation: {e}")
+                original_language = 'Unknown'
+                is_translated = False
+
             # Review date - extract actual timestamp from DOM
             review_date = 'Unknown'
             review_timestamp = None
@@ -783,7 +967,10 @@ class MapsReviewsSpider(scrapy.Spider):
                 'reviewer_name': reviewer_name.strip() if reviewer_name else 'Anonymous',
                 'rating': rating,
                 'review_text': review_text.strip() if review_text else '',
+                'translated_text': translated_text.strip() if translated_text else None,
                 'review_date': review_date,
+                'original_language': original_language,
+                'is_translated': is_translated,
                 'scraped_at': datetime.now().isoformat(),
             }
 
