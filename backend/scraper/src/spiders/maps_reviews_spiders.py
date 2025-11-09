@@ -137,12 +137,29 @@ class MapsReviewsSpider(scrapy.Spider):
         """Parse the Google Maps page and extract reviews"""
         page = response.meta['playwright_page']
         place_url = response.meta['place_url']
-        
+
         try:
+            # ANTI-POPUP: Prevent new tabs/windows from opening (profiles, images, etc.)
+            await page.evaluate('''
+                () => {
+                    // Override window.open to prevent popups
+                    window.open = function() { return null; };
+
+                    // Prevent all links from opening in new tabs
+                    document.addEventListener('click', function(e) {
+                        const target = e.target.closest('a');
+                        if (target && (target.target === '_blank' || target.hasAttribute('target'))) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                        }
+                    }, true);
+                }
+            ''')
+
             # Extract place name
             place_name = await page.query_selector('h1')
             place_name_text = await place_name.inner_text() if place_name else 'Unknown'
-            
+
             self.logger.info(f"Scraping reviews for: {place_name_text}")
             
             # Try to find and click on the reviews tab/button
@@ -173,7 +190,8 @@ class MapsReviewsSpider(scrapy.Spider):
                         if reviews_button:
                             self.logger.info(f"Using cached reviews button selector")
                             await reviews_button.click()
-                            await page.wait_for_timeout(3000)
+                            # SPEED UP: Reduced wait time from 3000ms to 800ms
+                            await page.wait_for_timeout(800)
                             self.logger.info("Clicked on reviews tab")
                     except Exception as e:
                         # Cached selector failed, clear it and try all
@@ -189,7 +207,8 @@ class MapsReviewsSpider(scrapy.Spider):
                                 # Cache the working selector
                                 self.cached_selectors['reviews_button'] = selector
                                 await reviews_button.click()
-                                await page.wait_for_timeout(3000)
+                                # SPEED UP: Reduced wait time from 3000ms to 800ms
+                                await page.wait_for_timeout(800)
                                 self.logger.info("Clicked on reviews tab")
                                 break
                         except Exception as e:
@@ -203,7 +222,8 @@ class MapsReviewsSpider(scrapy.Spider):
                         if len(tabs) >= 2:
                             # Usually: [0] = Overview/Ringkasan, [1] = Reviews/Ulasan, [2] = About/Tentang
                             await tabs[1].click()
-                            await page.wait_for_timeout(3000)
+                            # SPEED UP: Reduced wait time from 3000ms to 800ms
+                            await page.wait_for_timeout(800)
                             self.logger.info("Clicked on second tab (likely reviews)")
                         else:
                             self.logger.warning("Could not find tabs, assuming already on reviews")
@@ -212,8 +232,8 @@ class MapsReviewsSpider(scrapy.Spider):
             except Exception as e:
                 self.logger.warning(f"Error clicking reviews tab: {e}")
 
-            # Wait a bit for reviews to load
-            await page.wait_for_timeout(3000)
+            # SPEED UP: Reduced wait time from 3000ms to 500ms - reviews load fast
+            await page.wait_for_timeout(500)
 
             # Try to change sort order to "Newest" to get all reviews more reliably
             try:
@@ -228,13 +248,15 @@ class MapsReviewsSpider(scrapy.Spider):
                         sort_button = await page.query_selector(selector)
                         if sort_button:
                             await sort_button.click()
-                            await page.wait_for_timeout(1000)
+                            # SPEED UP: Reduced from 1000ms to 400ms
+                            await page.wait_for_timeout(400)
 
                             # Click "Newest" option
                             newest_option = await page.query_selector('div[data-index="1"]')
                             if newest_option:
                                 await newest_option.click()
-                                await page.wait_for_timeout(2000)
+                                # SPEED UP: Reduced from 2000ms to 600ms
+                                await page.wait_for_timeout(600)
                                 self.logger.info("Changed sort order to Newest")
                                 break
                     except:
@@ -302,6 +324,8 @@ class MapsReviewsSpider(scrapy.Spider):
         - Smart scroll detection to avoid unnecessary scrolls
         - Parallel review extraction using asyncio.gather
         - Cached selectors to avoid repeated selector attempts
+        - ONLY scrapes from the specific reviews container (blue highlighted area)
+        - Prevents accidental clicks on profiles/images
         """
         scrollable_selectors = [
             'div.m6QErb.DxyBCb.kA9KIf.dS8AEf.XiKgde',
@@ -320,23 +344,76 @@ class MapsReviewsSpider(scrapy.Spider):
         working_scrollable_selector = self.cached_selectors.get('scrollable_div')
         previous_scroll_height = 0
 
+        # ANTI-CLICK: Disable pointer events on profile images and links to prevent accidental navigation
+        await page.evaluate('''
+            () => {
+                // Add CSS to disable clicks on profile pictures and images
+                const style = document.createElement('style');
+                style.textContent = `
+                    img[role="img"],
+                    a[href*="/contrib/"],
+                    a[data-item-id*="authority"],
+                    div[role="img"],
+                    button[aria-label*="photo"],
+                    button[aria-label*="Photo"] {
+                        pointer-events: none !important;
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+        ''')
+
         while scroll_count < max_scrolls:
             try:
-                # Get current reviews on page
-                review_elements = await page.query_selector_all('div[data-review-id]')
-                if not review_elements:
-                    review_elements = await page.query_selector_all('div.jftiEf')
+                # IMPORTANT: Only get reviews from the specific scrollable container
+                # Find the scrollable container first
+                scrollable_container = None
+                for selector in scrollable_selectors:
+                    scrollable_container = await page.query_selector(selector)
+                    if scrollable_container:
+                        working_scrollable_selector = selector
+                        break
 
-                # OPTIMIZATION 2 & 3: Expand "More" buttons with reduced wait time (100ms instead of 200ms)
-                await page.evaluate('''
-                    () => {
-                        const buttons = Array.from(document.querySelectorAll('button[aria-label="See more"], button[aria-label*="more"], button[aria-label*="More"]'));
-                        buttons.forEach(btn => {
-                            try { btn.click(); } catch (e) {}
-                        });
-                    }
-                ''')
-                await page.wait_for_timeout(100)  # REDUCED: 200ms → 100ms
+                # Get current reviews on page - ONLY from within the scrollable container
+                review_elements = []
+                if scrollable_container:
+                    # Query reviews ONLY within the scrollable container
+                    review_elements = await scrollable_container.query_selector_all('div[data-review-id]')
+                    if not review_elements:
+                        review_elements = await scrollable_container.query_selector_all('div.jftiEf')
+                else:
+                    # Fallback: query from page but log warning
+                    self.logger.warning("Could not find scrollable container, using page-level query")
+                    review_elements = await page.query_selector_all('div[data-review-id]')
+                    if not review_elements:
+                        review_elements = await page.query_selector_all('div.jftiEf')
+
+                # OPTIMIZATION 2 & 3: Expand "More" buttons with reduced wait time
+                # IMPORTANT: Only expand buttons within the scrollable container
+                if scrollable_container:
+                    await page.evaluate(f'''
+                        () => {{
+                            const container = document.querySelector('{working_scrollable_selector}');
+                            if (container) {{
+                                const buttons = Array.from(container.querySelectorAll('button[aria-label="See more"], button[aria-label*="more"], button[aria-label*="More"]'));
+                                buttons.forEach(btn => {{
+                                    try {{ btn.click(); }} catch (e) {{}}
+                                }});
+                            }}
+                        }}
+                    ''')
+                else:
+                    # Fallback to page-level
+                    await page.evaluate('''
+                        () => {
+                            const buttons = Array.from(document.querySelectorAll('button[aria-label="See more"], button[aria-label*="more"], button[aria-label*="More"]'));
+                            buttons.forEach(btn => {
+                                try { btn.click(); } catch (e) {}
+                            });
+                        }
+                    ''')
+                # SPEED UP: Reduced from 100ms to 50ms
+                await page.wait_for_timeout(50)
 
                 # OPTIMIZATION 4: Parallel review extraction
                 # Collect new reviews first, then process them in parallel
@@ -430,8 +507,8 @@ class MapsReviewsSpider(scrapy.Spider):
                 # Fallback scroll
                 await page.evaluate('window.scrollTo(0, document.body.scrollHeight)')
 
-                # OPTIMIZATION 2: Reduced wait time (150ms instead of 300ms)
-                await page.wait_for_timeout(150)  # REDUCED: 300ms → 150ms
+                # SPEED UP: Reduced wait time to 80ms for faster scraping
+                await page.wait_for_timeout(80)  # REDUCED: 300ms → 150ms → 80ms
 
                 scroll_count += 1
 
