@@ -6,6 +6,28 @@
  * Helper functions for sentiment analysis
  */
 
+/**
+ * Check if sentiment data is stale (reviews scraped more recently than analyzed)
+ * @param {Object} location - Location object with scrapeConfig and analysisConfig
+ * @returns {boolean} - True if sentiment is stale or never analyzed
+ */
+export const isSentimentStale = (location) => {
+  if (!location) return false;
+
+  const lastScraped = location.scrapeConfig?.lastScraped;
+  const lastAnalyzed = location.analysisConfig?.lastAnalyzed;
+
+  // If reviews were scraped but never analyzed (no lastAnalyzed)
+  if (lastScraped && !lastAnalyzed) return true;
+
+  // If reviews were scraped more recently than they were analyzed
+  if (lastScraped && lastAnalyzed && new Date(lastScraped) > new Date(lastAnalyzed)) {
+    return true;
+  }
+
+  return false;
+};
+
 export const getMarkerColor = (sentiment) => {
   if (!sentiment) return "#9ca3af"; // gray
 
@@ -47,8 +69,20 @@ export const getSentimentLabel = (sentiment) => {
 /**
  * *** MODIFIED: Handles both complex objects and simple strings ***
  * This is used by LocationsPanel and ReviewCard
+ * @param {string|Object} sentiment - Sentiment data (string or object with positivePercentage)
+ * @param {Object} location - Optional full location object to check for stale sentiment
+ * @returns {Object} Badge configuration with label, bgColor, textColor
  */
-export const getSentimentBadgeColor = (sentiment) => {
+export const getSentimentBadgeColor = (sentiment, location = null) => {
+  // Check if sentiment is stale when location object is provided
+  if (location && isSentimentStale(location)) {
+    return {
+      label: "No Data",
+      bgColor: "bg-gray-100",
+      textColor: "text-gray-800",
+    };
+  }
+
   let sentimentLabel = "No Data";
 
   if (typeof sentiment === "string") {

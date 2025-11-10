@@ -6,6 +6,7 @@ import {
   regenerateReviewReply,
 } from "../../../services/replyService";
 import ReplyModalDropdown from "./ReplyModalDropdown";
+import { getSentimentBadgeColor } from "../../../utils/sentimentUtils";
 
 const GenerateReplyModal = ({ isOpen, onClose, review }) => {
   const [tone, setTone] = useState("Friendly");
@@ -127,19 +128,16 @@ const GenerateReplyModal = ({ isOpen, onClose, review }) => {
                   <h3 className="font-semibold text-[#2F4B4E] text-lg">
                     Original Review
                   </h3>
-                  {review?.sentiment && (
-                    <span
-                      className={`text-xs px-2.5 py-1 rounded-full font-medium ${
-                        review.sentiment === "Positive"
-                          ? "bg-green-100 text-green-700"
-                          : review.sentiment === "Negative"
-                            ? "bg-red-100 text-red-700"
-                            : "bg-yellow-100 text-yellow-700"
-                      }`}
-                    >
-                      {review.sentiment}
-                    </span>
-                  )}
+                  {review?.sentiment && (() => {
+                    const badge = getSentimentBadgeColor(review.sentiment);
+                    return (
+                      <span
+                        className={`text-xs px-2.5 py-1 rounded-full font-medium ${badge.bgColor} ${badge.textColor}`}
+                      >
+                        {badge.label}
+                      </span>
+                    );
+                  })()}
                 </div>
                 <div className="bg-[#FAF6E9] p-4 border border-[#E1E6C3] rounded-lg">
                   <div className="flex justify-between items-start mb-2">
