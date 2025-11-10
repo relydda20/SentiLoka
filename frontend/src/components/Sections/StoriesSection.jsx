@@ -7,12 +7,19 @@ import kfcLogo from '../../assets/kfc.jpg';
 const StoriesSection = () => {
   const navigate = useNavigate();
 
-  const handleNavigate = () => {
-    navigate('/case-studies');
+  const handleNavigate = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Scroll to top dulu
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    // Navigate setelah scroll
+    setTimeout(() => {
+      navigate('/case-studies');
+    }, 300);
   };
 
   return (
-    <section className="relative min-h-screen bg-gradient-to-b from-[#F2F8F6] via-[#FFFFFF] to-[#F7F9F8] px-6 py-24 flex flex-col items-center justify-center overflow-hidden">
+    <section id="stories" className="relative min-h-screen bg-gradient-to-b from-[#F2F8F6] via-[#FFFFFF] to-[#F7F9F8] px-6 py-24 flex flex-col items-center justify-center overflow-hidden">
       {/* 🌿 Gradient background accents */}
       <div className="absolute top-0 left-0 w-[500px] h-[500px] bg-[#A7D1C3]/30 rounded-full blur-[120px]" />
       <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-[#2F4B4E]/20 rounded-full blur-[120px]" />
@@ -64,7 +71,8 @@ const StoriesSection = () => {
 
       {/* 🌸 Case Study Card */}
       <motion.div
-        className="relative bg-white/70 backdrop-blur-md border border-[#2F4B4E]/10 rounded-3xl overflow-hidden max-w-5xl w-full flex flex-col md:flex-row items-center hover:border-[#4B7068]/30 transition-all duration-500"
+        className="relative bg-white/70 backdrop-blur-md border border-[#2F4B4E]/10 rounded-3xl overflow-hidden max-w-5xl w-full flex flex-col md:flex-row items-center hover:border-[#4B7068]/30 transition-all duration-500 cursor-pointer"
+        onClick={handleNavigate}
         initial={{ opacity: 0, y: 40 }}
         whileInView={{ opacity: 1, y: 0 }}
         whileHover={{
@@ -86,14 +94,14 @@ const StoriesSection = () => {
             initial={{ opacity: 0, y: 20 }}
             transition={{ duration: 0.6 }}
           >
-            KFC is More Popular than Mc’Donalds
+            KFC is More Popular than Mc'Donalds
           </motion.h3>
 
           <p className="text-gray-500 text-sm md:text-base max-w-md leading-relaxed">
             Discover how{' '}
             <span className="font-medium text-[#2F4B4E]">KFC Lippo Cikarang</span> used
             <span className="font-medium text-[#2F4B4E]"> SentiLoka AI </span>
-            to transform thousands of customer reviews into actionable insights — improving service speed, boosting satisfaction, and outperforming McDonald’s in local popularity.
+            to transform thousands of customer reviews into actionable insights — improving service speed, boosting satisfaction, and outperforming McDonald's in local popularity.
           </p>
 
           {/* Button with gradient animation */}
