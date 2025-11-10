@@ -21,7 +21,7 @@ const AnalyticsPanel = ({
   className = "",
   containerRef,
 }) => {
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const dragEndTimeout = useRef(null);
 
@@ -101,12 +101,12 @@ const AnalyticsPanel = ({
           {poiVisible ? (
             <>
               <Eye className="w-4 h-4" />
-              <span className="text-sm">Hide POI</span>
+              <span className="text-sm">Hide Google's Locations</span>
             </>
           ) : (
             <>
               <EyeOff className="w-4 h-4" />
-              <span className="text-sm">Show POI</span>
+              <span className="text-sm">Show Google's Locations</span>
             </>
           )}
         </button>

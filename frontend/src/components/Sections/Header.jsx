@@ -43,6 +43,9 @@ const Header = () => {
           <button onClick={() => handleNavigation('how-it-works')} className="text-gray-800 hover:text-emerald-700 transition-colors text-base font-medium whitespace-nowrap">
             How It Works
           </button>
+          <button onClick={() => handleNavigation('stories')} className="text-gray-800 hover:text-emerald-700 transition-colors text-base font-medium whitespace-nowrap">
+            Stories
+          </button>
           <button onClick={() => handleNavigation('subscribe')} className="text-gray-800 hover:text-emerald-700 transition-colors text-base font-medium whitespace-nowrap">
             Subscribe
           </button>
@@ -83,6 +86,9 @@ const Header = () => {
           </button>
           <button onClick={() => handleNavigation('how-it-works')} className="text-left text-gray-800 hover:text-emerald-700 transition-colors text-base font-medium py-2">
             How It Works
+          </button>
+          <button onClick={() => handleNavigation('stories')} className="text-left text-gray-800 hover:text-emerald-700 transition-colors text-base font-medium py-2">
+            Stories
           </button>
           <button onClick={() => handleNavigation('subscribe')} className="text-left text-gray-800 hover:text-emerald-700 transition-colors text-base font-medium py-2">
             Subscribe

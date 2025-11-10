@@ -3,7 +3,6 @@ import Landing from "../pages/Landing";
 import Login from "../pages/Login";
 import Register from "../pages/Register";
 import SentimentMap from "../pages/dashboard/SentimentMap";
-import AIReplyGenerator from "../pages/dashboard/AIReplyGenerator";
 import ProtectedRoute from "./ProtectedRoute";
 import GuestRoute from "./GuestRoute";
 import DashboardLayout from "../pages/dashboard/DashboardLayout";
@@ -48,7 +47,6 @@ const AppRoutes = () => {
       >
         <Route index element={<Dashboard />} />
         <Route path="sentiment-map" element={<SentimentMap />} />
-        <Route path="ai-reply" element={<AIReplyGenerator />} />
         <Route path="profile/:slug" element={<Profile />} />
       </Route>
 

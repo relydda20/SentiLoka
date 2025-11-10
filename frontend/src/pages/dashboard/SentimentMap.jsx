@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { GoogleMap, useJsApiLoader } from "@react-google-maps/api";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -9,6 +9,7 @@ import {
   Loader2,
   AlertCircle,
 } from "lucide-react";
+import { showSuccessAlert, showErrorAlert } from "../../utils/sweetAlertConfig";
 
 // Panel Components
 import LocationsPanel from "../../components/sentimentMap/LocationsPanel";
@@ -51,7 +52,7 @@ const defaultCenter = {
 
 const SentimentMap = () => {
   // Location data hook
-  const { locations, setLocations, loading, setLoading, error, setError } =
+  const { locations, setLocations, loading, setLoading, error, setError, refetchLocations } =
     useLocationData();
 
   // Main state management hook
@@ -96,7 +97,7 @@ const SentimentMap = () => {
     // The useReviewManagement hook listens to selectedLocation?.id
   };
 
-  // Map controls hook
+  // Map controls hook - MUST be called before using map in useEffect
   const {
     map,
     onMapLoad,
@@ -112,6 +113,40 @@ const SentimentMap = () => {
     omsRef,
   } = useMapControls(locations, handleSpiderfiedMarkerClick);
 
+  // Auto-open location from Profile page navigation
+  // IMPORTANT: This must come AFTER useMapControls so 'map' is defined
+  useEffect(() => {
+    const selectedLocationId = sessionStorage.getItem('selectedLocationId');
+
+    // Make sure map is loaded and initialized before trying to access it
+    if (selectedLocationId && locations.length > 0 && map && typeof map.panTo === 'function') {
+      // Find the location in the loaded locations
+      const location = locations.find(loc => loc.id === selectedLocationId);
+
+      if (location && location.coordinates) {
+        // Set the selected location and open sidebar
+        setSelectedLocation(location);
+        setSidebarOpen(true);
+
+        // Use a small delay to ensure map is fully ready
+        setTimeout(() => {
+          try {
+            // Pan and zoom to the location
+            if (map && typeof map.panTo === 'function') {
+              map.panTo(location.coordinates);
+              map.setZoom(16);
+            }
+          } catch (error) {
+            console.error('Error panning to location:', error);
+          }
+        }, 100);
+
+        // Clear the session storage
+        sessionStorage.removeItem('selectedLocationId');
+      }
+    }
+  }, [locations, map, setSelectedLocation, setSidebarOpen]);
+
   // Create handlers with dependencies
   const handleMarkerClick = createMarkerClickHandler(
     locations,
@@ -126,6 +161,7 @@ const SentimentMap = () => {
     setLocations,
     setLoading,
     setError,
+    refetchLocations, // Pass refetch function to reload all locations after adding
   );
 
   const handleLoadReviews = async (locationId) => {
@@ -195,10 +231,10 @@ const SentimentMap = () => {
         ),
       );
 
-      alert(message);
+      showSuccessAlert("Sentiment Analyzed!", message);
     } catch (error) {
       setError(error.message || "Failed to analyze sentiment");
-      alert(`❌ Failed to analyze sentiment: ${error.message}`);
+      showErrorAlert("Analysis Failed", error.message || "Failed to analyze sentiment");
     }
   };
 
@@ -261,10 +297,10 @@ const SentimentMap = () => {
       });
 
       console.log("✅ Rescraping completed!");
-      alert("✅ Rescraping completed! New data is now available.");
+      showSuccessAlert("Rescraping Complete!", "New data is now available.");
     } catch (error) {
       console.error("❌ Error during rescrape:", error);
-      alert(`❌ Failed to rescrape: ${error.message}`);
+      showErrorAlert("Rescrape Failed", error.message || "Failed to rescrape location");
     }
   };
 

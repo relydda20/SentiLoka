@@ -1,6 +1,8 @@
 import User from '../models/User.model.js';
 import Location from '../models/Location.model.js';
 import UserLocation from '../models/UserLocation.model.js';
+import Review from '../models/Review.model.js';
+import ReviewSummary from '../models/ReviewSummary.model.js';
 
 /**
  * Controller: Get user profile by slug (Public)
@@ -51,32 +53,48 @@ export const getUserBySlug = async (req, res) => {
     console.log('📍 Locations data:', JSON.stringify(locations, null, 2));
 
     // Map locations to include the data in the expected format
-    const mappedLocations = locations.map(loc => {
-      // Determine sentiment category based on overallSentiment percentages
-      let sentiment = 'No Data';
-      const { positive = 0, negative = 0, neutral = 0, totalReviews = 0 } = loc.overallSentiment || {};
+    // Enhanced with actual review counts from Review and ReviewSummary collections
+    const mappedLocations = await Promise.all(
+      locations.map(async (loc) => {
+        // Count actual scraped reviews from Review collection
+        const scrapedReviewCount = await Review.countDocuments({
+          locationId: loc._id
+        });
 
-      // Only categorize if location has been analyzed (has reviews)
-      if (totalReviews > 0) {
-        if (positive > negative && positive > neutral) {
-          sentiment = 'Positive';
-        } else if (negative > positive && negative > neutral) {
-          sentiment = 'Bad';
-        } else {
-          sentiment = 'Neutral';
+        // Count analyzed reviews from ReviewSummary collection
+        const analyzedReviewCount = await ReviewSummary.countDocuments({
+          locationId: loc._id,
+          sentiment: { $ne: 'error' }
+        });
+
+        // Determine sentiment category based on overallSentiment percentages
+        let sentiment = 'No Data';
+        const { positive = 0, negative = 0, neutral = 0, totalReviews = 0 } = loc.overallSentiment || {};
+
+        // Only categorize if location has been analyzed (has reviews)
+        if (totalReviews > 0) {
+          if (positive > negative && positive > neutral) {
+            sentiment = 'Positive';
+          } else if (negative > positive && negative > neutral) {
+            sentiment = 'Bad';
+          } else {
+            sentiment = 'Neutral';
+          }
         }
-      }
 
-      return {
-        _id: loc._id,
-        name: loc.name,
-        address: loc.address,
-        slug: loc.slug,
-        averageRating: loc.overallSentiment?.averageRating || 0,
-        totalReviews: loc.overallSentiment?.totalReviews || 0,
-        sentiment
-      };
-    });
+        return {
+          _id: loc._id,
+          name: loc.name,
+          address: loc.address,
+          slug: loc.slug,
+          averageRating: loc.overallSentiment?.averageRating || 0,
+          // Use scrapedReviewCount for total reviews (shows all scraped reviews, not just analyzed)
+          totalReviews: scrapedReviewCount,
+          analyzedReviews: analyzedReviewCount,
+          sentiment
+        };
+      })
+    );
 
     // Calculate statistics
     const totalReviews = mappedLocations.reduce((sum, loc) => sum + (loc.totalReviews || 0), 0);

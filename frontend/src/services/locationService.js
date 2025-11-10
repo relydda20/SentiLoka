@@ -122,18 +122,49 @@ export const registerBusinessLocation = async (businessData) => {
     const newBusiness = response.data.data;
     console.log("✅ Business location registered!", newBusiness);
 
+    // IMPORTANT: Fetch complete location data with review counts
+    // The POST response doesn't include scrapedReviewCount and analyzedReviewCount
+    // So we need to fetch the complete data from GET /locations/:id
+    console.log("🔄 Fetching complete location data with review counts...");
+    const completeLocationData = await getLocationScrapeStatus(newBusiness._id);
+    console.log("✅ Complete location data loaded!", completeLocationData);
+
+    // Map sentiment from database (pre-calculated) - same logic as fetchBusinessLocations
+    // Use completeLocationData which has the full overallSentiment data
+    let sentimentData = null;
+    if (completeLocationData.overallSentiment && completeLocationData.overallSentiment.totalReviews > 0) {
+      const totalReviews = completeLocationData.overallSentiment.totalReviews;
+      const positivePercentage = completeLocationData.overallSentiment.positive || 0;
+      const neutralPercentage = completeLocationData.overallSentiment.neutral || 0;
+      const negativePercentage = completeLocationData.overallSentiment.negative || 0;
+
+      sentimentData = {
+        // Counts for display
+        positive: Math.round((positivePercentage / 100) * totalReviews),
+        neutral: Math.round((neutralPercentage / 100) * totalReviews),
+        negative: Math.round((negativePercentage / 100) * totalReviews),
+        // Percentages for marker colors
+        positivePercentage: positivePercentage,
+        negativePercentage: negativePercentage,
+        // Additional metrics
+        averageRating: completeLocationData.overallSentiment.averageRating || 0,
+        totalReviews: totalReviews,
+        lastCalculated: completeLocationData.overallSentiment.lastCalculated,
+      };
+    }
+
     return {
       business: {
-        id: newBusiness._id,
-        businessName: newBusiness.name,
-        placeId: newBusiness.placeId,
-        address: newBusiness.address,
-        coordinates: newBusiness.coordinates,
-        phoneNumber: newBusiness.phoneNumber,
-        category: newBusiness.googleData?.types?.[0] || "establishment",
-        status: newBusiness.status,
-        scrapeStatus: newBusiness.scrapeStatus || 'idle',
-        scrapeProgress: newBusiness.scrapeProgress || {
+        id: completeLocationData._id,
+        businessName: completeLocationData.name,
+        placeId: completeLocationData.placeId,
+        address: completeLocationData.address,
+        coordinates: completeLocationData.coordinates,
+        phoneNumber: completeLocationData.phoneNumber,
+        category: completeLocationData.googleData?.types?.[0] || "establishment",
+        status: completeLocationData.status,
+        scrapeStatus: completeLocationData.scrapeStatus || 'idle',
+        scrapeProgress: completeLocationData.scrapeProgress || {
           percentage: 0,
           current: 0,
           total: 0,
@@ -141,23 +172,23 @@ export const registerBusinessLocation = async (businessData) => {
           startedAt: null,
           message: null
         },
-        reviewsCount: 0, // FIXED: New locations have 0 scraped reviews
-        analyzedReviewCount: 0,
-        averageRating: newBusiness.googleData?.rating || 0,
-        sentiment: null,
+        reviewsCount: completeLocationData.scrapedReviewCount || 0, // Now uses actual count from GET endpoint
+        analyzedReviewCount: completeLocationData.analyzedReviewCount || 0, // Now uses actual count from GET endpoint
+        averageRating: completeLocationData.googleData?.rating || 0,
+        sentiment: sentimentData, // Include sentiment data if available
         reviews: [],
         pagination: { currentPage: 0, totalPages: 0, totalReviews: 0 },
-        lastScraped: null,
-        lastAnalyzedAt: null,
+        lastScraped: completeLocationData.scrapeConfig?.lastScraped || null,
+        lastAnalyzedAt: completeLocationData.lastAnalyzedAt || null,
         cacheStatus: {
           isCached: false,
-          lastScrapedAt: null,
+          lastScrapedAt: completeLocationData.scrapeConfig?.lastScraped,
           cacheExpiresAt: null,
           hoursUntilExpiry: 0,
-          needsRefresh: true,
+          needsRefresh: completeLocationData.scrapeStatus !== "completed",
         },
-        createdAt: newBusiness.createdAt,
-        updatedAt: newBusiness.updatedAt,
+        createdAt: completeLocationData.createdAt,
+        updatedAt: completeLocationData.updatedAt,
       },
     };
   } catch (error) {

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { MapPin, Lock, Edit3, Settings, Search, Star } from "lucide-react";
+import { MapPin, Lock, Edit3, Settings, Search, Star, Trash2 } from "lucide-react";
 import fullStar from "../../assets/full-star.png";
 import emptyStar from "../../assets/not-full-star.png";
 import { motion, AnimatePresence } from "framer-motion";
@@ -13,6 +13,8 @@ import {
   changePassword,
   fetchUserStores,
 } from "../../services/profileService";
+import { deleteLocation } from "../../services/locationService";
+import { showSuccessAlert, showErrorAlert, showConfirmDialog } from "../../utils/sweetAlertConfig";
 
 // Redux Imports
 import { useDispatch } from 'react-redux';
@@ -114,10 +116,24 @@ const Profile = () => {
     onSuccess: () => {
       setShowPasswordModal(false);
       resetPassword();
-      alert("Password changed successfully!");
+      showSuccessAlert("Password Changed!", "Your password has been updated successfully.");
     },
     onError: (error) => {
-      alert(`Error: ${error.message}`);
+      showErrorAlert("Password Change Failed", error.message || "Failed to change password");
+    },
+  });
+
+  // Delete location mutation
+  const deleteLocationMutation = useMutation({
+    mutationFn: deleteLocation,
+    onSuccess: () => {
+      // Invalidate both queries to refetch data
+      queryClient.invalidateQueries(["userStores"]);
+      queryClient.invalidateQueries(["userProfile"]);
+      showSuccessAlert("Location Removed!", "The location has been removed from your tracking list.");
+    },
+    onError: (error) => {
+      showErrorAlert("Delete Failed", error.message || "Failed to remove location");
     },
   });
 
@@ -152,6 +168,29 @@ const Profile = () => {
     queryClient.invalidateQueries([queryKey]);
   };
 
+  // Navigate to Sentiment Map with selected location
+  const handleViewDetails = (store) => {
+    // Navigate to sentiment map and store the location ID in session storage
+    // so the map can open it automatically
+    sessionStorage.setItem('selectedLocationId', store._id || store.id);
+    navigate('/dashboard/sentiment-map');
+  };
+
+  // Handle delete location
+  const handleDeleteLocation = async (store) => {
+    const result = await showConfirmDialog({
+      title: "Remove Location?",
+      text: `Are you sure you want to remove "${store.name}" from your tracking list? This will not delete the location data, only remove it from your account.`,
+      confirmButtonText: "Yes, remove it",
+      cancelButtonText: "Cancel",
+      icon: "warning",
+    });
+
+    if (result.isConfirmed) {
+      deleteLocationMutation.mutate(store._id || store.id);
+    }
+  };
+
   // Filter & Search Logic
   const filteredStores = stores.filter((store) => {
     const matchesSearch =
@@ -171,10 +210,15 @@ const Profile = () => {
     noData: stores.filter((s) => s.sentiment === "No Data").length,
   };
 
-  // Use stats from backend if available, otherwise calculate from stores
+  // Calculate stats from stores, filtering out locations without sentiment data for avgRating
   const totalLocations = userProfile?.stats?.totalLocations ?? stores.length;
   const totalReviews = userProfile?.stats?.totalReviews ?? stores.reduce((sum, store) => sum + (store.totalReviews || 0), 0);
-  const avgRating = userProfile?.stats?.averageRating?.toFixed(1) ?? "0.0";
+
+  // Calculate average rating ONLY from locations with sentiment data (exclude "No Data")
+  const locationsWithSentiment = stores.filter((store) => store.sentiment !== "No Data");
+  const avgRating = locationsWithSentiment.length > 0
+    ? (locationsWithSentiment.reduce((sum, store) => sum + (store.averageRating || 0), 0) / locationsWithSentiment.length).toFixed(1)
+    : "0.0";
 
   const getSentimentBadge = (sentiment) => {
     switch (sentiment) {
@@ -647,13 +691,28 @@ const Profile = () => {
                       </span>
                     </div>
 
-                    {/* Action Button */}
-                    <motion.button
-                      className="bg-gray-50 hover:bg-[#E8E5D5] group-hover:bg-[#2F4B4E] mt-4 px-4 py-2.5 rounded-xl w-full font-medium text-gray-900 group-hover:text-white duration-200"
-                      {...hoverScaleTap}
-                    >
-                      View Details
-                    </motion.button>
+                    {/* Action Buttons */}
+                    <div className="flex gap-2 mt-4">
+                      <motion.button
+                        onClick={() => handleViewDetails(store)}
+                        className="flex-1 bg-gray-50 hover:bg-[#E8E5D5] group-hover:bg-[#2F4B4E] px-4 py-2.5 rounded-xl font-medium text-gray-900 group-hover:text-white duration-200"
+                        {...hoverScaleTap}
+                      >
+                        View Details
+                      </motion.button>
+                      <motion.button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteLocation(store);
+                        }}
+                        disabled={deleteLocationMutation.isPending}
+                        className="bg-red-50 hover:bg-red-100 disabled:opacity-50 p-2.5 rounded-xl text-red-600 hover:text-red-700 disabled:cursor-not-allowed transition-colors"
+                        title="Remove location"
+                        {...hoverScaleTap}
+                      >
+                        <Trash2 className="w-5 h-5" />
+                      </motion.button>
+                    </div>
                   </motion.div>
                 );
               })}

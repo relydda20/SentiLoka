@@ -6,6 +6,7 @@ import { checkAuth } from './store/auth/authSlice';
 import { QueryClientProvider } from '@tanstack/react-query';
 // import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { queryClient } from './config/queryClient';
+import { injectSweetAlertStyles } from './utils/sweetAlertConfig';
 
 function App() {
   const dispatch = useDispatch();
@@ -14,6 +15,8 @@ function App() {
   useEffect(() => {
     // Silently check if user has valid session (via refresh token cookie)
     dispatch(checkAuth());
+    // Inject SweetAlert2 custom styles
+    injectSweetAlertStyles();
   }, [dispatch]);
 
   // Show a loading screen while checking auth status
