@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import HistoryView from "./HistoryView";
 import ChatView from "./ChatView";
 import { getUserLocations, getConversations, deleteConversation } from "../../../services/chatbotService";
+import { showErrorAlert } from "../../../utils/sweetAlertConfig";
 
 const ChatbotSidebar = ({ isOpen, onClose }) => {
   const [view, setView] = useState("history");
@@ -110,7 +111,7 @@ const ChatbotSidebar = ({ isOpen, onClose }) => {
       console.log("✅ Session deleted successfully");
     } catch (error) {
       console.error("Failed to delete session:", error);
-      alert("Failed to delete conversation. Please try again.");
+      showErrorAlert("Delete Failed", "Failed to delete conversation. Please try again.");
     }
   };
 

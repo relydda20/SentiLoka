@@ -16,9 +16,11 @@ export const useLocationData = () => {
     try {
       const data = await fetchBusinessLocations();
       setLocations(data.businesses);
+      return data.businesses; // Return the fetched data
     } catch (error) {
       setError("Failed to load business locations");
       console.error("Error fetching businesses:", error);
+      return []; // Return empty array on error
     } finally {
       setLoading(false);
     }

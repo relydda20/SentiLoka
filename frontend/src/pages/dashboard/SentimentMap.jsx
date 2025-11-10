@@ -84,6 +84,7 @@ const SentimentMap = () => {
     handleInitialLoadReviews,
     handleInitialAnalyzeSentiment,
     handleFilterOrPageChange,
+    resetFilters,
   } = useReviewManagement(selectedLocation?.id);
 
   // Spiderfied marker click handler
@@ -296,6 +297,20 @@ const SentimentMap = () => {
         onProgress: onScrapeProgress,
       });
 
+      // Refetch locations to update the LocationsPanel with fresh data
+      const freshLocations = await refetchLocations();
+
+      // Update selectedLocation with fresh data from the refetched locations
+      const updatedLocation = freshLocations.find((loc) => loc.id === locationId);
+      if (updatedLocation) {
+        setSelectedLocation((prev) =>
+          prev?.id === locationId ? { ...prev, ...updatedLocation } : prev
+        );
+      }
+
+      // Reset filters to show all new reviews without filters applied
+      resetFilters();
+
       console.log("✅ Rescraping completed!");
       showSuccessAlert("Rescraping Complete!", "New data is now available.");
     } catch (error) {
@@ -317,28 +332,27 @@ const SentimentMap = () => {
       const result = await reanalyzeSentiment(locationId);
       console.log("✅ Sentiment reanalysis completed:", result);
 
-      // Refresh the location data
+      // Refetch all locations to update the LocationsPanel with fresh data
+      await refetchLocations();
+
+      // Also fetch the specific location to update selectedLocation immediately
       const { getLocationScrapeStatus } = await import("../../services/locationService");
       const updatedLocation = await getLocationScrapeStatus(locationId);
 
-      // Update locations cache
-      setLocations((prev) =>
-        prev.map((loc) =>
-          loc.id === locationId ? { ...loc, ...updatedLocation } : loc,
-        ),
-      );
-
-      // Update selected location
+      // Update selected location with fresh data
       setSelectedLocation((prev) =>
         prev?.id === locationId ? { ...prev, ...updatedLocation } : prev
       );
 
+      // Reset filters to show all reviews without filters applied
+      resetFilters();
+
       setIsReanalyzing(false);
-      alert("✅ Sentiment reanalysis completed!");
+      showSuccessAlert("Sentiment Reanalysis Complete!", "All reviews have been reanalyzed successfully.");
     } catch (error) {
       console.error("❌ Error reanalyzing sentiment:", error);
       setIsReanalyzing(false);
-      alert(`❌ Failed to reanalyze sentiment: ${error.message}`);
+      showErrorAlert("Reanalysis Failed", error.message || "Failed to reanalyze sentiment");
     }
   };
 

@@ -78,7 +78,7 @@ const LocationsPanel = ({
             className="max-h-64 overflow-y-auto"
           >
             {locations.map((location) => {
-              const sentimentBadge = getSentimentBadgeColor(location.sentiment);
+              const sentimentBadge = getSentimentBadgeColor(location.sentiment, location);
               return (
                 <motion.button
                   key={location.id}
