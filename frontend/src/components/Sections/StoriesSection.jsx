@@ -94,7 +94,7 @@ const StoriesSection = () => {
             initial={{ opacity: 0, y: 20 }}
             transition={{ duration: 0.6 }}
           >
-            KFC is More Popular than Mc'Donalds
+            What Made KFC Pull Ahead of McDonald’s in Lippo Cikarang?
           </motion.h3>
 
           <p className="text-gray-500 text-sm md:text-base max-w-md leading-relaxed">
