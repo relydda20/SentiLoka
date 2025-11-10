@@ -856,9 +856,14 @@ export const reanalyzeSentiment = async (req, res) => {
     }
 
     // Start reanalysis (this will set lastAnalyzedAt when complete)
-    const transformedReviews = await transformReviewsForAnalysis(reviews);
+    const transformedReviews = transformReviewsForAnalysis(reviews);
     const analysisResults = await analyzeReviews(transformedReviews);
-    await saveAnalysisResults(analysisResults, locationId);
+    await saveAnalysisResults(
+      analysisResults.results,
+      transformedReviews,
+      locationId,
+      location.placeId
+    );
 
     // Recalculate overall sentiment
     await location.calculateSentiment();
@@ -876,9 +881,10 @@ export const reanalyzeSentiment = async (req, res) => {
       message: `Reanalyzed ${reviews.length} reviews successfully`,
       data: {
         totalReviews: reviews.length,
-        analyzedCount: analysisResults.length,
+        analyzedCount: analysisResults.results.length,
         sentiment: location.overallSentiment,
-        lastAnalyzedAt: location.lastAnalyzedAt
+        lastAnalyzedAt: location.lastAnalyzedAt,
+        statistics: analysisResults.statistics
       }
     });
   } catch (error) {
