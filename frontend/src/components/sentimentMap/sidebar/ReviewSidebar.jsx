@@ -30,14 +30,15 @@ const ReviewSidebar = ({
   const reviews = reviewData?.reviews || selectedLocation.reviews || [];
   const pagination = reviewData?.pagination || selectedLocation.pagination || null;
   const sentiment = reviewData?.sentiment || selectedLocation.sentiment || null;
-  const reviewsCount = reviewData?.reviewsCount || selectedLocation.reviewsCount || 0;
+
+  // IMPORTANT: Always use selectedLocation.reviewsCount as the source of truth
+  // reviewData.reviewsCount may be 0 when filters return no results, but we still want to show the UI
+  const reviewsCount = selectedLocation.reviewsCount || 0;
 
   // hasReviews is TRUE if the location has reviews in the database (even if current filter shows 0)
   // Use reviewsCount (total in DB) instead of current filtered results
   // This ensures filter UI stays visible even when filters return 0 results
-  const hasReviews = (reviewsCount > 0) ||
-                     reviews.length > 0 ||
-                     (pagination && pagination.totalReviews > 0);
+  const hasReviews = reviewsCount > 0;
 
   // Debug log
   console.log("📊 ReviewSidebar state:", {

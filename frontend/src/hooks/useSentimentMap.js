@@ -50,6 +50,7 @@ export const useSentimentMap = () => {
     setLocations,
     setLoading,
     setError,
+    refetchLocations,
   ) => {
     return async () => {
       if (!selectedPlace) return;
@@ -71,13 +72,19 @@ export const useSentimentMap = () => {
       };
 
       try {
-        const data = await registerBusinessLocation(businessData);
-        setLocations((prev) => [...prev, data.business]);
+        await registerBusinessLocation(businessData);
+
+        // IMPORTANT: Refetch all locations instead of manually updating state
+        // This ensures we get the complete, fresh data including review counts and sentiment
+        console.log("🔄 Refetching all locations to get fresh data...");
+        await refetchLocations();
+        console.log("✅ Locations refetched with complete data!");
+
         setSelectedPlace(null);
         setError(null);
         setTimeout(() => {
           alert(
-            "✅ Location added successfully! Click the new marker to load and analyze reviews.",
+            "✅ Location added successfully! The location data has been loaded.",
           );
         }, 100);
       } catch (error) {
