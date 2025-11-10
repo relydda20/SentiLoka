@@ -4,12 +4,6 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import passport from "./config/passport.config.js";
 import { configurePassport } from "./config/passport.config.js";
-import path from "path";
-import { fileURLToPath } from "url";
-
-// ESM __dirname alternative
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 // API routes
 import authRoutes from "./routes/auth.routes.js";
@@ -62,9 +56,6 @@ app.use((req, res, next) => {
   }
   next();
 });
-
-// Serve static PDF files
-app.use("/reports", express.static(path.join(__dirname, "../files/pdfs")));
 
 // Health check
 app.get("/health", (req, res) => {
