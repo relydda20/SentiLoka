@@ -61,11 +61,8 @@ RUN npm install --omit=dev
 # Copy all application source code
 COPY . .
 
-# Create temp directory for scraper outputs
+# Create temp directory for scraper outputs (only if it doesn't exist)
 RUN mkdir -p temp && chmod 777 temp
-
-# Create files directory for PDFs and other static files
-RUN mkdir -p files/pdfs && chmod 755 files/pdfs
 
 # Set Python environment variables
 ENV PYTHONUNBUFFERED=1
