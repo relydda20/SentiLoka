@@ -11,7 +11,7 @@ const CaseHeader = () => {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6 }}
       >
-        KFC is More Popular than Mc’Donalds
+        What Made KFC Pull Ahead of McDonald’s in Lippo Cikarang?
       </motion.h1>
 
       <motion.div
