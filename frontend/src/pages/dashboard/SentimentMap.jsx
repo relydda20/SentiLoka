@@ -9,6 +9,7 @@ import {
   Loader2,
   AlertCircle,
 } from "lucide-react";
+import { showSuccessAlert, showErrorAlert } from "../../utils/sweetAlertConfig";
 
 // Panel Components
 import LocationsPanel from "../../components/sentimentMap/LocationsPanel";
@@ -230,10 +231,10 @@ const SentimentMap = () => {
         ),
       );
 
-      alert(message);
+      showSuccessAlert("Sentiment Analyzed!", message);
     } catch (error) {
       setError(error.message || "Failed to analyze sentiment");
-      alert(`❌ Failed to analyze sentiment: ${error.message}`);
+      showErrorAlert("Analysis Failed", error.message || "Failed to analyze sentiment");
     }
   };
 
@@ -296,10 +297,10 @@ const SentimentMap = () => {
       });
 
       console.log("✅ Rescraping completed!");
-      alert("✅ Rescraping completed! New data is now available.");
+      showSuccessAlert("Rescraping Complete!", "New data is now available.");
     } catch (error) {
       console.error("❌ Error during rescrape:", error);
-      alert(`❌ Failed to rescrape: ${error.message}`);
+      showErrorAlert("Rescrape Failed", error.message || "Failed to rescrape location");
     }
   };
 

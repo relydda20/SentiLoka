@@ -14,6 +14,7 @@ import {
   fetchUserStores,
 } from "../../services/profileService";
 import { deleteLocation } from "../../services/locationService";
+import { showSuccessAlert, showErrorAlert, showConfirmDialog } from "../../utils/sweetAlertConfig";
 
 // Redux Imports
 import { useDispatch } from 'react-redux';
@@ -115,10 +116,10 @@ const Profile = () => {
     onSuccess: () => {
       setShowPasswordModal(false);
       resetPassword();
-      alert("Password changed successfully!");
+      showSuccessAlert("Password Changed!", "Your password has been updated successfully.");
     },
     onError: (error) => {
-      alert(`Error: ${error.message}`);
+      showErrorAlert("Password Change Failed", error.message || "Failed to change password");
     },
   });
 
@@ -129,10 +130,10 @@ const Profile = () => {
       // Invalidate both queries to refetch data
       queryClient.invalidateQueries(["userStores"]);
       queryClient.invalidateQueries(["userProfile"]);
-      alert("Location removed from your tracking list!");
+      showSuccessAlert("Location Removed!", "The location has been removed from your tracking list.");
     },
     onError: (error) => {
-      alert(`Error: ${error.message}`);
+      showErrorAlert("Delete Failed", error.message || "Failed to remove location");
     },
   });
 
@@ -176,12 +177,16 @@ const Profile = () => {
   };
 
   // Handle delete location
-  const handleDeleteLocation = (store) => {
-    const confirmed = window.confirm(
-      `Are you sure you want to remove "${store.name}" from your tracking list?\n\nThis will not delete the location data, only remove it from your account.`
-    );
+  const handleDeleteLocation = async (store) => {
+    const result = await showConfirmDialog({
+      title: "Remove Location?",
+      text: `Are you sure you want to remove "${store.name}" from your tracking list? This will not delete the location data, only remove it from your account.`,
+      confirmButtonText: "Yes, remove it",
+      cancelButtonText: "Cancel",
+      icon: "warning",
+    });
 
-    if (confirmed) {
+    if (result.isConfirmed) {
       deleteLocationMutation.mutate(store._id || store.id);
     }
   };

@@ -4,6 +4,7 @@
  */
 import { useState } from "react";
 import { registerBusinessLocation } from "../services/locationService";
+import { showSuccessAlert } from "../utils/sweetAlertConfig";
 
 export const useSentimentMap = () => {
   const [selectedLocation, setSelectedLocation] = useState(null);
@@ -83,8 +84,9 @@ export const useSentimentMap = () => {
         setSelectedPlace(null);
         setError(null);
         setTimeout(() => {
-          alert(
-            "✅ Location added successfully! The location data has been loaded.",
+          showSuccessAlert(
+            "Location Added!",
+            "The location data has been loaded and is ready to track.",
           );
         }, 100);
       } catch (error) {
