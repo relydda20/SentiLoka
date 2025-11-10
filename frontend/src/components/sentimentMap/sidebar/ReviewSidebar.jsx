@@ -2,6 +2,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import ReviewSidebarHeader from "./ReviewSidebarHeader";
 import ReviewSidebarSentiment from "./ReviewSidebarSentiment.jsx";
 import ReviewList from "./ReviewList";
+import { isSentimentStale } from "../../../utils/sentimentUtils";
 
 const ReviewSidebar = ({
   isOpen,
@@ -29,7 +30,12 @@ const ReviewSidebar = ({
   // Use reviewData from React Query if available, otherwise fall back to selectedLocation
   const reviews = reviewData?.reviews || selectedLocation.reviews || [];
   const pagination = reviewData?.pagination || selectedLocation.pagination || null;
-  const sentiment = reviewData?.sentiment || selectedLocation.sentiment || null;
+
+  // Only show sentiment if reviews have been analyzed AFTER the last scrape
+  // This prevents showing stale sentiment data after a rescrape
+  const rawSentiment = reviewData?.sentiment || selectedLocation.sentiment || null;
+  const isStale = isSentimentStale(selectedLocation);
+  const sentiment = isStale ? null : rawSentiment;
 
   // IMPORTANT: Always use selectedLocation.reviewsCount as the source of truth
   // reviewData.reviewsCount may be 0 when filters return no results, but we still want to show the UI
@@ -39,6 +45,9 @@ const ReviewSidebar = ({
   // Use reviewsCount (total in DB) instead of current filtered results
   // This ensures filter UI stays visible even when filters return 0 results
   const hasReviews = reviewsCount > 0;
+
+  // Create a unique key that includes lastScraped to force remount on rescrape
+  const reviewListKey = `${selectedLocation.id}-${reviewFilters.searchTerm}-${reviewFilters.sentiment}-${reviewFilters.rating}-${selectedLocation.scrapeConfig?.lastScraped || 'initial'}`;
 
   // Debug log
   console.log("📊 ReviewSidebar state:", {
@@ -50,6 +59,11 @@ const ReviewSidebar = ({
     reviewAuthors: reviews.map(r => r.author).slice(0, 3), // First 3 authors
     pagination,
     usingReactQuery: !!reviewData,
+    reviewListKey,
+    lastScraped: selectedLocation.scrapeConfig?.lastScraped,
+    lastAnalyzed: selectedLocation.analysisConfig?.lastAnalyzed,
+    isSentimentStale: isStale,
+    showingSentiment: !!sentiment,
   });
 
   return (
@@ -87,6 +101,7 @@ const ReviewSidebar = ({
 
           {/* Reviews List */}
           <ReviewList
+            key={reviewListKey}
             reviews={reviews} // Pass paginated reviews
             pagination={pagination} // Pass pagination info
             hasReviews={hasReviews} // *** THIS IS THE FIX: Pass hasReviews ***
