@@ -31,7 +31,6 @@ const DashboardLayout = () => {
   const navItems = [
     { path: '/dashboard', label: 'Dashboard' },
     { path: '/dashboard/sentiment-map', label: 'Sentiment Map' },
-    { path: '/dashboard/ai-reply', label: 'Reply Generator' },
   ];
 
   const handleLogout = () => {
@@ -174,15 +173,6 @@ const DashboardLayout = () => {
                       className="hover:bg-[#FAF6E9] text-[#2F4B4E]"
                     >
                       Profile
-                    </DropdownItem>
-                    <DropdownItem
-                      onClick={() => {
-                        setIsDropdownOpen(false);
-                        navigate('/dashboard/settings');
-                      }}
-                      className="hover:bg-[#FAF6E9] text-[#2F4B4E]"
-                    >
-                      Settings
                     </DropdownItem>
                     <div className="bg-gray-200 mx-4 my-1 h-px" />
                     <DropdownItem
