@@ -103,10 +103,10 @@ const Profile = () => {
       }
 
       setIsEditing(false);
-      alert("Profile updated successfully!");
+      showSuccessAlert("Profile Updated!", "Your profile has been updated successfully.");
     },
     onError: (error) => {
-      alert(`Error: ${error.message}`);
+      showErrorAlert("Update Failed", error.message || "Failed to update profile");
     },
   });
 
