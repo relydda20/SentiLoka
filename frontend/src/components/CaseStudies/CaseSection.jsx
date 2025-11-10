@@ -102,8 +102,12 @@ const CaseSection = () => {
         viewport={{ once: true }}
       >
         <button
-          onClick={() => window.open("/reports/kfc-lippo-cikarang.pdf", "_blank")}
-          className="flex items-center gap-2 bg-[#2F4B4E] text-white px-6 py-3 rounded-xl font-medium shadow-md hover:bg-[#3b6668] transition-all duration-300"
+          onClick={() => {
+            const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8080/api";
+            const baseUrl = apiUrl.replace("/api", "");
+            window.open(`${baseUrl}/reports/KFC-Case-Study.pdf`, "_blank");
+          }}
+          className="flex items-center gap-2 bg-[#2F4B4E] text-white px-6 py-3 rounded-xl font-medium shadow-md hover:bg-[#3b6668] transition-all duration-300 hover:shadow-lg"
         >
           <FileDown size={18} />
           Download Full Report (PDF)

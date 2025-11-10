@@ -64,6 +64,9 @@ COPY . .
 # Create temp directory for scraper outputs
 RUN mkdir -p temp && chmod 777 temp
 
+# Create files directory for PDFs and other static files
+RUN mkdir -p files/pdfs && chmod 755 files/pdfs
+
 # Set Python environment variables
 ENV PYTHONUNBUFFERED=1
 ENV PLAYWRIGHT_BROWSERS_PATH=/root/.cache/ms-playwright
