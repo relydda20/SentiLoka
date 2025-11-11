@@ -2,57 +2,94 @@
 
 **Every Review Matters**
 
-SentiLoka is an AI-powered customer sentiment analysis and review management platform that helps businesses understand customer feedback across multiple locations. By leveraging advanced sentiment analysis and automated response generation, SentiLoka transforms customer reviews into actionable business insights.
+SentiLoka is an AI-powered customer sentiment analysis and review management platform that helps businesses understand customer feedback across multiple locations. We help companies who struggle to read thousands of reviews uncover what customers truly feel.
 
-## Overview
+## GitHub Repository
 
-SentiLoka provides businesses with the tools to monitor, analyze, and respond to customer reviews from Google Maps in real-time. The platform uses AI to analyze sentiment, identify trends, and generate contextually appropriate responses, helping businesses maintain strong customer relationships across all their locations.
+**Repository:** [https://github.com/relydda20/SentiLoka](https://github.com/relydda20/SentiLoka)
 
-## Key Features
+## Live Demo
 
-### Map-Based Analytics
-Visualize customer sentiment across all your business locations on an interactive map. Get a geographical overview of customer satisfaction and identify trends by region.
+**Deployment:** [https://www.sentiloka.app/](https://www.sentiloka.app/)
 
-### AI-Powered Reply Generation
-Generate perfect, context-aware responses to reviews in seconds with customizable tones. The AI understands the nuances of each review and creates personalized replies that match your brand voice.
+## Project Overview
 
-### Sentiment Tracking
-Understand customer feelings at a glance with real-time positive, neutral, and negative feedback analysis. Track sentiment trends over time and identify areas for improvement.
+### Goal
 
-### Comprehensive Dashboard
-Monitor all your locations from a single, intuitive dashboard. View sentiment breakdowns, rating distributions, and key performance indicators across your business.
+SentiLoka aims to transform how businesses understand and respond to customer feedback by providing:
 
-### Intelligent Chatbot
-Get instant insights about your reviews through natural language queries. Ask questions about customer sentiment, common themes, or specific locations and receive data-driven answers.
+- Real-time sentiment analysis of Google Maps reviews
+- Geographic visualization of customer satisfaction across multiple locations
+- AI-powered review response generation
+- Actionable insights from customer feedback data
+- Conversational AI interface for querying review data
 
-## Tech Stack
+### Problem Statement
+
+Companies with multiple business locations struggle to:
+- Process and analyze thousands of customer reviews manually
+- Understand geographic patterns in customer sentiment
+- Respond promptly and appropriately to customer feedback
+- Extract actionable insights from unstructured review data
+
+## Main Features
+
+### 1. Map-Based Analytics
+**See what customers feel - anywhere, anytime, on the map**
+
+Visualize customer sentiment across all your business locations on an interactive map. Get a geographical overview of customer satisfaction and identify trends by region in real-time.
+
+### 2. Emotion-Driven Insights
+**We don't just show data - we show emotions**
+
+Transform raw review data into emotional insights. Our AI analyzes the underlying emotions in customer feedback, helping you understand not just what customers say, but how they feel.
+
+### 3. Live Sentiment Analysis
+**We're redefining feedback - turning emotions into live insights, instantly**
+
+Real-time sentiment analysis provides immediate understanding of customer feelings with positive, neutral, and negative feedback classification. Track sentiment trends over time and identify areas for improvement.
+
+### 4. AI-Powered Reply Generation
+Generate perfect, context-aware responses to reviews in seconds. The AI understands the nuances of each review and creates personalized replies that match your brand voice and tone.
+
+### 5. Loka AI - Conversational Intelligence
+**Your AI you can talk to, anytime, anywhere, no signup needed**
+
+Meet Loka AI, an intelligent chatbot that listens, understands, and transforms your questions into meaningful insights instantly. Query your review data using natural language and get data-driven answers about customer sentiment, common themes, and business performance.
+
+### 6. Comprehensive Dashboard
+Monitor all your locations from a single, intuitive dashboard. View sentiment breakdowns, rating distributions, and key performance indicators across your business with visual analytics.
+
+## Technology Stack
 
 ### Frontend
-- React with Tailwind CSS for a modern, responsive user interface
-- React Query for efficient data fetching and state management
-- Leaflet for interactive map visualizations
-- Recharts for data visualization and analytics
+- **React** - Modern UI framework for building interactive user interfaces
+- **Tailwind CSS** - Utility-first CSS framework for responsive design
+- **React Query (TanStack Query)** - Efficient data fetching and state management
+- **Google Maps API** - Interactive map visualizations for geographic sentiment analysis
+- **ApexCharts** - Data visualization and analytics charts
 
 ### Backend
-- Node.js with Express for RESTful API development
-- Python with Scrapy and Playwright for web scraping
-- Bull queue with Redis for background job processing
-- JWT-based authentication with Google OAuth support
+- **Node.js & Express** - RESTful API development and server-side logic
+- **Python** - Web scraping and data processing
+- **Scrapy & Playwright** - Custom high-performance web scraper for Google Maps
+- **Bull Queue & Redis** - Background job processing for asynchronous tasks
+- **JWT Authentication** - Secure authentication with Google OAuth support
+- **Passport.js** - Authentication middleware
 
 ### Database
-- MongoDB for flexible, scalable data storage
+- **MongoDB** - Flexible, scalable NoSQL database for storing reviews and sentiment data
 
 ### AI & Machine Learning
-- OpenAI Elice for sentiment analysis
-- Google Gemini for advanced natural language processing
-- Custom keyword extraction and topic modeling
+- **OpenAI Elice ML API** - Advanced sentiment analysis and natural language processing
+- **Google Gemini** - AI-powered review response generation
 
 ## Getting Started
 
 ### Prerequisites
 
 - Node.js 20 or higher
-- Python 3.x
+- Python 3.x with pip
 - MongoDB
 - Redis (optional, for background job processing)
 - OpenAI API key
@@ -83,7 +120,7 @@ playwright install chromium
 cp .env.example .env
 ```
 
-5. Configure environment variables:
+5. Configure environment variables in `.env`:
 ```
 NODE_ENV=development
 PORT=8080
@@ -97,7 +134,7 @@ REDIS_HOST=127.0.0.1
 REDIS_PORT=6379
 ```
 
-6. Seed the database (optional):
+6. (Optional) Seed the database with test data:
 ```bash
 npm run seed
 ```
@@ -107,7 +144,7 @@ npm run seed
 npm run dev
 ```
 
-The backend will run on `http://localhost:8080`.
+The backend API will run on `http://localhost:8080`.
 
 ### Frontend Setup
 
@@ -131,7 +168,7 @@ VITE_API_URL=http://localhost:8080/api
 npm run dev
 ```
 
-The frontend will run on `http://localhost:5173`.
+The frontend application will run on `http://localhost:5173`.
 
 ## Project Structure
 
@@ -279,16 +316,22 @@ An intelligent chatbot that:
 - Confidence scores
 - Contextual topics
 
-## Development Challenges Solved
+## Development Challenges & Solutions
 
-### API Costs
-Switched from costly third-party APIs to open-source solutions, significantly reducing operational costs while maintaining high-quality sentiment analysis.
+### Challenge 1: API Costs and Limitations
+**Problem:** Third-party sentiment analysis APIs were costly and had usage limitations that would not scale with our needs.
 
-### Slow Scraping
-Built a custom Scrapy spider with Playwright that is significantly faster than conventional solutions, with intelligent caching and parallel processing.
+**Solution:** We went open-source. Built custom sentiment analysis using open-source AI models (OpenAI Elice and Google Gemini), significantly reducing operational costs while maintaining high-quality analysis.
 
-### Long Analysis Times
-Implemented parallel processing and background jobs using Bull queue, allowing multiple reviews to be analyzed simultaneously without blocking the main application.
+### Challenge 2: Slow Web Scraping
+**Problem:** Conventional web scraping methods were too slow to handle large volumes of reviews from multiple locations.
+
+**Solution:** We built our own, faster scraper. Developed a custom Scrapy spider with Playwright that efficiently handles dynamic content, with intelligent caching and pagination handling. Our scraper can collect unlimited reviews from any Google Maps location.
+
+### Challenge 3: Long Analysis Times
+**Problem:** Processing thousands of reviews sequentially took too long, creating bottlenecks in the user experience.
+
+**Solution:** We made it parallel. Implemented Bull queue with Redis for background job processing, allowing multiple reviews to be analyzed simultaneously. This parallel processing architecture dramatically reduced analysis time and improved system responsiveness.
 
 ## Security
 
@@ -340,30 +383,64 @@ npm run build
 ### Frontend
 - `VITE_API_URL` - Backend API URL
 
-## Future Development
+## What Makes SentiLoka Unique
 
-1. **User Experience** - Enhanced UI/UX with more interactive visualizations and improved mobile responsiveness
+### Loka AI - Conversational Interface
+Unlike traditional analytics platforms, SentiLoka features Loka AI, a conversational AI assistant that you can talk to anytime, anywhere, with no signup needed. Simply ask questions in natural language and receive meaningful insights instantly.
 
-2. **Security** - Implementation of advanced security features including two-factor authentication and enhanced data encryption
+### Geographic Sentiment Visualization
+Our interactive map-based interface allows businesses to visualize customer emotions geographically, providing spatial context to sentiment analysis that traditional review management tools lack.
 
-3. **New Features** - Review comparison tools, automated report generation, and multi-platform review aggregation
+### Emotion-Centric Analysis
+We go beyond simple ratings and keywords. SentiLoka focuses on understanding and presenting the emotional content of reviews, turning raw data into actionable emotional intelligence.
 
-4. **Marketing Strategy** - Integration with marketing tools, competitive analysis features, and customer segmentation
+## Future Development Roadmap
+
+### 1. Enhanced User Experience
+- Improved UI/UX with more interactive visualizations
+- Mobile app development for on-the-go review management
+- Advanced filtering and search capabilities
+- Customizable dashboard widgets
+
+### 2. Security Enhancements
+- Two-factor authentication implementation
+- Enhanced data encryption
+- Advanced user permission management
+- Security audit and compliance certifications
+
+### 3. New Features
+- Multi-platform review aggregation (beyond Google Maps)
+- Automated report generation and scheduling
+- Review comparison tools across locations
+- Competitor sentiment analysis
+- Integration with CRM and marketing tools
+- Advanced predictive analytics
+
+### 4. Marketing Strategy
+- Customer segmentation based on sentiment patterns
+- Automated marketing campaign recommendations
+- ROI tracking for review response efforts
+- Industry benchmark comparisons
 
 ## Team
 
 **KADA Batch 2 - Group 1**
 
-- Raphael Reynaldi - Backend Developer
-- Nada Salsabila - UI/UX Designer
-- Alif Fata Fadhlillah - UI/UX Designer
-- Otniel Abiezer - Backend Developer
-- Satria Ibnu Pamungkas - Frontend Developer
-- Richly Ranald Januar - Backend Developer
+Backend Developers:
+- Raphael Reynaldi
+- Otniel Abiezer
+- Richly Ranald Januar
+
+Frontend Developer:
+- Satria Ibnu Pamungkas
+
+UI/UX Designers:
+- Nada Salsabila
+- Alif Fata Fadhlillah
 
 ## License
 
-This project is part of KADA Batch 2 educational program.
+This project is part of Korean-ASEAN Digital Academy (KADA) Batch 2 educational program.
 
 ## Support
 
@@ -371,4 +448,4 @@ For questions and support, please contact the development team or create an issu
 
 ---
 
-Built with passion by KADA Batch 2 Group 1
+**Built by KADA Batch 2 Group 1**
